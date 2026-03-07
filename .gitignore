@@ -1,5 +1,28 @@
-/__pycache__/
-/__pypackages__/
-/venv/
+__pycache__/
+__pypackages__/
+venv/
+*.pyc
+*.pyo
+
+# Environment files
+.env
 .env.dev
 .env.prod
+
+# Credentials (NEVER commit)
+credentials/
+**/google-vision.json
+
+# Uploads
+uploads/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Eval outputs
+evaluation/results/
