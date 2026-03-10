@@ -4,45 +4,49 @@ from pydantic import BaseModel
 from datetime import datetime
 
 
-#   Enums  
+# --- Enums ---
 
 class ServiceType(str, Enum):
-    PASSPORT_NEW = "passport_new"
-    PASSPORT_RENEWAL = "passport_renewal"
-    PASSPORT_LOST = "passport_lost"
-    PASSPORT_STOLEN = "passport_stolen"
     ID_NEW = "id_new"
     ID_RENEWAL = "id_renewal"
-    ID_LOST = "id_lost"
-    ID_STOLEN = "id_stolen"
+    PASSPORT_NEW = "passport_new"
+    PASSPORT_RENEWAL = "passport_renewal"
 
 
 class CaseStatus(str, Enum):
     DRAFT = "draft"
-    DOCUMENTS_PENDING = "documents_pending"
-    DOCUMENTS_UPLOADED = "documents_uploaded"
-    PROCESSING = "processing"
-    ACTION_REQUIRED = "action_required"
-    PAYMENT_PENDING = "payment_pending"
-    PAYMENT_COMPLETED = "payment_completed"
     SUBMITTED = "submitted"
-    UNDER_REVIEW = "under_review"
-    MANUAL_REVIEW = "manual_review"
+    VALIDATED = "validated"
+    RISK_EVALUATED = "risk_evaluated"
+    NEED_INFO = "need_info"
     APPROVED = "approved"
-    READY_FOR_PICKUP = "ready_for_pickup"
-    COMPLETED = "completed"
     REJECTED = "rejected"
+    IN_PRODUCTION = "in_production"
+    READY_FOR_PICKUP = "ready_for_pickup"
+    CLOSED = "closed"
 
 
 class DocumentType(str, Enum):
-    NATIONAL_ID = "national_id"
-    BIRTH_CERTIFICATE = "birth_certificate"
-    PASSPORT_PHOTO = "passport_photo"
+    # ID documents
+    NATIONAL_ID_FRONT = "national_id_front"
+    NATIONAL_ID_BACK = "national_id_back"
+    OLD_ID_FRONT = "old_id_front"
+    OLD_ID_BACK = "old_id_back"
+
+    # Passport
+    PASSPORT_DATA_PAGE = "passport_data_page"
+    OLD_PASSPORT_DATA_PAGE = "old_passport_data_page"
+
+    # Civil records
+    CIVIL_REGISTRY_EXTRACT = "civil_registry_extract"
+
+    # Photos & biometrics
     SELFIE = "selfie"
-    FAMILY_RECORD = "family_record"
-    POLICE_REPORT = "police_report"
-    OLD_PASSPORT = "old_passport"
-    OLD_ID = "old_id"
+    LIVENESS_CAPTURE = "liveness_capture"
+
+    # Supporting
+    GUARDIAN_DOCS = "guardian_docs"
+    ADDITIONAL_IDENTITY_PROOF = "additional_identity_proof"
 
 
 class UserRole(str, Enum):
@@ -57,6 +61,12 @@ class VerificationDecision(str, Enum):
     FAIL = "fail"
 
 
+class ValidationResult(str, Enum):
+    PASS = "pass"
+    NEED_INFO = "need_info"
+    FAIL = "fail"
+
+
 class PaymentStatus(str, Enum):
     PENDING = "pending"
     PROCESSING = "processing"
@@ -65,7 +75,7 @@ class PaymentStatus(str, Enum):
     REFUNDED = "refunded"
 
 
-#   OCR Schemas  
+# --- OCR Schemas ---
 
 class OCRRequest(BaseModel):
     document_id: str
@@ -97,7 +107,7 @@ class OCRResponse(BaseModel):
     retake_reasons: list[str]
 
 
-#   Face Verification Schemas  
+# --- Face Verification Schemas ---
 
 class FaceVerifyRequest(BaseModel):
     case_id: str
@@ -114,7 +124,7 @@ class FaceVerifyResponse(BaseModel):
     reasons: list[str]
 
 
-#   Tracking  
+# --- Tracking ---
 
 class TrackingEvent(BaseModel):
     timestamp: datetime
