@@ -9,7 +9,6 @@ venv/
 .env.dev
 .env.prod
 
-# Credentials (NEVER commit)
 credentials/
 **/google-vision.json
 
@@ -26,3 +25,5 @@ Thumbs.db
 
 # Eval outputs
 evaluation/results/
+
+appdoc.txt
