@@ -1,0 +1,420 @@
+import { useState, useEffect, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { casesApi } from '../api/cases';
+import flagImg from '../assets/Figure_1.png';
+import { useAuth } from '../context/AuthContext';
+import '../styles/dashboard.css';
+
+const DOC_LABELS = {
+  national_id_front: { ar: 'الهوية - الوجه الأمامي', en: 'National ID (Front)' },
+  national_id_back: { ar: 'الهوية - الوجه الخلفي', en: 'National ID (Back)' },
+  old_id_front: { ar: 'الهوية القديمة - أمامي', en: 'Old ID (Front)' },
+  old_id_back: { ar: 'الهوية القديمة - خلفي', en: 'Old ID (Back)' },
+  civil_registry: { ar: 'سجل القيد العائلي', en: 'Civil Registry Extract' },
+  selfie: { ar: 'صورة شخصية', en: 'Selfie Photo' },
+  liveness: { ar: 'صورة التحقق من الحياة', en: 'Liveness Photo' },
+  old_passport: { ar: 'جواز السفر القديم', en: 'Old Passport' },
+  additional_proof: { ar: 'إثبات إضافي', en: 'Additional Proof' },
+  guardian_id: { ar: 'هوية الولي', en: 'Guardian ID' },
+  guardian_consent: { ar: 'موافقة الولي', en: 'Guardian Consent' },
+};
+
+const FIELD_LABELS = {
+  full_name: { ar: 'الاسم الكامل', en: 'Full Name' },
+  father_name: { ar: 'اسم الأب', en: "Father's Name" },
+  mother_name: { ar: 'اسم الأم', en: "Mother's Name" },
+  date_of_birth: { ar: 'تاريخ الميلاد', en: 'Date of Birth' },
+  place_of_birth: { ar: 'مكان الميلاد', en: 'Place of Birth' },
+  gender: { ar: 'الجنس', en: 'Gender' },
+  registry_number: { ar: 'رقم السجل', en: 'Registry Number' },
+  registry_place: { ar: 'مكان السجل', en: 'Registry Place' },
+  marital_status: { ar: 'الحالة الاجتماعية', en: 'Marital Status' },
+  passport_number: { ar: 'رقم جواز السفر', en: 'Passport Number' },
+  nationality: { ar: 'الجنسية', en: 'Nationality' },
+};
+
+const STATUS_MAP = {
+  draft: { ar: 'مسودة', en: 'Draft', color: 'gray' },
+  submitted: { ar: 'قيد المراجعة', en: 'Submitted', color: 'blue' },
+  validated: { ar: 'تم التحقق', en: 'Validated', color: 'blue' },
+  risk_evaluated: { ar: 'تم تقييم المخاطر', en: 'Risk Evaluated', color: 'orange' },
+  approved: { ar: 'موافق عليه', en: 'Approved', color: 'green' },
+  rejected: { ar: 'مرفوض', en: 'Rejected', color: 'red' },
+  need_info: { ar: 'بحاجة لمعلومات', en: 'Needs Info', color: 'orange' },
+  in_production: { ar: 'قيد الإنتاج', en: 'In Production', color: 'blue' },
+  ready_for_pickup: { ar: 'جاهز للاستلام', en: 'Ready for Pickup', color: 'green' },
+  closed: { ar: 'مغلق', en: 'Closed', color: 'gray' },
+};
+
+export default function CaseDetail() {
+  const { caseId } = useParams();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+
+  const [caseData, setCaseData] = useState(null);
+  const [requiredDocs, setRequiredDocs] = useState([]);
+  const [documents, setDocuments] = useState([]);
+  const [completeness, setCompleteness] = useState(null);
+  const [declaredFields, setDeclaredFields] = useState({});
+  const [requiredFields, setRequiredFields] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  const loadCase = useCallback(async () => {
+    try {
+      const [caseRes, docsRes, reqDocsRes, compRes] = await Promise.all([
+        casesApi.get(caseId),
+        casesApi.getDocuments(caseId),
+        casesApi.getRequiredDocuments(caseId),
+        casesApi.getCompleteness(caseId),
+      ]);
+      setCaseData(caseRes.data);
+      setDocuments(docsRes.data);
+      setRequiredDocs(reqDocsRes.data.required_documents || []);
+      setRequiredFields(reqDocsRes.data.declared_fields || []);
+      setCompleteness(compRes.data);
+      setDeclaredFields(caseRes.data.declared_fields || {});
+    } catch {
+      setError('فشل في تحميل بيانات الطلب');
+    } finally {
+      setLoading(false);
+    }
+  }, [caseId]);
+
+  useEffect(() => {
+    loadCase();
+  }, [loadCase]);
+
+  const handleUpload = async (docType, file) => {
+    setUploading(docType);
+    setError('');
+    try {
+      await casesApi.uploadDocument(caseId, file, docType);
+      setSuccess('تم رفع الملف بنجاح');
+      setTimeout(() => setSuccess(''), 3000);
+      await loadCase();
+    } catch (err) {
+      setError(err.response?.data?.detail || 'فشل في رفع الملف');
+    } finally {
+      setUploading('');
+    }
+  };
+
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    setError('');
+    try {
+      await casesApi.submit(caseId, declaredFields);
+      setSuccess('تم تقديم الطلب بنجاح!');
+      await loadCase();
+    } catch (err) {
+      setError(err.response?.data?.detail || 'فشل في تقديم الطلب');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const isDraft = caseData?.status === 'draft';
+  const isNeedInfo = caseData?.status === 'need_info';
+  const canEdit = isDraft || isNeedInfo;
+  const st = STATUS_MAP[caseData?.status] || { ar: '', en: '', color: 'gray' };
+
+  if (loading) {
+    return (
+      <div className="dashboard" dir="rtl">
+        <div className="dashboard-main"><div className="loading-spinner" /></div>
+      </div>
+    );
+  }
+
+  if (!caseData) {
+    return (
+      <div className="dashboard" dir="rtl">
+        <div className="dashboard-main">
+          <div className="empty-state">
+            <p className="ar">الطلب غير موجود</p>
+            <p className="en">Case not found</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="dashboard" dir="rtl">
+      <header className="dashboard-header">
+        <div className="dashboard-header__brand">
+          <img src={flagImg} alt="" className="dashboard-header__flag" />
+          <span className="dashboard-header__title">DocFlow <span>Lebanon</span></span>
+        </div>
+        <div className="dashboard-header__actions">
+          <button className="btn btn--ghost" onClick={() => navigate('/dashboard')}>
+            <span className="ar">العودة</span>
+            <span className="en">Back</span>
+          </button>
+          <button className="btn btn--ghost" onClick={() => { logout(); navigate('/login'); }}>
+            <span className="ar">خروج</span>
+            <span className="en">Sign Out</span>
+          </button>
+        </div>
+      </header>
+
+      <main className="dashboard-main">
+        {/* Case Header */}
+        <div className="case-header">
+          <div>
+            <h1>
+              <span className="ar">تفاصيل الطلب</span>
+              <span className="en">Application Details</span>
+            </h1>
+            <p className="case-header__tracking">#{caseData.tracking_id}</p>
+          </div>
+          <span className={`status-badge status-badge--${st.color} status-badge--lg`}>
+            <span className="ar">{st.ar}</span>
+            <span className="en">{st.en}</span>
+          </span>
+        </div>
+
+        {error && <div className="alert alert--error">{error}</div>}
+        {success && <div className="alert alert--success">{success}</div>}
+
+        {/* Rejection reasons */}
+        {caseData.rejection_reasons?.length > 0 && (
+          <div className="alert alert--error">
+            <strong className="ar">أسباب الرفض:</strong>
+            <strong className="en" style={{ display: 'block', fontSize: '0.75rem' }}>Rejection Reasons:</strong>
+            <ul style={{ marginTop: '0.5rem', paddingRight: '1.25rem' }}>
+              {caseData.rejection_reasons.map((r, i) => <li key={i}>{r}</li>)}
+            </ul>
+          </div>
+        )}
+
+        {/* Notes */}
+        {caseData.notes && (
+          <div className="alert alert--info">
+            <strong className="ar">ملاحظات:</strong>
+            <strong className="en" style={{ display: 'block', fontSize: '0.75rem' }}>Notes:</strong>
+            <p style={{ marginTop: '0.25rem' }}>{caseData.notes}</p>
+          </div>
+        )}
+
+        {/* Documents Section */}
+        <section className="detail-section">
+          <h2>
+            <span className="ar">المستندات المطلوبة</span>
+            <span className="en">Required Documents</span>
+          </h2>
+          {completeness && (
+            <div className="completeness-bar">
+              <div
+                className="completeness-bar__fill"
+                style={{ width: `${(completeness.uploaded_count / Math.max(completeness.required_count, 1)) * 100}%` }}
+              />
+              <span className="completeness-bar__text">
+                {completeness.uploaded_count} / {completeness.required_count}
+              </span>
+            </div>
+          )}
+          <div className="doc-grid">
+            {requiredDocs.map((docType) => {
+              const uploaded = documents.find((d) => d.document_type === docType);
+              const label = DOC_LABELS[docType] || { ar: docType, en: docType };
+              const isUploading = uploading === docType;
+
+              return (
+                <div key={docType} className={`doc-card ${uploaded ? 'doc-card--uploaded' : ''}`}>
+                  <div className="doc-card__info">
+                    <span className="doc-card__label ar">{label.ar}</span>
+                    <span className="doc-card__label en">{label.en}</span>
+                    {uploaded && (
+                      <span className="doc-card__filename">{uploaded.original_filename}</span>
+                    )}
+                  </div>
+                  <div className="doc-card__action">
+                    {uploaded ? (
+                      <span className="doc-card__check">&#10003;</span>
+                    ) : canEdit ? (
+                      <label className={`btn btn--sm btn--outline ${isUploading ? 'btn--loading' : ''}`}>
+                        {isUploading ? (
+                          <span className="ar">جارٍ الرفع...</span>
+                        ) : (
+                          <>
+                            <span className="ar">رفع</span>
+                            <span className="en">Upload</span>
+                          </>
+                        )}
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,application/pdf"
+                          style={{ display: 'none' }}
+                          onChange={(e) => {
+                            if (e.target.files[0]) handleUpload(docType, e.target.files[0]);
+                          }}
+                          disabled={isUploading}
+                        />
+                      </label>
+                    ) : (
+                      <span className="doc-card__missing">&#10007;</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* Declared Fields */}
+        {canEdit && requiredFields.length > 0 && (
+          <section className="detail-section">
+            <h2>
+              <span className="ar">البيانات الشخصية</span>
+              <span className="en">Personal Information</span>
+            </h2>
+            <div className="fields-grid">
+              {requiredFields.map((field) => {
+                const label = FIELD_LABELS[field] || { ar: field, en: field };
+                return (
+                  <div key={field} className="field-group">
+                    <label>
+                      <span className="ar">{label.ar}</span>
+                      <span className="en">{label.en}</span>
+                    </label>
+                    {field === 'gender' ? (
+                      <select
+                        value={declaredFields[field] || ''}
+                        onChange={(e) => setDeclaredFields({ ...declaredFields, [field]: e.target.value })}
+                      >
+                        <option value="">-- اختر --</option>
+                        <option value="male">ذكر / Male</option>
+                        <option value="female">أنثى / Female</option>
+                      </select>
+                    ) : field === 'marital_status' ? (
+                      <select
+                        value={declaredFields[field] || ''}
+                        onChange={(e) => setDeclaredFields({ ...declaredFields, [field]: e.target.value })}
+                      >
+                        <option value="">-- اختر --</option>
+                        <option value="single">أعزب / Single</option>
+                        <option value="married">متزوج / Married</option>
+                        <option value="divorced">مطلق / Divorced</option>
+                        <option value="widowed">أرمل / Widowed</option>
+                      </select>
+                    ) : field === 'date_of_birth' ? (
+                      <input
+                        type="date"
+                        value={declaredFields[field] || ''}
+                        onChange={(e) => setDeclaredFields({ ...declaredFields, [field]: e.target.value })}
+                      />
+                    ) : (
+                      <input
+                        type="text"
+                        value={declaredFields[field] || ''}
+                        onChange={(e) => setDeclaredFields({ ...declaredFields, [field]: e.target.value })}
+                        placeholder={label.en}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* Non-editable declared fields display */}
+        {!canEdit && Object.keys(caseData.declared_fields || {}).length > 0 && (
+          <section className="detail-section">
+            <h2>
+              <span className="ar">البيانات المقدمة</span>
+              <span className="en">Submitted Information</span>
+            </h2>
+            <div className="fields-display">
+              {Object.entries(caseData.declared_fields).map(([key, val]) => {
+                const label = FIELD_LABELS[key] || { ar: key, en: key };
+                return (
+                  <div key={key} className="field-display-item">
+                    <span className="field-display-item__label">
+                      <span className="ar">{label.ar}</span>
+                      <span className="en">{label.en}</span>
+                    </span>
+                    <span className="field-display-item__value">{val}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* Submit Button */}
+        {canEdit && (
+          <div className="submit-section">
+            <button
+              className={`btn btn--primary btn--lg ${submitting ? 'btn--loading' : ''}`}
+              onClick={handleSubmit}
+              disabled={submitting || !completeness?.complete}
+            >
+              {submitting ? (
+                <span className="ar">جارٍ التقديم...</span>
+              ) : (
+                <>
+                  <span className="ar">تقديم الطلب</span>
+                  <span className="en">Submit Application</span>
+                </>
+              )}
+            </button>
+            {!completeness?.complete && completeness?.missing_documents?.length > 0 && (
+              <p className="submit-hint">
+                <span className="ar">يرجى رفع جميع المستندات المطلوبة قبل التقديم</span>
+                <span className="en">Please upload all required documents before submitting</span>
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Tracking Timeline */}
+        {!isDraft && <TrackingTimeline caseId={caseId} />}
+      </main>
+    </div>
+  );
+}
+
+function TrackingTimeline({ caseId }) {
+  const [tracking, setTracking] = useState(null);
+
+  useEffect(() => {
+    casesApi.getTracking(caseId).then(({ data }) => setTracking(data)).catch(() => {});
+  }, [caseId]);
+
+  if (!tracking || !tracking.events?.length) return null;
+
+  return (
+    <section className="detail-section">
+      <h2>
+        <span className="ar">مسار الطلب</span>
+        <span className="en">Application Timeline</span>
+      </h2>
+      <div className="timeline">
+        {tracking.events.map((ev, i) => (
+          <div key={i} className={`timeline__item ${i === 0 ? 'timeline__item--active' : ''}`}>
+            <div className="timeline__dot" />
+            <div className="timeline__content">
+              <p className="timeline__message">{ev.message}</p>
+              <span className="timeline__date">
+                {new Date(ev.timestamp).toLocaleString('ar-LB')}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+      {tracking.next_action && (
+        <div className="next-action">
+          <span className="ar">الخطوة التالية: </span>
+          <span className="en">Next Step: </span>
+          <strong>{tracking.next_action}</strong>
+        </div>
+      )}
+    </section>
+  );
+}
