@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import AuthLayout from '../components/AuthLayout';
+import PasswordInput from '../components/PasswordInput';
 import { authApi } from '../api/auth';
 
 function getPasswordStrength(pw) {
@@ -145,6 +146,12 @@ export default function Register() {
               <option key={opt.value} value={opt.value}>{opt.ar} / {opt.en}</option>
             ))}
           </select>
+        ) : field.type === 'password' ? (
+          <PasswordInput
+            {...commonProps}
+            placeholder={field.placeholder || ''}
+            required={field.required}
+          />
         ) : (
           <input
             {...commonProps}

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import AuthLayout from '../components/AuthLayout';
+import PasswordInput from '../components/PasswordInput';
 import { authApi } from '../api/auth';
 
 function getPasswordStrength(pw) {
@@ -91,16 +92,13 @@ export default function ResetPassword() {
                 <span className="ar">كلمة المرور الجديدة</span>
                 <span className="en">New Password</span>
               </label>
-              <input
+              <PasswordInput
                 id="password"
-                type="password"
-                className="form-input"
                 placeholder="أدخل كلمة المرور الجديدة"
                 value={password}
                 onChange={(e) => { setPassword(e.target.value); setError(''); }}
                 required
                 autoFocus
-                dir="ltr"
               />
               <p className="password-hint">
                 <span className="ar">٨ أحرف على الأقل، حرف كبير وصغير، رقم، ورمز خاص</span>
@@ -113,15 +111,12 @@ export default function ResetPassword() {
                 <span className="ar">تأكيد كلمة المرور</span>
                 <span className="en">Confirm Password</span>
               </label>
-              <input
+              <PasswordInput
                 id="confirm"
-                type="password"
-                className="form-input"
                 placeholder="أعد إدخال كلمة المرور"
                 value={confirm}
                 onChange={(e) => { setConfirm(e.target.value); setError(''); }}
                 required
-                dir="ltr"
               />
             </div>
 

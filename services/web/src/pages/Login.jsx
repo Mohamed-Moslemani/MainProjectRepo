@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import AuthLayout from '../components/AuthLayout';
+import PasswordInput from '../components/PasswordInput';
 import { useAuth } from '../context/AuthContext';
 
 export default function Login() {
@@ -76,16 +77,13 @@ export default function Login() {
             <span className="ar">كلمة المرور</span>
             <span className="en">Password</span>
           </label>
-          <input
+          <PasswordInput
             id="password"
             name="password"
-            type="password"
-            className="form-input"
             placeholder="أدخل كلمة المرور"
             value={form.password}
             onChange={handleChange}
             required
-            dir="ltr"
           />
         </div>
 
