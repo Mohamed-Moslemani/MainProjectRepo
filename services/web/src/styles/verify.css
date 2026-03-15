@@ -1,0 +1,61 @@
+/* ── Verification Code Input ── */
+
+.code-form {
+  margin-top: 1.5rem;
+}
+
+.code-inputs {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.code-input {
+  width: 48px;
+  height: 56px;
+  text-align: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  border: 2px solid var(--gray-300);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  color: var(--gray-900);
+  outline: none;
+  transition: all var(--transition);
+  caret-color: var(--cedar);
+}
+
+.code-input:focus {
+  border-color: var(--cedar);
+  box-shadow: 0 0 0 3px rgba(0, 166, 81, 0.12);
+}
+
+.code-input--error {
+  border-color: var(--error);
+  animation: shake 0.4s ease;
+}
+
+.code-input--error:focus {
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-4px); }
+  40%, 80% { transform: translateX(4px); }
+}
+
+.verify-resend {
+  margin-top: 2rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--gray-200);
+  text-align: center;
+}
+
+.verify-resend p {
+  font-size: 0.85rem;
+  color: var(--gray-500);
+  margin-bottom: 0.25rem;
+}
