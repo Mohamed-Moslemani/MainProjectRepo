@@ -1,0 +1,214 @@
+{
+  "id": null,
+  "uid": "docflow-ai-observability",
+  "title": "DocFlow — AI Observability (OCR + Face)",
+  "tags": ["docflow", "ai", "ocr", "face"],
+  "timezone": "browser",
+  "refresh": "10s",
+  "time": { "from": "now-30m", "to": "now" },
+  "panels": [
+    { "id": 1, "title": "OCR Overview", "type": "row", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }, "collapsed": false },
+
+    {
+      "id": 2, "title": "OCR Requests (total)", "type": "stat",
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 1 },
+      "targets": [{ "expr": "sum(docflow_ocr_requests_total) or vector(0)", "legendFormat": "Requests", "refId": "A" }],
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "blue" } } },
+      "options": { "colorMode": "value", "graphMode": "area" }
+    },
+    {
+      "id": 3, "title": "OCR Errors (total)", "type": "stat",
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 1 },
+      "targets": [{ "expr": "sum(docflow_ocr_errors_total) or vector(0)", "legendFormat": "Errors", "refId": "A" }],
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "red" } } },
+      "options": { "colorMode": "value", "graphMode": "area" }
+    },
+    {
+      "id": 4, "title": "OCR Retake Rate", "type": "gauge",
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 1 },
+      "targets": [{ "expr": "(sum(docflow_ocr_retake_required_total) / sum(docflow_ocr_requests_total)) * 100 or vector(0)", "legendFormat": "%", "refId": "A" }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent", "min": 0, "max": 100,
+          "thresholds": { "mode": "absolute", "steps": [
+            { "value": null, "color": "green" },
+            { "value": 20, "color": "yellow" },
+            { "value": 50, "color": "red" }
+          ] }
+        }
+      }
+    },
+    {
+      "id": 5, "title": "Avg Fields Extracted / Document", "type": "stat",
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 1 },
+      "targets": [{ "expr": "docflow_ocr_fields_extracted_sum / docflow_ocr_fields_extracted_count or vector(0)", "legendFormat": "Fields", "refId": "A" }],
+      "fieldConfig": { "defaults": { "decimals": 1, "color": { "mode": "fixed", "fixedColor": "blue" } } },
+      "options": { "colorMode": "value", "graphMode": "area" }
+    },
+
+    {
+      "id": 10, "title": "OCR Request Rate by Document Type", "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "targets": [{ "expr": "rate(docflow_ocr_requests_total[5m])", "legendFormat": "{{document_type}}", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "fillOpacity": 20, "stacking": { "mode": "normal" } } } }
+    },
+    {
+      "id": 11, "title": "OCR Latency p50 / p95", "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum by (le) (rate(docflow_ocr_duration_seconds_bucket[5m])))", "legendFormat": "p50", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum by (le) (rate(docflow_ocr_duration_seconds_bucket[5m])))", "legendFormat": "p95", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "fillOpacity": 10 } } }
+    },
+
+    {
+      "id": 12, "title": "OCR Quality Issues by Type", "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "targets": [{ "expr": "rate(docflow_ocr_quality_issues_total[5m])", "legendFormat": "{{issue_type}}", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "fillOpacity": 15, "stacking": { "mode": "normal" } } } }
+    },
+    {
+      "id": 13, "title": "OCR Avg Field Confidence", "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "targets": [{ "expr": "rate(docflow_ocr_avg_confidence_sum[5m]) / rate(docflow_ocr_avg_confidence_count[5m])", "legendFormat": "avg confidence", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1, "custom": { "fillOpacity": 15 } } }
+    },
+
+    {
+      "id": 14, "title": "MRZ Parsing Outcomes", "type": "piechart",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 22 },
+      "targets": [{ "expr": "sum by (outcome) (docflow_ocr_mrz_results_total)", "legendFormat": "{{outcome}}", "refId": "A" }],
+      "options": { "legend": { "displayMode": "table", "placement": "right" } }
+    },
+    {
+      "id": 15, "title": "OCR Errors by Stage", "type": "stat",
+      "gridPos": { "h": 8, "w": 16, "x": 8, "y": 22 },
+      "targets": [{ "expr": "sum by (stage) (docflow_ocr_errors_total) or vector(0)", "legendFormat": "{{stage}}", "refId": "A" }],
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "orange" } } },
+      "options": { "colorMode": "value", "graphMode": "area" }
+    },
+
+    { "id": 20, "title": "Face Service Overview", "type": "row", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 30 }, "collapsed": false },
+
+    {
+      "id": 21, "title": "Face Verifications (total)", "type": "stat",
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 31 },
+      "targets": [{ "expr": "docflow_face_verify_total or vector(0)", "legendFormat": "Verifications", "refId": "A" }],
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "blue" } } },
+      "options": { "colorMode": "value", "graphMode": "area" }
+    },
+    {
+      "id": 22, "title": "Liveness Sessions Created", "type": "stat",
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 31 },
+      "targets": [{ "expr": "docflow_face_liveness_sessions_total or vector(0)", "legendFormat": "Sessions", "refId": "A" }],
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "blue" } } },
+      "options": { "colorMode": "value", "graphMode": "area" }
+    },
+    {
+      "id": 23, "title": "Face Errors (total)", "type": "stat",
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 31 },
+      "targets": [{ "expr": "sum(docflow_face_errors_total) or vector(0)", "legendFormat": "Errors", "refId": "A" }],
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "red" } } },
+      "options": { "colorMode": "value", "graphMode": "area" }
+    },
+    {
+      "id": 24, "title": "Face Pass Rate", "type": "gauge",
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 31 },
+      "targets": [{ "expr": "(docflow_face_verify_decisions_total{decision=\"pass\"} / sum(docflow_face_verify_decisions_total)) * 100 or vector(0)", "legendFormat": "%", "refId": "A" }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent", "min": 0, "max": 100,
+          "thresholds": { "mode": "absolute", "steps": [
+            { "value": null, "color": "red" },
+            { "value": 60, "color": "yellow" },
+            { "value": 85, "color": "green" }
+          ] }
+        }
+      }
+    },
+
+    {
+      "id": 30, "title": "Face Verify Latency p50 / p95", "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 36 },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum by (le) (rate(docflow_face_verify_duration_seconds_bucket[5m])))", "legendFormat": "p50", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum by (le) (rate(docflow_face_verify_duration_seconds_bucket[5m])))", "legendFormat": "p95", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "fillOpacity": 10 } } }
+    },
+    {
+      "id": 31, "title": "Face Similarity Distribution (avg)", "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 36 },
+      "targets": [{ "expr": "rate(docflow_face_similarity_score_sum[5m]) / rate(docflow_face_similarity_score_count[5m])", "legendFormat": "avg similarity", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0, "max": 100, "custom": { "fillOpacity": 15 } } }
+    },
+
+    {
+      "id": 32, "title": "Face Verify Decisions", "type": "piechart",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 44 },
+      "targets": [{ "expr": "sum by (decision) (docflow_face_verify_decisions_total)", "legendFormat": "{{decision}}", "refId": "A" }],
+      "options": { "legend": { "displayMode": "table", "placement": "right" } }
+    },
+    {
+      "id": 33, "title": "Liveness Results by Status", "type": "piechart",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 44 },
+      "targets": [{ "expr": "sum by (status) (docflow_face_liveness_results_total)", "legendFormat": "{{status}}", "refId": "A" }],
+      "options": { "legend": { "displayMode": "table", "placement": "right" } }
+    },
+    {
+      "id": 34, "title": "Selfie Validation Failures", "type": "stat",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 44 },
+      "targets": [{ "expr": "sum by (reason) (docflow_face_validation_failures_total) or vector(0)", "legendFormat": "{{reason}}", "refId": "A" }],
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "orange" } } },
+      "options": { "colorMode": "value", "graphMode": "area" }
+    },
+
+    {
+      "id": 35, "title": "Liveness Score Avg (0-1)", "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 52 },
+      "targets": [{ "expr": "rate(docflow_face_liveness_score_sum[5m]) / rate(docflow_face_liveness_score_count[5m])", "legendFormat": "avg liveness", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1, "custom": { "fillOpacity": 15 } } }
+    },
+    {
+      "id": 36, "title": "Face Errors by Operation", "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 52 },
+      "targets": [{ "expr": "rate(docflow_face_errors_total[5m])", "legendFormat": "{{operation}}", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "fillOpacity": 10 } } }
+    },
+
+    { "id": 40, "title": "Risk & Pipeline Decisions", "type": "row", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 60 }, "collapsed": false },
+
+    {
+      "id": 41, "title": "Risk Score Distribution (p50 / p95)", "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 61 },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum by (le) (rate(docflow_risk_score_bucket[5m])))", "legendFormat": "p50 risk", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum by (le) (rate(docflow_risk_score_bucket[5m])))", "legendFormat": "p95 risk", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0, "max": 100, "custom": { "fillOpacity": 10 } } }
+    },
+    {
+      "id": 42, "title": "Pipeline Decisions", "type": "piechart",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 61 },
+      "targets": [{ "expr": "sum by (decision) (docflow_pipeline_decisions_total)", "legendFormat": "{{decision}}", "refId": "A" }],
+      "options": { "legend": { "displayMode": "table", "placement": "right" } }
+    },
+
+    {
+      "id": 43, "title": "Pipeline Duration (p50 / p95)", "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 69 },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum by (le, service_type) (rate(docflow_pipeline_duration_seconds_bucket[5m])))", "legendFormat": "p50 — {{service_type}}", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum by (le, service_type) (rate(docflow_pipeline_duration_seconds_bucket[5m])))", "legendFormat": "p95 — {{service_type}}", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "fillOpacity": 10 } } }
+    },
+    {
+      "id": 44, "title": "External AI Call Latency (avg)", "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 69 },
+      "targets": [{ "expr": "rate(docflow_external_call_duration_seconds_sum[5m]) / rate(docflow_external_call_duration_seconds_count[5m])", "legendFormat": "{{service}}", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "fillOpacity": 10 } } }
+    }
+  ]
+}
