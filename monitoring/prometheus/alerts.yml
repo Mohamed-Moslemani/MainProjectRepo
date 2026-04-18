@@ -1,0 +1,247 @@
+groups:
+  - name: service_health
+    rules:
+      # Service down for more than 30 seconds
+      - alert: ServiceDown
+        expr: up == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.job }} is DOWN"
+          description: "{{ $labels.job }} ({{ $labels.instance }}) has been down for more than 30 seconds."
+
+      # High error rate (>5% of requests are 5xx)
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum by (job) (rate(http_requests_total{status=~"5.."}[5m]))
+            /
+            sum by (job) (rate(http_requests_total[5m]))
+          ) > 0.05
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High 5xx error rate on {{ $labels.job }}"
+          description: "{{ $labels.job }} has {{ $value | humanizePercentage }} 5xx error rate (threshold: 5%)."
+
+      # High latency (p95 > 2 seconds)
+      - alert: HighLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le, job) (rate(http_request_duration_highr_seconds_bucket[5m]))
+          ) > 2
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High p95 latency on {{ $labels.job }}"
+          description: "{{ $labels.job }} p95 latency is {{ $value | humanizeDuration }} (threshold: 2s)."
+
+  - name: infrastructure
+    rules:
+      # PostgreSQL down
+      - alert: PostgreSQLDown
+        expr: pg_up == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL is DOWN"
+          description: "PostgreSQL exporter cannot connect to the database."
+
+      # PostgreSQL too many connections (>80% of max)
+      - alert: PostgreSQLHighConnections
+        expr: |
+          sum(pg_stat_activity_count) / pg_settings_max_connections > 0.8
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PostgreSQL connection usage above 80%"
+          description: "{{ $value | humanizePercentage }} of max connections used."
+
+      # Redis down
+      - alert: RedisDown
+        expr: redis_up == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis is DOWN"
+          description: "Redis exporter cannot connect to Redis."
+
+      # Redis high memory usage (>80% of maxmemory, if set)
+      - alert: RedisHighMemory
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis memory usage above 80%"
+          description: "Redis is using {{ $value | humanizePercentage }} of max memory."
+
+  - name: business
+    rules:
+      # Payment failure rate > 20%
+      - alert: HighPaymentFailureRate
+        expr: |
+          (
+            rate(docflow_payments_failed_total[10m])
+            /
+            (rate(docflow_payments_completed_total[10m]) + rate(docflow_payments_failed_total[10m]))
+          ) > 0.2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High payment failure rate"
+          description: "{{ $value | humanizePercentage }} of payments are failing (threshold: 20%)."
+
+      # Too many rate limit hits (login brute force)
+      - alert: RateLimitStorm
+        expr: rate(docflow_rate_limit_hits_total{endpoint="login"}[5m]) > 1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Rate limiting storm on login"
+          description: "More than 1 rate limit hit/sec on login — possible brute force attempt."
+
+  - name: ai_pipeline
+    rules:
+      # OCR errors > 10% of requests (Google Vision flaky / malformed docs)
+      - alert: HighOCRErrorRate
+        expr: |
+          (
+            sum(rate(docflow_ocr_errors_total[5m]))
+            /
+            sum(rate(docflow_ocr_requests_total[5m]))
+          ) > 0.1
+          and sum(rate(docflow_ocr_requests_total[5m])) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+          component: ocr
+        annotations:
+          summary: "OCR error rate above 10%"
+          description: "{{ $value | humanizePercentage }} of OCR requests are failing. Check Google Vision API, credentials, and recent error stages."
+
+      # >50% of OCR results require retake — wild input quality or regression
+      - alert: HighOCRRetakeRate
+        expr: |
+          (
+            sum(rate(docflow_ocr_retake_required_total[10m]))
+            /
+            sum(rate(docflow_ocr_requests_total[10m]))
+          ) > 0.5
+          and sum(rate(docflow_ocr_requests_total[10m])) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+          component: ocr
+        annotations:
+          summary: "OCR retake rate above 50%"
+          description: "{{ $value | humanizePercentage }} of documents are being flagged for retake. Check quality assessment thresholds and input pipeline."
+
+      # OCR p95 latency > 15s — Google Vision slow or images too large
+      - alert: OCRLatencyHigh
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (rate(docflow_ocr_duration_seconds_bucket[5m]))
+          ) > 15
+        for: 5m
+        labels:
+          severity: warning
+          component: ocr
+        annotations:
+          summary: "OCR p95 latency above 15s"
+          description: "OCR p95 latency is {{ $value | humanizeDuration }}. Expect submits to hit the 30s httpx timeout at this rate."
+
+      # Face verify decisions weighted toward fail — liveness/similarity regression
+      - alert: FaceRejectionSpike
+        expr: |
+          (
+            sum(rate(docflow_face_verify_decisions_total{decision="fail"}[5m]))
+            /
+            sum(rate(docflow_face_verify_decisions_total[5m]))
+          ) > 0.5
+          and sum(rate(docflow_face_verify_decisions_total[5m])) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+          component: face
+        annotations:
+          summary: "Face rejection rate above 50%"
+          description: "{{ $value | humanizePercentage }} of face verifications are failing. Check AWS Rekognition, threshold config, and selfie validation failures."
+
+      # Too many liveness sessions not succeeding — something off in the Amplify flow
+      - alert: LivenessFailureSpike
+        expr: |
+          (
+            sum(rate(docflow_face_liveness_results_total{status!="SUCCEEDED"}[10m]))
+            /
+            sum(rate(docflow_face_liveness_results_total[10m]))
+          ) > 0.3
+          and sum(rate(docflow_face_liveness_results_total[10m])) > 0.01
+        for: 10m
+        labels:
+          severity: warning
+          component: face
+        annotations:
+          summary: "Liveness non-SUCCEEDED rate above 30%"
+          description: "{{ $value | humanizePercentage }} of liveness sessions ended in FAILED/EXPIRED/IN_PROGRESS. Frontend capture issues or AWS region problem."
+
+      # Pipeline end-to-end p95 > 60s — compounding slowness
+      - alert: PipelineLatencyHigh
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (rate(docflow_pipeline_duration_seconds_bucket[5m]))
+          ) > 60
+        for: 5m
+        labels:
+          severity: warning
+          component: gateway
+        annotations:
+          summary: "Pipeline p95 above 60s"
+          description: "Full submit-to-decision pipeline p95 is {{ $value | humanizeDuration }}. Check OCR/Face latency and httpx timeouts (currently 30s each)."
+
+      # p50 risk score sitting high — either many bad submissions or a model regression
+      - alert: RiskScoreDriftHigh
+        expr: |
+          histogram_quantile(
+            0.50,
+            sum by (le) (rate(docflow_risk_score_bucket[15m]))
+          ) > 60
+        for: 15m
+        labels:
+          severity: warning
+          component: gateway
+        annotations:
+          summary: "Median risk score above 60 (reject threshold)"
+          description: "Half of all cases are now auto-rejected. Check reconciliation integrity, OCR confidence, and whether a model/threshold regression shipped."
+
+      # Sustained errors calling OCR or Face services from the gateway
+      - alert: AIServiceCallErrors
+        expr: sum by (service) (rate(docflow_external_call_errors_total[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: gateway
+        annotations:
+          summary: "Gateway hitting errors calling {{ $labels.service }}"
+          description: "{{ $value }} errors/sec calling {{ $labels.service }} over the last 5 minutes. Check container logs and upstream health."
+
+      # Face service burning through errors (all operations combined)
+      - alert: FaceServiceErrors
+        expr: sum(rate(docflow_face_errors_total[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: face
+        annotations:
+          summary: "Face service errors above 0.1/sec"
+          description: "Face service reporting {{ $value }} errors/sec across all operations over the last 5 minutes."
