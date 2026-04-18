@@ -1,3 +1,4 @@
+import asyncio
 import time
 import logging
 
@@ -48,7 +49,7 @@ async def process_document(req: ProcessRequest):
 
     try:
         try:
-            quality = assess_quality(req.file_path)
+            quality = await asyncio.to_thread(assess_quality, req.file_path)
         except Exception as e:
             OCR_ERRORS.labels(stage="quality").inc()
             logger.error(f"Quality assessment failed: {e}")
@@ -61,7 +62,7 @@ async def process_document(req: ProcessRequest):
             retake_reasons.extend(quality["issues"])
 
         try:
-            ocr_result = extract_text(req.file_path)
+            ocr_result = await asyncio.to_thread(extract_text, req.file_path)
         except Exception as e:
             OCR_ERRORS.labels(stage="extract_text").inc()
             logger.error(f"OCR extraction failed: {e}")

@@ -1,3 +1,4 @@
+import asyncio
 import time
 import logging
 from fastapi import APIRouter, HTTPException
@@ -28,7 +29,7 @@ async def verify_face(req: VerifyRequest):
     FACE_VERIFY_REQUESTS.inc()
     start = time.time()
     try:
-        result = verify(req.selfie_path, req.reference_path)
+        result = await asyncio.to_thread(verify, req.selfie_path, req.reference_path)
         result["case_id"] = req.case_id
 
         FACE_VERIFY_DECISIONS.labels(decision=result["decision"]).inc()

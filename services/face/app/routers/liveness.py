@@ -1,13 +1,14 @@
 """Liveness session endpoints — create and get results for AWS Rekognition Face Liveness."""
 
+import asyncio
 import json
 import os
 import uuid
 import logging
-import boto3
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from ..clients import get_sts_client
 from ..services.rekognition import (
     create_liveness_session,
     get_liveness_session_results,
@@ -40,13 +41,7 @@ async def get_streaming_credentials():
     Uses STS to create short-lived credentials scoped to Rekognition streaming.
     """
     settings = get_settings()
-
-    sts = boto3.client(
-        "sts",
-        aws_access_key_id=settings.aws_access_key_id,
-        aws_secret_access_key=settings.aws_secret_access_key,
-        region_name=settings.aws_region,
-    )
+    sts = get_sts_client()
 
     policy = json.dumps({
         "Version": "2012-10-17",
@@ -57,11 +52,17 @@ async def get_streaming_credentials():
         }],
     })
 
-    response = sts.get_federation_token(
-        Name="docflow-liveness",
-        Policy=policy,
-        DurationSeconds=900,
-    )
+    try:
+        response = await asyncio.to_thread(
+            sts.get_federation_token,
+            Name="docflow-liveness",
+            Policy=policy,
+            DurationSeconds=900,
+        )
+    except Exception as e:
+        FACE_ERRORS.labels(operation="sts_federation").inc()
+        logger.error(f"STS federation token failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to obtain liveness credentials: {str(e)}")
 
     creds = response["Credentials"]
     return CredentialsResponse(
@@ -97,7 +98,7 @@ class SessionResultResponse(BaseModel):
 async def create_session():
     """Create a new Rekognition Face Liveness session."""
     try:
-        result = create_liveness_session()
+        result = await asyncio.to_thread(create_liveness_session)
         FACE_LIVENESS_SESSIONS.inc()
         settings = get_settings()
         return CreateSessionResponse(
@@ -114,7 +115,7 @@ async def create_session():
 async def get_results(req: SessionResultRequest):
     """Get liveness session results and optionally compare with reference document."""
     try:
-        result = get_liveness_session_results(req.session_id)
+        result = await asyncio.to_thread(get_liveness_session_results, req.session_id)
     except Exception as e:
         FACE_ERRORS.labels(operation="liveness_results").inc()
         logger.error(f"Failed to get liveness results: {e}")
@@ -135,27 +136,33 @@ async def get_results(req: SessionResultRequest):
     elif confidence < settings.liveness_pass_threshold * 100:
         reasons.append(f"Liveness confidence too low ({confidence:.1f}%, threshold: {settings.liveness_pass_threshold * 100}%)")
 
-    # Save the reference image from the liveness session
     reference_image_path = None
     if result.get("reference_image"):
         upload_dir = os.environ.get("FACE_UPLOAD_DIR", "/app/uploads/liveness")
-        os.makedirs(upload_dir, exist_ok=True)
+        await asyncio.to_thread(os.makedirs, upload_dir, exist_ok=True)
         reference_image_path = os.path.join(upload_dir, f"{req.session_id}_{uuid.uuid4().hex}.jpg")
-        with open(reference_image_path, "wb") as f:
-            f.write(result["reference_image"])
 
-    # Face comparison if reference document provided
+        def _write_ref(path: str, data: bytes) -> None:
+            with open(path, "wb") as f:
+                f.write(data)
+
+        await asyncio.to_thread(_write_ref, reference_image_path, result["reference_image"])
+
     similarity_score = None
     face_comparison_decision = None
 
     if req.reference_doc_path and result.get("reference_image"):
         try:
-            with open(req.reference_doc_path, "rb") as f:
-                doc_bytes = f.read()
+            def _read_doc(path: str) -> bytes:
+                with open(path, "rb") as f:
+                    return f.read()
 
-            comparison = compare_faces_bytes(
-                source_bytes=result["reference_image"],
-                target_bytes=doc_bytes,
+            doc_bytes = await asyncio.to_thread(_read_doc, req.reference_doc_path)
+
+            comparison = await asyncio.to_thread(
+                compare_faces_bytes,
+                result["reference_image"],
+                doc_bytes,
             )
             similarity_score = comparison["similarity_score"]
             FACE_SIMILARITY_SCORE.observe(similarity_score)
