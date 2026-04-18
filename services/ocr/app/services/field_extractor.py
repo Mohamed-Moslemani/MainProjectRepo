@@ -48,10 +48,19 @@ BIRTH_CERTIFICATE_PATTERNS = {
 }
 
 PATTERN_MAP = {
+    # Legacy/generic keys
     "national_id": NATIONAL_ID_PATTERNS,
     "old_id": NATIONAL_ID_PATTERNS,
     "old_passport": PASSPORT_PATTERNS,
     "birth_certificate": BIRTH_CERTIFICATE_PATTERNS,
+    # Concrete DocumentType values used by the orchestrator
+    "national_id_front": NATIONAL_ID_PATTERNS,
+    "national_id_back": NATIONAL_ID_PATTERNS,
+    "old_id_front": NATIONAL_ID_PATTERNS,
+    "old_id_back": NATIONAL_ID_PATTERNS,
+    "passport_data_page": PASSPORT_PATTERNS,
+    "old_passport_data_page": PASSPORT_PATTERNS,
+    "civil_registry_extract": NATIONAL_ID_PATTERNS,
 }
 
 
@@ -90,7 +99,7 @@ def extract_fields(full_text: str, document_type: str, word_confidences: list[di
             confidence_scores[field_name] = 0.0
 
     # Try MRZ extraction for passport types
-    if document_type in ("old_passport",):
+    if document_type in ("old_passport", "old_passport_data_page", "passport_data_page"):
         mrz_match = re.search(MRZ_PATTERN, full_text)
         if mrz_match:
             fields["mrz"] = mrz_match.group(0)

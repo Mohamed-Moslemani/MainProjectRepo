@@ -1,27 +1,23 @@
-"""End-to-end integration test for the passport_renewal service type.
+"""End-to-end integration test for the id_renewal service type.
 
-Exercises the face-match flow, MRZ parsing path, and mukhtar auto-assignment
-— none of which the id_new E2E test covers.
-
-Runs against the full Docker Compose stack with AI mock mode ON
-(OCR_MOCK_MODE=true FACE_MOCK_MODE=true), so there are no Google Cloud
-Vision or AWS Rekognition charges and results are deterministic.
+Complements test_passport_renewal_e2e by exercising the auto_approve
+routing branch (no mukhtar_required) and a 3-document OCR pass.
+Runs against Docker Compose with OCR_MOCK_MODE + FACE_MOCK_MODE enabled.
 
 Usage:
-    1. OCR_MOCK_MODE=true FACE_MOCK_MODE=true \
-       docker compose --env-file .env.dev up -d --build ocr face gateway
-    2. python -m evaluation.test_passport_renewal_e2e
+    OCR_MOCK_MODE=true FACE_MOCK_MODE=true \
+      docker compose --env-file .env.dev up -d --build
+    python -m evaluation.test_id_renewal_e2e
 
 Flow:
-    register citizen → seed mukhtar in same district → login →
-    create passport_renewal case → upload passport + civil registry →
-    liveness create-session → liveness get-results (mock SUCCEEDED +
-    similarity 95) → submit → poll for final status →
-    assert OCR/Face/Reconciliation/Risk records present →
-    assert mukhtar auto-assigned → assert final status = pending_mukhtar
+    register → login → create id_renewal case →
+    upload old_id_front + old_id_back + civil_registry_extract →
+    liveness create-session → liveness get-results →
+    submit → pipeline runs (OCR on 3 docs + face verify + reconcile +
+    risk) → auto_approve routes to payment_pending →
+    assert OCRResult × 3, FaceResult × 1, no mukhtar assigned
 """
 
-import os
 import sys
 import time
 import uuid
@@ -35,30 +31,25 @@ BASE_URL = "http://localhost:8000"
 API = f"{BASE_URL}/api/v1"
 DB_DSN = "host=localhost port=5432 dbname=docflow user=docflow password=docflow"
 
-TEST_EMAIL = f"passport_test_{uuid.uuid4().hex[:8]}@example.com"
-MUKHTAR_EMAIL = f"mukhtar_{uuid.uuid4().hex[:8]}@example.com"
+TEST_EMAIL = f"id_renewal_test_{uuid.uuid4().hex[:8]}@example.com"
 TEST_PASSWORD = "Str0ng!Pass#1"
-SERVICE_TYPE = "passport_renewal"
-REGISTRY_PLACE = "Beirut"
-MUNICIPALITY = "Beirut Central"
+SERVICE_TYPE = "id_renewal"
 
-# Declared fields — aligned with the mock OCR passport + civil registry fixtures
-# so reconciliation scores high and the case ends up at pending_mukhtar
-# rather than rejected.
+# Declared fields aligned with the national_id mock fixture so reconciliation
+# passes cleanly → risk low → auto_approve.
 DECLARED_FIELDS = {
     "full_name": "Mohamed Saad",
     "father_name": "Ali Saad",
     "mother_name": "Fatima Hassan",
     "date_of_birth": "15/06/1995",
-    "place_of_birth": "Beirut",
-    "old_passport_number": "LB1234567",
-    "passport_type": "ordinary",
     "registry_number": "12345",
-    "registry_place": REGISTRY_PLACE,
+    "address": "Beirut, Lebanon",
+    "marital_status": "single",
+    "reason_for_renewal": "expired",
 }
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────
+# ── Helpers (mirror passport_renewal test) ────────────────────────────────
 
 def flush_rate_limits():
     try:
@@ -144,7 +135,6 @@ def create_test_image() -> bytes:
 
 
 def register_and_login() -> tuple[str, str]:
-    """Register a test citizen, verify email via DB, login, return (access_token, user_id)."""
     r = requests.post(f"{API}/auth/register", json={
         "email": TEST_EMAIL,
         "password": TEST_PASSWORD,
@@ -155,7 +145,7 @@ def register_and_login() -> tuple[str, str]:
         "place_of_birth": "Beirut",
         "gender": "male",
         "registry_number": "12345",
-        "registry_place": REGISTRY_PLACE,
+        "registry_place": "Beirut",
     })
     assert_status("register citizen", r, 201)
     user_id = r.json()["id"]
@@ -171,30 +161,6 @@ def register_and_login() -> tuple[str, str]:
     return r.json()["access_token"], user_id
 
 
-def seed_mukhtar() -> str:
-    """Insert a mukhtar user directly in the DB (matching the test citizen's district)."""
-    from passlib.hash import bcrypt
-    mukhtar_id = str(uuid.uuid4())
-    password_hash = bcrypt.hash(TEST_PASSWORD)
-
-    with db_conn() as conn, conn.cursor() as cur:
-        cur.execute(
-            """
-            INSERT INTO users (
-                id, email, password_hash, full_name, role, email_verified,
-                registry_place, municipality, registry_number, created_at
-            ) VALUES (%s, %s, %s, %s, 'mukhtar', TRUE, %s, %s, '99999', NOW())
-            """,
-            (
-                mukhtar_id, MUKHTAR_EMAIL, password_hash, "Mukhtar Beirut",
-                REGISTRY_PLACE, MUNICIPALITY,
-            ),
-        )
-        conn.commit()
-    print(f"  [SEED] mukhtar id={mukhtar_id[:8]}... at {MUNICIPALITY}/{REGISTRY_PLACE}")
-    return mukhtar_id
-
-
 def auth_headers(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
@@ -202,13 +168,10 @@ def auth_headers(token: str) -> dict:
 # ── Steps ─────────────────────────────────────────────────────────────────
 
 def step_create_case(token: str) -> dict:
-    print("\n--- Step 1: Create passport_renewal case ---")
+    print("\n--- Step 1: Create id_renewal case ---")
     r = requests.post(
         f"{API}/cases",
-        json={
-            "service_type": SERVICE_TYPE,
-            "declared_fields": {},  # filled in at submit
-        },
+        json={"service_type": SERVICE_TYPE, "declared_fields": {}},
         headers=auth_headers(token),
     )
     assert_status("POST /cases", r, 201)
@@ -218,22 +181,20 @@ def step_create_case(token: str) -> dict:
     return body
 
 
-def step_required_docs_match_policy(token: str, case_id: str):
-    print("\n--- Step 2: Required documents include passport + selfie ---")
+def step_required_docs(token: str, case_id: str):
+    print("\n--- Step 2: Required documents include old_id front+back ---")
     r = requests.get(f"{API}/cases/{case_id}/required-documents", headers=auth_headers(token))
     assert_status("GET /required-documents", r, 200)
-    body = r.json()
-    docs = body["required_documents"]
-    assert_truthy("old_passport_data_page required", "old_passport_data_page" in docs)
+    docs = r.json()["required_documents"]
+    assert_truthy("old_id_front required", "old_id_front" in docs)
+    assert_truthy("old_id_back required", "old_id_back" in docs)
     assert_truthy("civil_registry_extract required", "civil_registry_extract" in docs)
-    assert_truthy("selfie required", "selfie" in docs)
-    assert_truthy("liveness_capture required", "liveness_capture" in docs)
 
 
-def step_upload_documents(token: str, case_id: str):
-    print("\n--- Step 3: Upload passport + civil registry ---")
+def step_upload_three_docs(token: str, case_id: str):
+    print("\n--- Step 3: Upload 3 OCR documents ---")
     img = create_test_image()
-    for doc_type in ("old_passport_data_page", "civil_registry_extract"):
+    for doc_type in ("old_id_front", "old_id_back", "civil_registry_extract"):
         r = requests.post(
             f"{API}/cases/{case_id}/documents",
             files={"file": (f"{doc_type}.jpg", img, "image/jpeg")},
@@ -243,9 +204,8 @@ def step_upload_documents(token: str, case_id: str):
         assert_status(f"upload {doc_type}", r, 200)
 
 
-def step_liveness_flow(token: str, case_id: str) -> str:
-    print("\n--- Step 4: Liveness session (mock returns SUCCEEDED) ---")
-
+def step_liveness_flow(token: str, case_id: str):
+    print("\n--- Step 4: Liveness session ---")
     r = requests.post(
         f"{API}/liveness/create-session",
         json={"case_id": case_id},
@@ -253,7 +213,6 @@ def step_liveness_flow(token: str, case_id: str) -> str:
     )
     assert_status("POST /liveness/create-session", r, 200)
     session_id = r.json()["session_id"]
-    assert_truthy("session_id starts with 'mock-'", session_id.startswith("mock-"))
 
     r = requests.post(
         f"{API}/liveness/get-results",
@@ -261,23 +220,11 @@ def step_liveness_flow(token: str, case_id: str) -> str:
         headers=auth_headers(token),
     )
     assert_status("POST /liveness/get-results", r, 200)
-    body = r.json()
-    assert_eq("liveness status SUCCEEDED", body["status"], "SUCCEEDED")
-    assert_eq("liveness_passed", body["liveness_passed"], True)
-    assert_truthy("similarity_score set", body.get("similarity_score") is not None)
-    return session_id
-
-
-def step_completeness_after_liveness(token: str, case_id: str):
-    print("\n--- Step 5: Completeness with liveness substitutes for selfie ---")
-    r = requests.get(f"{API}/cases/{case_id}/completeness", headers=auth_headers(token))
-    assert_status("GET /completeness", r, 200)
-    body = r.json()
-    assert_eq("case is complete", body["complete"], True)
+    assert_eq("liveness status SUCCEEDED", r.json()["status"], "SUCCEEDED")
 
 
 def step_submit(token: str, case_id: str):
-    print("\n--- Step 6: Submit case ---")
+    print("\n--- Step 5: Submit case ---")
     r = requests.post(
         f"{API}/cases/{case_id}/submit",
         json={"declared_fields": DECLARED_FIELDS},
@@ -287,8 +234,7 @@ def step_submit(token: str, case_id: str):
 
 
 def step_wait_for_pipeline(token: str, case_id: str, timeout: int = 60) -> dict:
-    """Poll the case until it reaches a final-ish status (not submitted or validated)."""
-    print(f"\n--- Step 7: Wait for pipeline (max {timeout}s) ---")
+    print(f"\n--- Step 6: Wait for pipeline (max {timeout}s) ---")
     deadline = time.time() + timeout
     transient = {"submitted", "validated"}
     last_status = None
@@ -308,36 +254,19 @@ def step_wait_for_pipeline(token: str, case_id: str, timeout: int = 60) -> dict:
     sys.exit(f"[FAIL] Pipeline did not finish — last status: {last_status}")
 
 
-def step_assert_pipeline_artifacts(case_body: dict, user_id: str):
-    print("\n--- Step 8: Pipeline produced all AI artifacts ---")
+def step_assert_auto_approve_flow(case_body: dict, user_id: str):
+    print("\n--- Step 7: auto_approve routed to payment_pending, no mukhtar ---")
+
+    assert_eq("final status", case_body["status"], "payment_pending")
+    assert_eq("no mukhtar assigned", case_body.get("mukhtar_id"), None)
+
+    risk = case_body.get("risk_result") or {}
+    assert_eq("routing = auto_approve", risk.get("routing"), "auto_approve")
 
     assert_truthy("liveness_result populated", case_body.get("liveness_result"))
-    assert_eq(
-        "liveness_result.status",
-        case_body["liveness_result"]["status"],
-        "SUCCEEDED",
-    )
-
     assert_truthy("reconciliation_result populated", case_body.get("reconciliation_result"))
-    recon = case_body["reconciliation_result"]
-    assert_truthy("integrity_score present", "integrity_score" in recon)
-    assert_truthy("validation_result present", "validation_result" in recon)
-    # integrity > 0 catches the silent PATTERN_MAP mismatch bug — if the
-    # field_extractor doesn't have patterns for the concrete DocumentType,
-    # no fields get extracted and integrity collapses to 0.
-    assert_truthy(f"integrity > 0 (got {recon['integrity_score']})", recon["integrity_score"] > 0)
 
-    assert_truthy("risk_result populated", case_body.get("risk_result"))
-    risk = case_body["risk_result"]
-    assert_truthy("risk_score present", "risk_score" in risk)
-    assert_truthy("routing present", "routing" in risk)
-    assert_truthy("breakdown present", "breakdown" in risk)
-    # Passport should land at auto_approve-level risk with clean inputs;
-    # mukhtar_required still routes it to pending_mukhtar, but the score
-    # itself must be low enough that nothing else would have gone wrong.
-    assert_truthy(f"risk_score reasonable (got {risk['risk_score']})", risk["risk_score"] < 40)
-
-    # OCRResult + FaceResult rows directly in DB
+    # 3 OCR documents → 3 OCRResult rows
     with db_conn() as conn, conn.cursor() as cur:
         cur.execute(
             """
@@ -360,35 +289,28 @@ def step_assert_pipeline_artifacts(case_body: dict, user_id: str):
         )
         face_count = cur.fetchone()[0]
 
-    assert_truthy(f"OCRResult row exists (count={ocr_count})", ocr_count >= 1)
-    assert_truthy(f"FaceResult row exists (count={face_count})", face_count == 1)
+    assert_eq("3 OCR results stored", ocr_count, 3)
+    assert_eq("1 face result stored", face_count, 1)
 
 
-def step_assert_final_status_and_mukhtar(case_body: dict, mukhtar_id: str):
-    print("\n--- Step 9: Final status = pending_mukhtar + auto-assigned ---")
-    assert_eq("final status", case_body["status"], "pending_mukhtar")
-    assert_eq("mukhtar auto-assigned to our seeded mukhtar",
-              case_body.get("mukhtar_id"), mukhtar_id)
-
-
-def step_tracking_shows_full_history(token: str, case_id: str):
-    print("\n--- Step 10: Tracking shows full pipeline history ---")
+def step_tracking_includes_approved(token: str, case_id: str):
+    print("\n--- Step 8: Tracking history includes approved + payment_pending ---")
     r = requests.get(f"{API}/cases/{case_id}/tracking", headers=auth_headers(token))
     assert_status("GET /tracking", r, 200)
     events = [e["status"] for e in r.json()["events"]]
     assert_truthy("submitted event", "submitted" in events)
     assert_truthy("validated event", "validated" in events)
     assert_truthy("risk_evaluated event", "risk_evaluated" in events)
-    assert_truthy("pending_mukhtar event", "pending_mukhtar" in events)
+    assert_truthy("approved event", "approved" in events)
+    assert_truthy("payment_pending event", "payment_pending" in events)
 
 
 # ── Cleanup ───────────────────────────────────────────────────────────────
 
-def cleanup(user_id: str, mukhtar_id: str):
+def cleanup(user_id: str):
     with db_conn() as conn, conn.cursor() as cur:
         cur.execute("DELETE FROM audit_logs WHERE case_id IN (SELECT id FROM cases WHERE user_id = %s)", (user_id,))
-        cur.execute("DELETE FROM audit_logs WHERE user_id IN (%s, %s)", (user_id, mukhtar_id))
-        # face_results references documents — drop it before documents
+        cur.execute("DELETE FROM audit_logs WHERE user_id = %s", (user_id,))
         cur.execute("DELETE FROM face_results WHERE case_id IN (SELECT id FROM cases WHERE user_id = %s)", (user_id,))
         cur.execute("DELETE FROM ocr_results WHERE document_id IN (SELECT d.id FROM documents d JOIN cases c ON d.case_id = c.id WHERE c.user_id = %s)", (user_id,))
         cur.execute("DELETE FROM documents WHERE case_id IN (SELECT id FROM cases WHERE user_id = %s)", (user_id,))
@@ -396,48 +318,45 @@ def cleanup(user_id: str, mukhtar_id: str):
         cur.execute("DELETE FROM cases WHERE user_id = %s", (user_id,))
         cur.execute("DELETE FROM email_verification_tokens WHERE user_id = %s", (user_id,))
         cur.execute("DELETE FROM password_reset_tokens WHERE user_id = %s", (user_id,))
-        cur.execute("DELETE FROM users WHERE id IN (%s, %s)", (user_id, mukhtar_id))
+        cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
         conn.commit()
-    print(f"\n[CLEANUP] Removed test citizen + mukhtar + all related data")
+    print(f"\n[CLEANUP] Removed test citizen + all related data")
 
 
 # ── Main ──────────────────────────────────────────────────────────────────
 
 def main():
     print("=" * 60)
-    print("  Passport Renewal E2E Integration Test")
+    print("  ID Renewal E2E Integration Test")
     print(f"  Target: {BASE_URL}")
     print(f"  Service type: {SERVICE_TYPE}")
-    print(f"  Mock mode expected: OCR_MOCK_MODE + FACE_MOCK_MODE = true")
+    print(f"  Expected path: auto_approve → payment_pending (no mukhtar)")
     print("=" * 60)
 
     wait_for_gateway()
     flush_rate_limits()
 
     token, user_id = register_and_login()
-    mukhtar_id = seed_mukhtar()
 
     try:
         case = step_create_case(token)
         case_id = case["id"]
 
-        step_required_docs_match_policy(token, case_id)
-        step_upload_documents(token, case_id)
+        step_required_docs(token, case_id)
+        step_upload_three_docs(token, case_id)
         step_liveness_flow(token, case_id)
-        step_completeness_after_liveness(token, case_id)
         step_submit(token, case_id)
 
         final_case = step_wait_for_pipeline(token, case_id)
 
-        step_assert_pipeline_artifacts(final_case, user_id)
-        step_assert_final_status_and_mukhtar(final_case, mukhtar_id)
-        step_tracking_shows_full_history(token, case_id)
+        step_assert_auto_approve_flow(final_case, user_id)
+        step_tracking_includes_approved(token, case_id)
 
         print("\n" + "=" * 60)
-        print("  ALL PASSPORT RENEWAL E2E TESTS PASSED")
+        print("  ALL ID RENEWAL E2E TESTS PASSED")
         print("=" * 60)
     finally:
-        cleanup(user_id, mukhtar_id)
+        cleanup(user_id)
         flush_rate_limits()
 
 
