@@ -20,6 +20,15 @@ class Case(Base):
     # User-declared application data
     declared_fields: Mapped[dict] = mapped_column(JSON, default=dict)
 
+    # Liveness session (from AWS Rekognition Face Liveness)
+    liveness_session_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    liveness_result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    # Mukhtar approval (passport services)
+    mukhtar_id: Mapped[str | None] = mapped_column(String, ForeignKey("users.id"), nullable=True)
+    mukhtar_approval: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    generated_form_path: Mapped[str | None] = mapped_column(String, nullable=True)
+
     # Processing results
     reconciliation_result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     risk_result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
@@ -42,7 +51,7 @@ class Case(Base):
         onupdate=lambda: datetime.now(timezone.utc),
     )
 
-    user = relationship("User", back_populates="cases")
+    user = relationship("User", back_populates="cases", foreign_keys=[user_id])
     documents = relationship("Document", back_populates="case", lazy="selectin")
     payments = relationship("Payment", back_populates="case", lazy="selectin")
     face_results = relationship("FaceResult", back_populates="case", lazy="selectin")

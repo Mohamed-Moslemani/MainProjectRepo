@@ -23,6 +23,7 @@ class User(Base):
     # Civil registry
     registry_number: Mapped[str | None] = mapped_column(String, nullable=True)
     registry_place: Mapped[str | None] = mapped_column(String, nullable=True)
+    municipality: Mapped[str | None] = mapped_column(String, nullable=True)
 
     # Contact & address
     phone: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -39,4 +40,9 @@ class User(Base):
         DateTime(timezone=True), nullable=True
     )
 
-    cases = relationship("Case", back_populates="user", lazy="selectin")
+    cases = relationship(
+        "Case",
+        back_populates="user",
+        lazy="selectin",
+        foreign_keys="Case.user_id",
+    )
