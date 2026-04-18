@@ -4,6 +4,14 @@ import time
 import logging
 
 from ..clients import get_rekognition_client
+from ..config import get_settings
+from .mocks import (
+    mock_create_liveness_session,
+    mock_get_liveness_session_results,
+    mock_compare_faces,
+    mock_compare_faces_bytes,
+    mock_detect_faces,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +26,9 @@ def create_liveness_session() -> dict:
     Returns:
         {"session_id": str}
     """
+    if get_settings().mock_mode:
+        return mock_create_liveness_session()
+
     client = get_rekognition_client()
     response = client.create_face_liveness_session(
         Settings={"AuditImagesLimit": 4},
@@ -36,6 +47,9 @@ def get_liveness_session_results(session_id: str) -> dict:
             "reference_image": bytes | None,  # the face image captured during liveness
         }
     """
+    if get_settings().mock_mode:
+        return mock_get_liveness_session_results(session_id)
+
     client = get_rekognition_client()
     response = client.get_face_liveness_session_results(SessionId=session_id)
 
@@ -73,6 +87,9 @@ def compare_faces(selfie_path: str, reference_path: str) -> dict:
             "processing_time_ms": int,
         }
     """
+    if get_settings().mock_mode:
+        return mock_compare_faces(selfie_path, reference_path)
+
     client = get_rekognition_client()
 
     with open(selfie_path, "rb") as sf, open(reference_path, "rb") as rf:
@@ -103,6 +120,9 @@ def compare_faces(selfie_path: str, reference_path: str) -> dict:
 
 def detect_faces(image_path: str) -> dict:
     """Detect faces in an image and return attributes."""
+    if get_settings().mock_mode:
+        return mock_detect_faces(image_path)
+
     client = get_rekognition_client()
 
     with open(image_path, "rb") as f:
@@ -130,6 +150,9 @@ def detect_faces(image_path: str) -> dict:
 
 def compare_faces_bytes(source_bytes: bytes, target_bytes: bytes) -> dict:
     """Compare two faces using raw image bytes (for liveness reference image)."""
+    if get_settings().mock_mode:
+        return mock_compare_faces_bytes(source_bytes, target_bytes)
+
     client = get_rekognition_client()
 
     start = time.time()

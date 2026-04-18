@@ -1,0 +1,134 @@
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: docflow
+      POSTGRES_PASSWORD: docflow
+      POSTGRES_DB: docflow
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  gateway:
+    build:
+      context: .
+      dockerfile: services/gateway/Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env.dev
+    environment:
+      GATEWAY_DATABASE_URL: postgresql+asyncpg://docflow:docflow@db:5432/docflow
+      GATEWAY_OCR_SERVICE_URL: http://ocr:8001
+      GATEWAY_FACE_SERVICE_URL: http://face:8002
+      GATEWAY_REDIS_URL: redis://redis:6379/0
+    volumes:
+      - uploads:/app/uploads
+      - ./shared:/app/shared
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  ocr:
+    build:
+      context: .
+      dockerfile: services/ocr/Dockerfile
+    ports:
+      - "8001:8001"
+    environment:
+      OCR_GOOGLE_CREDENTIALS_PATH: /app/credentials/google-vision.json
+      OCR_MIN_CONFIDENCE_THRESHOLD: 0.7
+      OCR_MOCK_MODE: ${OCR_MOCK_MODE:-false}
+    volumes:
+      - uploads:/app/uploads
+      - ./credentials:/app/credentials:ro
+      - ./shared:/app/shared
+
+  face:
+    build:
+      context: .
+      dockerfile: services/face/Dockerfile
+    ports:
+      - "8002:8002"
+    environment:
+      FACE_AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      FACE_AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      FACE_AWS_REGION: ${AWS_REGION:-us-east-1}
+      FACE_MOCK_MODE: ${FACE_MOCK_MODE:-false}
+    volumes:
+      - uploads:/app/uploads
+      - ./shared:/app/shared
+
+  # ── Exporters ────────────────────────────────────────────────
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    environment:
+      DATA_SOURCE_NAME: "postgresql://docflow:docflow@db:5432/docflow?sslmode=disable"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.58.0
+    environment:
+      REDIS_ADDR: "redis://redis:6379"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # ── Monitoring ────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=7d"
+    depends_on:
+      - gateway
+      - ocr
+      - face
+
+  grafana:
+    image: grafana/grafana:10.4.1
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: docflow
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/01-service-health.json
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
+volumes:
+  postgres_data:
+  uploads:
+  prometheus_data:
+  grafana_data:

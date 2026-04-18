@@ -1,14 +1,23 @@
 """Image quality assessment - blur, glare, resolution, angle checks."""
 
+import logging
+
 import cv2
 import numpy as np
 
 from ..config import get_settings
+from .mocks import mock_assess_quality
+
+logger = logging.getLogger(__name__)
 
 
 def assess_quality(image_path: str) -> dict:
     """Assess image quality and return structured quality report."""
     settings = get_settings()
+    if settings.mock_mode:
+        logger.info("OCR mock mode active — returning clean-quality fixture")
+        return mock_assess_quality(image_path)
+
     img = cv2.imread(image_path)
     if img is None:
         return {

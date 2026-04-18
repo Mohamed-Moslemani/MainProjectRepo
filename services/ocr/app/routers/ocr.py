@@ -62,7 +62,7 @@ async def process_document(req: ProcessRequest):
             retake_reasons.extend(quality["issues"])
 
         try:
-            ocr_result = await asyncio.to_thread(extract_text, req.file_path)
+            ocr_result = await asyncio.to_thread(extract_text, req.file_path, req.document_type)
         except Exception as e:
             OCR_ERRORS.labels(stage="extract_text").inc()
             logger.error(f"OCR extraction failed: {e}")

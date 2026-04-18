@@ -9,10 +9,20 @@ import cv2
 import numpy as np
 import logging
 
+from ..config import get_settings
+from .mocks import mock_assess_liveness
+
 logger = logging.getLogger(__name__)
 
 
 def assess_liveness(image_path: str) -> dict:
+    if get_settings().mock_mode:
+        return mock_assess_liveness(image_path)
+
+    return _assess_liveness_impl(image_path)
+
+
+def _assess_liveness_impl(image_path: str) -> dict:
     """Heuristic-based liveness scoring.
 
     Checks:

@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     min_brightness: float = 20.0
     min_sharpness: float = 20.0
 
+    # When True, Rekognition/Liveness calls return deterministic fixture
+    # data instead of hitting AWS. Lets E2E tests run offline.
+    mock_mode: bool = False
+
     model_config = {"env_prefix": "FACE_", "env_file": ".env"}
 
 

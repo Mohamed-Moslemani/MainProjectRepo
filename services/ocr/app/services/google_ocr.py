@@ -3,15 +3,28 @@
 import time
 import logging
 
-from google.cloud import vision
-
-from ..clients import get_vision_client
+from ..config import get_settings
+from .mocks import mock_extract_text
 
 logger = logging.getLogger(__name__)
 
 
-def extract_text(image_path: str) -> dict:
-    """Run Google Cloud Vision OCR on an image and return raw text + annotations."""
+def extract_text(image_path: str, document_type: str | None = None) -> dict:
+    """Run Google Cloud Vision OCR on an image and return raw text + annotations.
+
+    If OCR_MOCK_MODE is set, returns a deterministic fixture instead of
+    calling Google Vision. The document_type is forwarded to the mock so
+    fixtures can match the expected layout (national_id, passport, etc.);
+    it is unused in live mode.
+    """
+    if get_settings().mock_mode:
+        logger.info("OCR mock mode active — returning fixture for %s", document_type)
+        return mock_extract_text(image_path, document_type)
+
+    # Lazy import so mock mode doesn't require google-cloud-vision at all.
+    from google.cloud import vision
+    from ..clients import get_vision_client
+
     client = get_vision_client()
 
     with open(image_path, "rb") as f:
