@@ -12,7 +12,7 @@ class PaymentResponse(BaseModel):
     amount: int
     currency: str
     status: str
-    redirect_url: str | None = None
+    checkout_url: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

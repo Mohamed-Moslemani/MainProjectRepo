@@ -27,11 +27,16 @@ class CaseResponse(BaseModel):
 
 
 class CaseDetailResponse(CaseResponse):
+    liveness_session_id: str | None = None
+    liveness_result: dict | None = None
     reconciliation_result: dict | None = None
     risk_result: dict | None = None
     rejection_reasons: list | None = None
     production_tracking_number: str | None = None
     pickup_center: str | None = None
+    mukhtar_id: str | None = None
+    mukhtar_approval: dict | None = None
+    generated_form_path: str | None = None
 
 
 class CaseListResponse(BaseModel):

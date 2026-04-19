@@ -17,6 +17,7 @@ from ..services.email_verification import create_verification_token, verify_emai
 from ..services.email import send_verification_email, send_password_reset_email
 from ..models.user import User
 from ..middleware.rate_limit import rate_limit_login, check_email_rate_limit, rate_limit_reset, rate_limit_verification
+from ..metrics import AUTH_REGISTRATIONS, AUTH_LOGINS, AUTH_PASSWORD_RESETS, AUTH_EMAIL_VERIFICATIONS
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,7 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Email already registered")
 
     user = await register_user(db, req)
+    AUTH_REGISTRATIONS.inc()
 
     raw_token = await create_verification_token(db, user)
     await send_verification_email(user.email, raw_token)
@@ -43,14 +45,17 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
     await check_email_rate_limit(req.email)
     user = await authenticate_user(db, req.email, req.password)
     if not user:
+        AUTH_LOGINS.labels(status="failed").inc()
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     if not user.email_verified:
+        AUTH_LOGINS.labels(status="unverified").inc()
         raise HTTPException(
             status_code=403,
             detail="Email not verified. Please check your email for the verification link.",
         )
 
+    AUTH_LOGINS.labels(status="success").inc()
     access = create_access_token(user.id, user.role)
     refresh = create_refresh_token(user.id, user.role)
     await log_action(db, "user_login", user_id=user.id)
@@ -97,6 +102,7 @@ async def forgot_password(req: ForgotPasswordRequest, db: AsyncSession = Depends
     result = await db.execute(select(User).where(User.email == req.email))
     user = result.scalar_one_or_none()
 
+    AUTH_PASSWORD_RESETS.inc()
     if user:
         raw_token = await create_reset_token(db, user)
         await send_password_reset_email(user.email, raw_token)
@@ -129,11 +135,13 @@ async def verify_email(req: VerifyEmailRequest, db: AsyncSession = Depends(get_d
     success = await verify_email_token(db, req.token)
 
     if not success:
+        AUTH_EMAIL_VERIFICATIONS.labels(status="failed").inc()
         raise HTTPException(
             status_code=400,
             detail="Invalid or expired verification token.",
         )
 
+    AUTH_EMAIL_VERIFICATIONS.labels(status="success").inc()
     await log_action(db, "email_verified")
     return {"message": "Email verified successfully. You can now log in."}
 

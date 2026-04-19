@@ -19,7 +19,9 @@ class CaseStatus(str, Enum):
     VALIDATED = "validated"
     RISK_EVALUATED = "risk_evaluated"
     NEED_INFO = "need_info"
+    PENDING_MUKHTAR = "pending_mukhtar"
     APPROVED = "approved"
+    PAYMENT_PENDING = "payment_pending"
     REJECTED = "rejected"
     IN_PRODUCTION = "in_production"
     READY_FOR_PICKUP = "ready_for_pickup"
@@ -51,6 +53,7 @@ class DocumentType(str, Enum):
 
 class UserRole(str, Enum):
     CITIZEN = "citizen"
+    MUKHTAR = "mukhtar"
     CLERK = "clerk"
     ADMIN = "admin"
 

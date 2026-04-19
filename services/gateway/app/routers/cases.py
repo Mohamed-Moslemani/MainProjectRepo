@@ -1,5 +1,6 @@
 import os
 import uuid
+import logging
 import aiofiles
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
@@ -18,10 +19,15 @@ from ..schemas.case import (
 from ..schemas.document import DocumentResponse, DocumentWithOCR
 from ..middleware.auth import get_current_user, require_role
 from ..services.case_machine import can_transition, get_next_action
-from ..services.policy import get_required_documents, check_completeness
+from ..services.policy import get_required_documents, get_policy, check_completeness
 from ..services.orchestrator import process_case
 from ..services.audit import log_action
+from ..metrics import (
+    CASES_CREATED, CASES_SUBMITTED, CASE_STATUS_TRANSITIONS,
+    DOCUMENTS_UPLOADED, DOCUMENT_UPLOAD_SIZE,
+)
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/cases", tags=["cases"])
 
 
@@ -43,6 +49,7 @@ async def create_case(
     await db.commit()
     await db.refresh(case)
 
+    CASES_CREATED.labels(service_type=req.service_type).inc()
     await log_action(db, "case_created", user_id=user.id, case_id=case.id,
                      details={"service_type": req.service_type})
     return case
@@ -79,7 +86,9 @@ async def get_required_docs(
 ):
     case = await _get_user_case(db, case_id, user)
     required = get_required_documents(case.service_type)
-    return {"service_type": case.service_type, "required_documents": required}
+    policy = get_policy(case.service_type)
+    declared_fields = policy.get("declared_fields", [])
+    return {"service_type": case.service_type, "required_documents": required, "declared_fields": declared_fields}
 
 
 @router.get("/{case_id}/completeness", response_model=CompletenessResponse)
@@ -91,7 +100,8 @@ async def check_case_completeness(
     case = await _get_user_case(db, case_id, user)
     docs_result = await db.execute(select(Document).where(Document.case_id == case.id))
     uploaded_types = [d.document_type for d in docs_result.scalars().all()]
-    return check_completeness(case.service_type, uploaded_types)
+    has_liveness = bool(case.liveness_result and case.liveness_result.get("liveness_passed"))
+    return check_completeness(case.service_type, uploaded_types, has_liveness_session=has_liveness)
 
 
 # ---- Document upload ----
@@ -139,6 +149,8 @@ async def upload_document(
     await db.commit()
     await db.refresh(doc)
 
+    DOCUMENTS_UPLOADED.labels(document_type=document_type).inc()
+    DOCUMENT_UPLOAD_SIZE.observe(len(content))
     await log_action(db, "document_uploaded", user_id=user.id, case_id=case_id,
                      details={"document_type": document_type, "document_id": doc.id})
     return doc
@@ -188,7 +200,8 @@ async def submit_case(
     # Check completeness
     docs_result = await db.execute(select(Document).where(Document.case_id == case.id))
     uploaded_types = [d.document_type for d in docs_result.scalars().all()]
-    completeness = check_completeness(case.service_type, uploaded_types)
+    has_liveness = bool(case.liveness_result and case.liveness_result.get("liveness_passed"))
+    completeness = check_completeness(case.service_type, uploaded_types, has_liveness_session=has_liveness)
 
     if not completeness["complete"]:
         raise HTTPException(
@@ -206,6 +219,8 @@ async def submit_case(
     }]
     await db.commit()
 
+    CASES_SUBMITTED.labels(service_type=case.service_type).inc()
+    CASE_STATUS_TRANSITIONS.labels(from_status="draft", to_status="submitted").inc()
     await log_action(db, "case_submitted", user_id=user.id, case_id=case_id)
 
     # Process in background
@@ -228,12 +243,14 @@ async def update_case_status(
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
 
-    if not can_transition(case.status, req.status):
+    old_status = case.status
+    if not can_transition(old_status, req.status):
         raise HTTPException(
             status_code=400,
-            detail=f"Cannot transition from '{case.status}' to '{req.status}'"
+            detail=f"Cannot transition from '{old_status}' to '{req.status}'"
         )
 
+    CASE_STATUS_TRANSITIONS.labels(from_status=old_status, to_status=req.status).inc()
     case.status = req.status
     if req.notes:
         case.notes = req.notes
@@ -245,11 +262,40 @@ async def update_case_status(
         "actor": user.role,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }]
+
+    # Auto-chain: approved → payment_pending
+    if req.status == "approved" and can_transition("approved", "payment_pending"):
+        case.status = "payment_pending"
+        case.status_history = case.status_history + [{
+            "status": "payment_pending",
+            "message": "Please complete payment to proceed",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }]
+
     await db.commit()
     await db.refresh(case)
 
     await log_action(db, "case_status_updated", user_id=user.id, case_id=case_id,
-                     details={"new_status": req.status})
+                     details={"new_status": case.status})
+
+    # Send email notification to the case owner
+    try:
+        from ..services.email import send_case_status_email
+        owner_result = await db.execute(select(User).where(User.id == case.user_id))
+        owner = owner_result.scalar_one_or_none()
+        if owner:
+            await send_case_status_email(
+                to=owner.email,
+                full_name=owner.full_name,
+                tracking_id=case.tracking_id,
+                service_type=case.service_type,
+                new_status=case.status,
+                notes=req.notes,
+                rejection_reasons=req.rejection_reasons,
+            )
+    except Exception:
+        logger.warning(f"Failed to send status email for case {case_id}", exc_info=True)
+
     return case
 
 

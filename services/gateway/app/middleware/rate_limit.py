@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse
 from redis.asyncio import Redis
 
 from ..config import get_settings
+from ..metrics import RATE_LIMIT_HITS, AUTH_LOGINS
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +46,7 @@ def _get_client_ip(request: Request) -> str:
     if forwarded:
         # Last IP is the one added by our trusted reverse proxy
         ips = [ip.strip() for ip in forwarded.split(",")]
-        return ips[0]
+        return ips[-1]
     return request.client.host if request.client else "unknown"
 
 
@@ -101,6 +102,8 @@ async def rate_limit_login(request: Request):
         key, settings.rate_limit_login_per_minute
     )
     if not allowed:
+        RATE_LIMIT_HITS.labels(endpoint="login").inc()
+        AUTH_LOGINS.labels(status="rate_limited").inc()
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Too many login attempts from this IP. Please try again later.",
@@ -117,6 +120,8 @@ async def check_email_rate_limit(email: str):
         key, settings.rate_limit_login_per_email_per_minute
     )
     if not allowed:
+        RATE_LIMIT_HITS.labels(endpoint="login_email").inc()
+        AUTH_LOGINS.labels(status="rate_limited").inc()
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Too many login attempts for this account. Please try again later.",
@@ -134,6 +139,7 @@ async def rate_limit_reset(request: Request):
         key, settings.rate_limit_reset_per_ip_per_hour, window=3600
     )
     if not allowed:
+        RATE_LIMIT_HITS.labels(endpoint="reset").inc()
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Too many password reset requests. Please try again later.",
@@ -151,6 +157,7 @@ async def rate_limit_verification(request: Request):
         key, settings.rate_limit_verification_per_ip_per_hour, window=3600
     )
     if not allowed:
+        RATE_LIMIT_HITS.labels(endpoint="verification").inc()
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Too many verification requests. Please try again later.",

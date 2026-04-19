@@ -1,4 +1,4 @@
-"""Async SMTP email service for verification and password reset emails."""
+"""Async SMTP email service — all emails use a unified DocFlow Lebanon template."""
 
 import logging
 from email.mime.text import MIMEText
@@ -7,11 +7,66 @@ from email.mime.multipart import MIMEMultipart
 import aiosmtplib
 
 from ..config import get_settings
+from ..metrics import EMAILS_SENT, EMAILS_FAILED
 
 logger = logging.getLogger(__name__)
 
 
-async def _send_email(to: str, subject: str, html_body: str):
+# ---------------------------------------------------------------------------
+# Base template
+# ---------------------------------------------------------------------------
+
+def _wrap_email(content_html: str, footer_note: str = "") -> str:
+    """Wrap content in the unified DocFlow Lebanon email template."""
+    return f"""
+    <!DOCTYPE html>
+    <html dir="rtl" lang="ar">
+    <head><meta charset="utf-8"></head>
+    <body style="margin: 0; padding: 0; background: #fafbfc; font-family: 'Segoe UI', Tahoma, Arial, sans-serif;">
+      <div style="max-width: 600px; margin: 0 auto; background: #ffffff;">
+
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #006633 0%, #00a651 60%, #00c261 100%);
+                    padding: 28px 32px; text-align: center;">
+          <div style="display: inline-block; background: rgba(255,255,255,0.15);
+                      border-radius: 12px; padding: 8px 20px; margin-bottom: 8px;">
+            <span style="font-size: 28px; font-weight: 800; color: #ffffff;
+                         letter-spacing: -0.5px;">
+              Doc<span style="color: #dcfce7;">Flow</span>
+            </span>
+          </div>
+          <p style="margin: 4px 0 0; color: #dcfce7; font-size: 13px;
+                    letter-spacing: 1px; text-transform: uppercase;">
+            Lebanon &middot; لبنان
+          </p>
+        </div>
+
+        <!-- Green accent bar -->
+        <div style="height: 4px; background: linear-gradient(90deg, #ed1c24 33%, #00a651 33%, #00a651 67%, #ed1c24 67%);"></div>
+
+        <!-- Body -->
+        <div style="padding: 32px 32px 24px;">
+          {content_html}
+        </div>
+
+        <!-- Footer -->
+        <div style="background: #f4f5f7; padding: 20px 32px; border-top: 1px solid #e8eaed; text-align: center;">
+          {f'<p style="margin: 0 0 8px; color: #6b7280; font-size: 12px;">{footer_note}</p>' if footer_note else ''}
+          <p style="margin: 0; color: #9ca3af; font-size: 11px;">
+            DocFlow Lebanon &middot; منصة الوثائق الرسمية اللبنانية
+          </p>
+          <p style="margin: 4px 0 0; color: #d1d5db; font-size: 10px;">
+            &copy; 2026 DocFlow. All rights reserved.
+          </p>
+        </div>
+
+      </div>
+    </body>
+    </html>
+    """
+
+
+async def _send_email(to: str, subject: str, html_body: str, email_type: str = "other"):
     """Send an email via SMTP. Logs and swallows errors so callers don't fail."""
     settings = get_settings()
 
@@ -34,45 +89,58 @@ async def _send_email(to: str, subject: str, html_body: str):
             password=settings.smtp_password,
             start_tls=settings.smtp_use_tls,
         )
+        EMAILS_SENT.labels(type=email_type).inc()
         logger.info(f"Email sent to {to}: {subject}")
     except Exception:
+        EMAILS_FAILED.labels(type=email_type).inc()
         logger.exception(f"Failed to send email to {to}: {subject}")
 
+
+# ---------------------------------------------------------------------------
+# Verification email
+# ---------------------------------------------------------------------------
 
 async def send_verification_email(to: str, code: str):
     """Send 6-digit email verification code."""
     settings = get_settings()
-
     spaced_code = " ".join(code)
 
-    html = f"""
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #00a651;">DocFlow Lebanon</h2>
-        <p>Thank you for registering. Use the code below to verify your email address:</p>
-        <div style="margin: 32px 0; text-align: center;">
-            <div style="display: inline-block; background: #f4f5f7; border: 2px dashed #00a651;
-                        border-radius: 12px; padding: 20px 40px;">
-                <span style="font-size: 36px; font-weight: 800; letter-spacing: 8px;
-                             color: #1f2937; font-family: monospace;">
-                    {spaced_code}
-                </span>
-            </div>
-        </div>
-        <p style="color: #666; font-size: 14px;">
-            This code expires in {settings.verification_token_expiry_hours} hours.
-        </p>
-        <p style="color: #666; font-size: 14px;">
-            Enter this code on the verification page to activate your account.
-        </p>
-        <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;">
-        <p style="color: #999; font-size: 12px;">
-            If you did not create an account, you can safely ignore this email.
-        </p>
+    content = f"""
+    <h2 style="margin: 0 0 8px; color: #1f2937; font-size: 20px; font-weight: 700;">
+      <span style="display: block;">تفعيل حسابك</span>
+      <span style="display: block; font-size: 13px; color: #9ca3af; font-weight: 400;">Verify Your Email</span>
+    </h2>
+
+    <p style="color: #4b5563; margin: 16px 0 8px; line-height: 1.6;">
+      شكراً لتسجيلك في DocFlow Lebanon. استخدم الرمز أدناه لتفعيل بريدك الإلكتروني.
+    </p>
+    <p style="color: #9ca3af; font-size: 13px; margin: 0 0 24px;">
+      Thank you for registering. Use the code below to verify your email address.
+    </p>
+
+    <div style="text-align: center; margin: 28px 0;">
+      <div style="display: inline-block; background: #f0fdf4; border: 2px dashed #00a651;
+                  border-radius: 12px; padding: 20px 40px;">
+        <span style="font-size: 36px; font-weight: 800; letter-spacing: 10px;
+                     color: #006633; font-family: 'Courier New', monospace;">
+          {spaced_code}
+        </span>
+      </div>
     </div>
+
+    <p style="color: #6b7280; font-size: 13px; text-align: center;">
+      ⏱ صالح لمدة {settings.verification_token_expiry_hours} ساعة &middot;
+      Valid for {settings.verification_token_expiry_hours} hours
+    </p>
     """
 
-    await _send_email(to, "Your verification code - DocFlow Lebanon", html)
+    html = _wrap_email(content, "إذا لم تقم بإنشاء حساب، يمكنك تجاهل هذا البريد. / If you didn't create an account, ignore this email.")
+    await _send_email(to, "رمز التحقق - DocFlow Lebanon", html, email_type="verification")
 
+
+# ---------------------------------------------------------------------------
+# Password reset email
+# ---------------------------------------------------------------------------
 
 async def send_password_reset_email(to: str, token: str):
     """Send password reset link."""
@@ -80,28 +148,191 @@ async def send_password_reset_email(to: str, token: str):
     frontend_url = settings.cors_allowed_origins.split(",")[0].strip()
     reset_url = f"{frontend_url}/reset-password?token={token}"
 
-    html = f"""
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2>Reset your password - DocFlow Lebanon</h2>
-        <p>We received a request to reset your password. Click the link below to set a new password:</p>
-        <p style="margin: 24px 0;">
-            <a href="{reset_url}"
-               style="background-color: #1a73e8; color: white; padding: 12px 24px;
-                      text-decoration: none; border-radius: 4px; display: inline-block;">
-                Reset Password
-            </a>
-        </p>
-        <p style="color: #666; font-size: 14px;">
-            Or copy this link: <code>{reset_url}</code>
-        </p>
-        <p style="color: #666; font-size: 14px;">
-            This link expires in {settings.reset_token_expiry_minutes} minutes.
-        </p>
-        <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;">
-        <p style="color: #999; font-size: 12px;">
-            If you did not request a password reset, you can safely ignore this email.
-        </p>
+    content = f"""
+    <h2 style="margin: 0 0 8px; color: #1f2937; font-size: 20px; font-weight: 700;">
+      <span style="display: block;">إعادة تعيين كلمة المرور</span>
+      <span style="display: block; font-size: 13px; color: #9ca3af; font-weight: 400;">Reset Your Password</span>
+    </h2>
+
+    <p style="color: #4b5563; margin: 16px 0 8px; line-height: 1.6;">
+      تلقينا طلباً لإعادة تعيين كلمة المرور الخاصة بك. اضغط الزر أدناه لتعيين كلمة مرور جديدة.
+    </p>
+    <p style="color: #9ca3af; font-size: 13px; margin: 0 0 24px;">
+      We received a request to reset your password. Click the button below to set a new one.
+    </p>
+
+    <div style="text-align: center; margin: 28px 0;">
+      <a href="{reset_url}"
+         style="display: inline-block; background: #00a651; color: #ffffff;
+                padding: 14px 36px; border-radius: 8px; text-decoration: none;
+                font-weight: 700; font-size: 15px; letter-spacing: 0.3px;">
+        إعادة تعيين كلمة المرور &middot; Reset Password
+      </a>
+    </div>
+
+    <p style="color: #9ca3af; font-size: 12px; text-align: center; word-break: break-all;">
+      أو انسخ الرابط: <a href="{reset_url}" style="color: #00a651;">{reset_url}</a>
+    </p>
+
+    <p style="color: #6b7280; font-size: 13px; text-align: center; margin-top: 16px;">
+      ⏱ صالح لمدة {settings.reset_token_expiry_minutes} دقيقة &middot;
+      Valid for {settings.reset_token_expiry_minutes} minutes
+    </p>
+    """
+
+    html = _wrap_email(content, "إذا لم تطلب إعادة تعيين كلمة المرور، تجاهل هذا البريد. / If you didn't request a reset, ignore this email.")
+    await _send_email(to, "إعادة تعيين كلمة المرور - DocFlow Lebanon", html, email_type="password_reset")
+
+
+# ---------------------------------------------------------------------------
+# Case status notification emails
+# ---------------------------------------------------------------------------
+
+_STATUS_LABELS = {
+    "submitted": ("تم تقديم طلبك", "Application Submitted"),
+    "approved": ("تمت الموافقة على طلبك", "Application Approved"),
+    "payment_pending": ("بانتظار الدفع", "Payment Required"),
+    "rejected": ("تم رفض طلبك", "Application Rejected"),
+    "need_info": ("مطلوب معلومات إضافية", "Additional Information Required"),
+    "in_production": ("طلبك قيد الإنتاج", "Document In Production"),
+    "ready_for_pickup": ("مستندك جاهز للاستلام", "Ready for Pickup"),
+}
+
+_STATUS_COLORS = {
+    "submitted": "#2563eb",
+    "approved": "#00a651",
+    "payment_pending": "#f59e0b",
+    "rejected": "#dc2626",
+    "need_info": "#f59e0b",
+    "in_production": "#2563eb",
+    "ready_for_pickup": "#00a651",
+}
+
+_SERVICE_LABELS = {
+    "id_new": ("هوية جديدة", "New National ID"),
+    "id_renewal": ("تجديد هوية", "ID Renewal"),
+    "passport_new": ("جواز سفر جديد", "New Passport"),
+    "passport_renewal": ("تجديد جواز سفر", "Passport Renewal"),
+}
+
+
+async def send_case_status_email(
+    to: str,
+    full_name: str,
+    tracking_id: str,
+    service_type: str,
+    new_status: str,
+    notes: str | None = None,
+    rejection_reasons: list[str] | None = None,
+):
+    """Send an email notification when a case status changes."""
+    status_ar, status_en = _STATUS_LABELS.get(new_status, (new_status, new_status))
+    service_ar, service_en = _SERVICE_LABELS.get(service_type, (service_type, service_type))
+    status_color = _STATUS_COLORS.get(new_status, "#00a651")
+
+    settings = get_settings()
+    frontend_url = settings.cors_allowed_origins.split(",")[0].strip()
+
+    # Status badge
+    status_badge = f"""
+    <div style="text-align: center; margin: 20px 0;">
+      <span style="display: inline-block; background: {status_color}; color: #ffffff;
+                   padding: 8px 24px; border-radius: 20px; font-weight: 700; font-size: 14px;">
+        {status_ar} &middot; {status_en}
+      </span>
     </div>
     """
 
-    await _send_email(to, "Reset your password - DocFlow Lebanon", html)
+    # Details section (context-specific)
+    details_html = ""
+    if new_status == "payment_pending":
+        details_html = """
+        <div style="background: #fffbeb; border-right: 4px solid #f59e0b; padding: 16px 20px;
+                    margin: 20px 0; border-radius: 0 8px 8px 0;">
+          <p style="margin: 0; color: #92400e; font-weight: 600;">يرجى إتمام الدفع للمتابعة في معالجة طلبك.</p>
+          <p style="margin: 6px 0 0; color: #a16207; font-size: 13px;">Please complete your payment to proceed with your application.</p>
+        </div>
+        """
+    elif new_status == "rejected" and rejection_reasons:
+        reasons_list = "".join(f'<li style="padding: 4px 0; color: #991b1b;">{r}</li>' for r in rejection_reasons)
+        details_html = f"""
+        <div style="background: #fef2f2; border-right: 4px solid #dc2626; padding: 16px 20px;
+                    margin: 20px 0; border-radius: 0 8px 8px 0;">
+          <p style="margin: 0 0 8px; color: #991b1b; font-weight: 600;">أسباب الرفض / Rejection Reasons:</p>
+          <ul style="margin: 0; padding-right: 20px; padding-left: 0;">{reasons_list}</ul>
+        </div>
+        """
+    elif new_status == "need_info" and notes:
+        details_html = f"""
+        <div style="background: #fffbeb; border-right: 4px solid #f59e0b; padding: 16px 20px;
+                    margin: 20px 0; border-radius: 0 8px 8px 0;">
+          <p style="margin: 0 0 8px; color: #92400e; font-weight: 600;">ملاحظات / Notes:</p>
+          <p style="margin: 0; color: #a16207;">{notes}</p>
+        </div>
+        """
+    elif new_status == "ready_for_pickup":
+        details_html = """
+        <div style="background: #f0fdf4; border-right: 4px solid #00a651; padding: 16px 20px;
+                    margin: 20px 0; border-radius: 0 8px 8px 0;">
+          <p style="margin: 0; color: #006633; font-weight: 600;">يرجى زيارة المركز المحدد لاستلام مستندك مع بطاقة هوية سارية.</p>
+          <p style="margin: 6px 0 0; color: #007a3d; font-size: 13px;">Please visit the designated center to collect your document with a valid ID.</p>
+        </div>
+        """
+    elif new_status == "in_production":
+        details_html = """
+        <div style="background: #eff6ff; border-right: 4px solid #2563eb; padding: 16px 20px;
+                    margin: 20px 0; border-radius: 0 8px 8px 0;">
+          <p style="margin: 0; color: #1e40af; font-weight: 600;">تم استلام الدفع. مستندك قيد التحضير.</p>
+          <p style="margin: 6px 0 0; color: #1d4ed8; font-size: 13px;">Payment received. Your document is being prepared.</p>
+        </div>
+        """
+
+    content = f"""
+    <p style="color: #4b5563; margin: 0 0 4px; font-size: 16px; line-height: 1.6;">
+      مرحباً <strong style="color: #1f2937;">{full_name}</strong>,
+    </p>
+    <p style="color: #9ca3af; font-size: 13px; margin: 0 0 20px;">
+      Here's an update on your application.
+    </p>
+
+    {status_badge}
+
+    <!-- Case info card -->
+    <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px;
+                padding: 20px 24px; margin: 20px 0;">
+      <table style="width: 100%; border-collapse: collapse;">
+        <tr>
+          <td style="padding: 8px 0; color: #6b7280; font-size: 13px; width: 45%;">
+            رقم التتبع<br><span style="font-size: 11px; color: #9ca3af;">Tracking ID</span>
+          </td>
+          <td style="padding: 8px 0; font-weight: 700; color: #006633; font-size: 15px; font-family: monospace;">
+            #{tracking_id}
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #6b7280; font-size: 13px; border-top: 1px solid #dcfce7;">
+            نوع الخدمة<br><span style="font-size: 11px; color: #9ca3af;">Service Type</span>
+          </td>
+          <td style="padding: 8px 0; color: #1f2937; border-top: 1px solid #dcfce7;">
+            {service_ar}<br><span style="font-size: 12px; color: #9ca3af;">{service_en}</span>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    {details_html}
+
+    <!-- CTA Button -->
+    <div style="text-align: center; margin: 28px 0 8px;">
+      <a href="{frontend_url}/dashboard"
+         style="display: inline-block; background: #00a651; color: #ffffff;
+                padding: 14px 36px; border-radius: 8px; text-decoration: none;
+                font-weight: 700; font-size: 15px;">
+        عرض طلبك &middot; View Application
+      </a>
+    </div>
+    """
+
+    html = _wrap_email(content)
+    subject = f"{status_ar} - #{tracking_id} | DocFlow Lebanon"
+    await _send_email(to, subject, html, email_type="status_notification")
