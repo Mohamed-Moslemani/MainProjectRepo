@@ -371,6 +371,58 @@ def step_assert_final_status_and_mukhtar(case_body: dict, mukhtar_id: str):
               case_body.get("mukhtar_id"), mukhtar_id)
 
 
+def step_audit_logs_are_reproducible(case_id: str):
+    """Audit logs must capture enough detail to re-derive every AI decision.
+
+    This guards against regressions where log_action() is called with only
+    summary fields — we want auditors to replay the entire pipeline.
+    """
+    print("\n--- Step 10: Audit logs contain full AI breakdown ---")
+    with db_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT action, details FROM audit_logs WHERE case_id = %s ORDER BY created_at",
+            (case_id,),
+        )
+        rows = cur.fetchall()
+
+    by_action: dict[str, list[dict]] = {}
+    for action, details in rows:
+        by_action.setdefault(action, []).append(details or {})
+
+    assert_truthy("ocr_completed log present", by_action.get("ocr_completed"))
+    ocr_log = by_action["ocr_completed"][0]
+    assert_truthy("ocr log has extracted_fields", "extracted_fields" in ocr_log)
+    assert_truthy("ocr log has confidence_scores", "confidence_scores" in ocr_log)
+    assert_truthy("ocr log has quality", "quality" in ocr_log)
+
+    assert_truthy("face_verification_completed log present", by_action.get("face_verification_completed"))
+    face_log = by_action["face_verification_completed"][0]
+    assert_truthy("face log has similarity_score", "similarity_score" in face_log)
+    assert_truthy("face log has liveness_score", "liveness_score" in face_log)
+    assert_truthy("face log has decision", "decision" in face_log)
+
+    assert_truthy("reconciliation_completed log present", by_action.get("reconciliation_completed"))
+    recon_log = by_action["reconciliation_completed"][0]
+    assert_truthy("recon log has field_results", "field_results" in recon_log)
+    assert_truthy("recon log has declared_fields", "declared_fields" in recon_log)
+    assert_truthy("recon log has integrity_score", "integrity_score" in recon_log)
+
+    assert_truthy("risk_evaluated log present", by_action.get("risk_evaluated"))
+    risk_log = by_action["risk_evaluated"][0]
+    assert_truthy("risk log has breakdown", "breakdown" in risk_log)
+    assert_truthy("risk log has inputs", "inputs" in risk_log)
+    assert_truthy("risk log has routing", "routing" in risk_log)
+    inputs = risk_log["inputs"]
+    for key in ("ocr_avg_confidence", "face_similarity", "liveness_score",
+                "reconciliation_integrity", "service_type", "mismatch_count"):
+        assert_truthy(f"risk inputs include {key}", key in inputs)
+
+    assert_truthy("decision_made log present", by_action.get("decision_made"))
+    decision_log = by_action["decision_made"][0]
+    assert_truthy("decision log has final_status", "final_status" in decision_log)
+    assert_truthy("decision log has pipeline_duration_seconds", "pipeline_duration_seconds" in decision_log)
+
+
 def step_tracking_shows_full_history(token: str, case_id: str):
     print("\n--- Step 10: Tracking shows full pipeline history ---")
     r = requests.get(f"{API}/cases/{case_id}/tracking", headers=auth_headers(token))
@@ -431,6 +483,7 @@ def main():
 
         step_assert_pipeline_artifacts(final_case, user_id)
         step_assert_final_status_and_mukhtar(final_case, mukhtar_id)
+        step_audit_logs_are_reproducible(case_id)
         step_tracking_shows_full_history(token, case_id)
 
         print("\n" + "=" * 60)
