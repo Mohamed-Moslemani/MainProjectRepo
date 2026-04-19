@@ -101,7 +101,16 @@ jobs:
           python-version: "3.13"
 
       - name: Install test-runner deps
-        run: pip install requests "passlib[bcrypt]" psycopg2-binary "redis[hiredis]==5.2.1"
+        # bcrypt MUST be pinned to 4.0.x — passlib 1.7.4 reads
+        # bcrypt.__about__.__version__ which was removed in 4.1+,
+        # and its internal detect_wrap_bug probe trips the 72-byte
+        # limit enforcement added in 4.x. Gateway's runtime reqs
+        # pin the same version, keep them aligned.
+        run: |
+          pip install requests psycopg2-binary \
+            "passlib[bcrypt]==1.7.4" \
+            "bcrypt==4.0.1" \
+            "redis[hiredis]==5.2.1"
 
       - name: Write .env.dev for compose
         # Must be named .env.dev because docker-compose.yml hard-codes
