@@ -14,8 +14,12 @@ import CaseDetail from './pages/CaseDetail';
 import NotFound from './pages/NotFound';
 import AdminLayout from './components/AdminLayout';
 import AdminDashboard from './pages/admin/AdminDashboard';
+import AdminReviewQueue from './pages/admin/AdminReviewQueue';
 import AdminCases from './pages/admin/AdminCases';
 import AdminAuditLogs from './pages/admin/AdminAuditLogs';
+import MukhtarLayout from './components/MukhtarLayout';
+import MukhtarDashboard from './pages/mukhtar/MukhtarDashboard';
+import MukhtarCases from './pages/mukhtar/MukhtarCases';
 
 export default function App() {
   return (
@@ -57,8 +61,22 @@ export default function App() {
             }
           >
             <Route index element={<AdminDashboard />} />
+            <Route path="review" element={<AdminReviewQueue />} />
             <Route path="cases" element={<AdminCases />} />
             <Route path="audit-logs" element={<AdminAuditLogs />} />
+          </Route>
+
+          {/* Mukhtar panel */}
+          <Route
+            path="/mukhtar"
+            element={
+              <RoleRoute roles={['mukhtar']}>
+                <MukhtarLayout />
+              </RoleRoute>
+            }
+          >
+            <Route index element={<MukhtarDashboard />} />
+            <Route path="cases" element={<MukhtarCases />} />
           </Route>
 
           <Route path="*" element={<NotFound />} />

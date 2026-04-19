@@ -29,4 +29,6 @@ export const casesApi = {
   getTracking: (caseId) => api.get(`/cases/${caseId}/tracking`),
 
   trackByTrackingId: (trackingId) => api.get(`/cases/track/${trackingId}`),
+
+  createPayment: (caseId) => api.post('/payments', { case_id: caseId }),
 };

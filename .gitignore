@@ -4,6 +4,11 @@ venv/
 *.pyc
 *.pyo
 
+# Frontend build caches + node
+node_modules/
+.vite/
+services/web/dist/
+
 # Environment files
 .env
 .env.dev

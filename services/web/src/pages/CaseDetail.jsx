@@ -1,9 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { casesApi } from '../api/cases';
+import LivenessCheck from '../components/LivenessCheck';
 import flagImg from '../assets/Figure_1.png';
 import { useAuth } from '../context/AuthContext';
 import '../styles/dashboard.css';
+
+const LIVENESS_DOC_TYPES = ['selfie', 'liveness_capture'];
 
 const DOC_LABELS = {
   national_id_front: { ar: 'الهوية - الوجه الأمامي', en: 'National ID (Front)' },
@@ -39,6 +42,7 @@ const STATUS_MAP = {
   validated: { ar: 'تم التحقق', en: 'Validated', color: 'blue' },
   risk_evaluated: { ar: 'تم تقييم المخاطر', en: 'Risk Evaluated', color: 'orange' },
   approved: { ar: 'موافق عليه', en: 'Approved', color: 'green' },
+  payment_pending: { ar: 'بانتظار الدفع', en: 'Payment Pending', color: 'orange' },
   rejected: { ar: 'مرفوض', en: 'Rejected', color: 'red' },
   need_info: { ar: 'بحاجة لمعلومات', en: 'Needs Info', color: 'orange' },
   in_production: { ar: 'قيد الإنتاج', en: 'In Production', color: 'blue' },
@@ -49,7 +53,7 @@ const STATUS_MAP = {
 export default function CaseDetail() {
   const { caseId } = useParams();
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
 
   const [caseData, setCaseData] = useState(null);
   const [requiredDocs, setRequiredDocs] = useState([]);
@@ -60,6 +64,8 @@ export default function CaseDetail() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [showLiveness, setShowLiveness] = useState(false);
+  const [paying, setPaying] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -122,6 +128,44 @@ export default function CaseDetail() {
   const canEdit = isDraft || isNeedInfo;
   const st = STATUS_MAP[caseData?.status] || { ar: '', en: '', color: 'gray' };
 
+  // Liveness: check if already completed via session
+  const livenessCompleted = !!(caseData?.liveness_result?.liveness_passed);
+  const requiresLiveness = requiredDocs.some((d) => LIVENESS_DOC_TYPES.includes(d));
+  // Filter out selfie/liveness_capture from doc grid — handled by liveness component
+  const uploadableDocs = requiresLiveness
+    ? requiredDocs.filter((d) => !LIVENESS_DOC_TYPES.includes(d))
+    : requiredDocs;
+
+  const handleLivenessComplete = async (result) => {
+    setShowLiveness(false);
+    if (result.liveness_passed) {
+      setSuccess('تم التحقق من الهوية بنجاح! / Identity verified successfully!');
+      setTimeout(() => setSuccess(''), 4000);
+    } else {
+      setError('فشل التحقق من الهوية / Identity verification failed. ' + (result.reasons?.join(', ') || ''));
+    }
+    await loadCase();
+  };
+
+  const handleLivenessError = (msg) => {
+    setShowLiveness(false);
+    setError(msg);
+  };
+
+  const handlePayment = async () => {
+    setPaying(true);
+    setError('');
+    try {
+      const { data } = await casesApi.createPayment(caseId);
+      if (data.checkout_url) {
+        window.location.href = data.checkout_url;
+      }
+    } catch (err) {
+      setError(err.response?.data?.detail || 'فشل في إنشاء جلسة الدفع / Payment session failed');
+      setPaying(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="dashboard" dir="rtl">
@@ -139,6 +183,34 @@ export default function CaseDetail() {
             <p className="en">Case not found</p>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  // Full-screen liveness check mode
+  if (showLiveness) {
+    return (
+      <div className="dashboard" dir="rtl">
+        <header className="dashboard-header">
+          <div className="dashboard-header__brand">
+            <img src={flagImg} alt="" className="dashboard-header__flag" />
+            <span className="dashboard-header__title">DocFlow <span>Lebanon</span></span>
+          </div>
+          <div className="dashboard-header__actions">
+            <button className="btn btn--ghost" onClick={() => setShowLiveness(false)}>
+              <span className="ar">إلغاء</span>
+              <span className="en">Cancel</span>
+            </button>
+          </div>
+        </header>
+        <main className="dashboard-main">
+          <LivenessCheck
+            caseId={caseId}
+            onComplete={handleLivenessComplete}
+            onError={handleLivenessError}
+            onCancel={() => setShowLiveness(false)}
+          />
+        </main>
       </div>
     );
   }
@@ -219,7 +291,7 @@ export default function CaseDetail() {
             </div>
           )}
           <div className="doc-grid">
-            {requiredDocs.map((docType) => {
+            {uploadableDocs.map((docType) => {
               const uploaded = documents.find((d) => d.document_type === docType);
               const label = DOC_LABELS[docType] || { ar: docType, en: docType };
               const isUploading = uploading === docType;
@@ -263,6 +335,37 @@ export default function CaseDetail() {
                 </div>
               );
             })}
+
+            {/* Liveness verification card */}
+            {requiresLiveness && (
+              <div className={`doc-card ${livenessCompleted ? 'doc-card--uploaded' : ''}`}>
+                <div className="doc-card__info">
+                  <span className="doc-card__label ar">التحقق من الهوية (كاميرا)</span>
+                  <span className="doc-card__label en">Identity Verification (Camera)</span>
+                  {livenessCompleted && (
+                    <span className="doc-card__filename" style={{ color: '#16a34a' }}>
+                      <span className="ar">تم التحقق بنجاح</span>
+                      <span className="en">Verified successfully</span>
+                    </span>
+                  )}
+                </div>
+                <div className="doc-card__action">
+                  {livenessCompleted ? (
+                    <span className="doc-card__check">&#10003;</span>
+                  ) : canEdit ? (
+                    <button
+                      className="btn btn--sm btn--primary"
+                      onClick={() => setShowLiveness(true)}
+                    >
+                      <span className="ar">ابدأ التحقق</span>
+                      <span className="en">Start Verification</span>
+                    </button>
+                  ) : (
+                    <span className="doc-card__missing">&#10007;</span>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </section>
 
@@ -371,6 +474,36 @@ export default function CaseDetail() {
               </p>
             )}
           </div>
+        )}
+
+        {/* Payment Section */}
+        {caseData?.status === 'payment_pending' && (
+          <section className="detail-section">
+            <h2>
+              <span className="ar">الدفع</span>
+              <span className="en">Payment</span>
+            </h2>
+            <div className="payment-section">
+              <p>
+                <span className="ar">طلبك تمت الموافقة عليه. يرجى إتمام الدفع للمتابعة.</span>
+                <span className="en">Your application has been approved. Please complete payment to proceed.</span>
+              </p>
+              <button
+                className={`btn btn--primary btn--lg ${paying ? 'btn--loading' : ''}`}
+                onClick={handlePayment}
+                disabled={paying}
+              >
+                {paying ? (
+                  <span className="ar">جارٍ التحويل...</span>
+                ) : (
+                  <>
+                    <span className="ar">ادفع الآن</span>
+                    <span className="en">Pay Now</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </section>
         )}
 
         {/* Tracking Timeline */}

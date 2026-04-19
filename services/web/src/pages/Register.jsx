@@ -3,6 +3,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import AuthLayout from '../components/AuthLayout';
 import PasswordInput from '../components/PasswordInput';
 import { authApi } from '../api/auth';
+import {
+  GOVERNORATES, DISTRICTS, MUNICIPALITIES,
+  getDistrictsForGovernorate, getMunicipalitiesForDistrict, isSingleDistrictGovernorate,
+} from '../constants/districts';
 
 function getPasswordStrength(pw) {
   let score = 0;
@@ -39,20 +43,28 @@ function PasswordStrengthBar({ password }) {
   );
 }
 
+// Strip non-Arabic characters in real-time (keeps Arabic, spaces, hyphens, common punctuation)
+const filterArabic = (value) => value.replace(/[^\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF\s\-'.،؛]/g, '');
+
+const ARABIC_ONLY_FIELDS = new Set([
+  'first_name', 'last_name', 'father_name', 'mother_name', 'place_of_birth', 'address',
+]);
+
 const FIELDS = [
-  { name: 'full_name', ar: 'الاسم الكامل', en: 'Full Name', required: true, type: 'text', placeholder: 'أدخل اسمك الكامل' },
+  { name: 'first_name', ar: 'الاسم', en: 'First Name', required: true, type: 'text', placeholder: 'الاسم الأول', arabicOnly: true },
+  { name: 'last_name', ar: 'اسم العائلة', en: 'Last Name', required: true, type: 'text', placeholder: 'اسم العائلة', arabicOnly: true },
   { name: 'email', ar: 'البريد الإلكتروني', en: 'Email', required: true, type: 'email', placeholder: 'you@example.com', dir: 'ltr' },
   { name: 'password', ar: 'كلمة المرور', en: 'Password', required: true, type: 'password', placeholder: 'أنشئ كلمة مرور قوية', dir: 'ltr' },
 ];
 
 const PERSONAL_ROWS = [
   [
-    { name: 'father_name', ar: 'اسم الأب', en: "Father's Name", placeholder: 'اسم الأب' },
-    { name: 'mother_name', ar: 'اسم الأم', en: "Mother's Name", placeholder: 'اسم الأم' },
+    { name: 'father_name', ar: 'اسم الأب', en: "Father's Name", placeholder: 'اسم الأب', arabicOnly: true },
+    { name: 'mother_name', ar: 'اسم الأم', en: "Mother's Name", placeholder: 'اسم الأم', arabicOnly: true },
   ],
   [
     { name: 'date_of_birth', ar: 'تاريخ الميلاد', en: 'Date of Birth', type: 'date' },
-    { name: 'place_of_birth', ar: 'مكان الميلاد', en: 'Place of Birth', placeholder: 'مثلاً: بيروت' },
+    { name: 'place_of_birth', ar: 'مكان الميلاد', en: 'Place of Birth', placeholder: 'مثلاً: بيروت', arabicOnly: true },
   ],
   [
     { name: 'gender', ar: 'الجنس', en: 'Gender', type: 'select', options: [
@@ -69,31 +81,56 @@ const PERSONAL_ROWS = [
     ]},
   ],
   [
-    { name: 'registry_number', ar: 'رقم السجل', en: 'Registry Number', placeholder: 'رقم السجل' },
-    { name: 'registry_place', ar: 'مكان السجل', en: 'Registry Place', placeholder: 'مكان السجل' },
-  ],
-  [
     { name: 'phone', ar: 'رقم الهاتف', en: 'Phone', type: 'tel', placeholder: '+961 ...', dir: 'ltr' },
-    { name: 'address', ar: 'العنوان', en: 'Address', placeholder: 'عنوان السكن' },
+    { name: 'address', ar: 'العنوان', en: 'Address', placeholder: 'عنوان السكن', arabicOnly: true },
   ],
 ];
 
 const initialForm = {
-  email: '', password: '', full_name: '', father_name: '', mother_name: '',
+  first_name: '', last_name: '', email: '', password: '',
+  father_name: '', mother_name: '',
   date_of_birth: '', place_of_birth: '', gender: '', registry_number: '',
-  registry_place: '', phone: '', address: '', marital_status: '',
+  registry_place: '', municipality: '', phone: '', address: '', marital_status: '',
 };
 
 export default function Register() {
   const navigate = useNavigate();
   const [form, setForm] = useState(initialForm);
+  const [governorate, setGovernorate] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setForm({ ...form, [name]: ARABIC_ONLY_FIELDS.has(name) ? filterArabic(value) : value });
     setError('');
   };
+
+  const handleGovernorateChange = (e) => {
+    const gov = e.target.value;
+    setGovernorate(gov);
+    // Auto-select district for single-district governorates (Beirut, Akkar)
+    if (gov && isSingleDistrictGovernorate(gov)) {
+      const autoDistrict = getDistrictsForGovernorate(gov)[0].value;
+      setForm({ ...form, registry_place: autoDistrict, municipality: '' });
+    } else {
+      setForm({ ...form, registry_place: '', municipality: '' });
+    }
+    setError('');
+  };
+
+  const handleDistrictChange = (e) => {
+    setForm({ ...form, registry_place: e.target.value, municipality: '' });
+    setError('');
+  };
+
+  const handleMunicipalityChange = (e) => {
+    setForm({ ...form, municipality: e.target.value });
+    setError('');
+  };
+
+  const availableDistricts = governorate ? getDistrictsForGovernorate(governorate) : [];
+  const availableMunicipalities = form.registry_place ? getMunicipalitiesForDistrict(form.registry_place) : [];
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -107,9 +144,11 @@ export default function Register() {
     }
 
     try {
+      const { first_name, last_name, ...rest } = form;
       const payload = Object.fromEntries(
-        Object.entries(form).filter(([, v]) => v !== '')
+        Object.entries(rest).filter(([, v]) => v !== '')
       );
+      payload.full_name = `${first_name} ${last_name}`.trim();
       await authApi.register(payload);
       navigate('/verify-email', { state: { email: form.email } });
     } catch (err) {
@@ -164,6 +203,12 @@ export default function Register() {
         {field.name === 'password' && form.password && (
           <PasswordStrengthBar password={form.password} />
         )}
+        {field.arabicOnly && (
+          <p className="field-hint" style={{ fontSize: '0.7rem', color: 'var(--gray-400)', margin: '0.2rem 0 0' }}>
+            <span className="ar">يرجى الكتابة بالعربية فقط</span>
+            <span className="en">Arabic only</span>
+          </p>
+        )}
       </div>
     );
   };
@@ -194,6 +239,96 @@ export default function Register() {
             {row.map((f) => renderField(f))}
           </div>
         ))}
+
+        {/* Cascading location: Governorate -> District -> Municipality */}
+        <div className="form-section-label">
+          <span className="ar">مكان السجل</span>
+          <span className="en">Registry Location</span>
+        </div>
+
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label" htmlFor="governorate">
+              <span className="ar">المحافظة</span>
+              <span className="en">Governorate</span>
+            </label>
+            <select
+              id="governorate"
+              name="governorate"
+              className="form-input"
+              value={governorate}
+              onChange={handleGovernorateChange}
+            >
+              <option value="">-- اختر المحافظة -- / -- Select Governorate --</option>
+              {GOVERNORATES.map((g) => (
+                <option key={g.value} value={g.value}>{g.ar} / {g.en}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label" htmlFor="registry_place">
+              <span className="ar">القضاء</span>
+              <span className="en">District</span>
+            </label>
+            <select
+              id="registry_place"
+              name="registry_place"
+              className="form-input"
+              value={form.registry_place}
+              onChange={handleDistrictChange}
+              disabled={!governorate || isSingleDistrictGovernorate(governorate)}
+            >
+              {isSingleDistrictGovernorate(governorate) ? (
+                availableDistricts.map((d) => (
+                  <option key={d.value} value={d.value}>{d.ar} / {d.en}</option>
+                ))
+              ) : (
+                <>
+                  <option value="">-- اختر القضاء -- / -- Select District --</option>
+                  {availableDistricts.map((d) => (
+                    <option key={d.value} value={d.value}>{d.ar} / {d.en}</option>
+                  ))}
+                </>
+              )}
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label" htmlFor="municipality">
+              <span className="ar">البلدة / القرية</span>
+              <span className="en">Municipality</span>
+            </label>
+            <select
+              id="municipality"
+              name="municipality"
+              className="form-input"
+              value={form.municipality}
+              onChange={handleMunicipalityChange}
+              disabled={!form.registry_place}
+            >
+              <option value="">-- اختر البلدة -- / -- Select Municipality --</option>
+              {availableMunicipalities.map((m) => (
+                <option key={m.value} value={m.value}>{m.en}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label" htmlFor="registry_number">
+              <span className="ar">رقم السجل</span>
+              <span className="en">Registry Number</span>
+            </label>
+            <input
+              id="registry_number"
+              name="registry_number"
+              className="form-input"
+              value={form.registry_number}
+              onChange={handleChange}
+              placeholder="رقم السجل"
+            />
+          </div>
+        </div>
 
         <button type="submit" className="btn btn--primary" disabled={loading}>
           {loading ? <span className="spinner" /> : (

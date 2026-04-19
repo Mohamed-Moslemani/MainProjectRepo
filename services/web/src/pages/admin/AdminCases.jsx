@@ -4,7 +4,7 @@ import { adminApi } from '../../api/admin';
 
 const ALL_STATUSES = [
   'draft', 'submitted', 'validated', 'risk_evaluated',
-  'approved', 'rejected', 'need_info',
+  'approved', 'payment_pending', 'rejected', 'need_info',
   'in_production', 'ready_for_pickup', 'closed',
 ];
 
@@ -28,13 +28,9 @@ const SERVICE_LABELS = {
   passport_renewal: { ar: 'تجديد جواز', en: 'Passport Renewal' },
 };
 
+// Clerk can only transition these statuses (approve/reject only from review queue)
 const TRANSITIONS = {
-  draft: ['submitted'],
-  submitted: ['validated'],
-  validated: ['risk_evaluated'],
-  risk_evaluated: ['approved', 'rejected', 'need_info'],
-  need_info: ['submitted'],
-  approved: ['in_production'],
+  payment_pending: ['in_production'],
   in_production: ['ready_for_pickup'],
   ready_for_pickup: ['closed'],
 };
