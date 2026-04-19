@@ -1,13 +1,18 @@
 import logging
 from contextlib import asynccontextmanager
 
+import httpx
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from prometheus_fastapi_instrumentator import Instrumentator
+from sqlalchemy import text
 
 from .config import get_settings
-from .db import init_db
+from .db import init_db, async_session
+from .middleware import rate_limit as rate_limit_mod
 from .middleware.rate_limit import init_redis, close_redis
-from .routers import auth, cases, payments, admin
+from .routers import auth, cases, payments, admin, liveness, mukhtar
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -20,6 +25,9 @@ async def lifespan(app: FastAPI):
     logger.info("Database initialized")
     await init_redis()
     logger.info("Redis connected")
+    settings = get_settings()
+    logger.info("OCR service URL: %s", settings.ocr_service_url)
+    logger.info("Face service URL: %s", settings.face_service_url)
     yield
     await close_redis()
     logger.info("Shutting down DocFlow Gateway...")
@@ -30,6 +38,13 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+# Prometheus auto-instrumentation (request count, latency, in-progress, response size)
+Instrumentator(
+    should_group_status_codes=False,
+    should_group_untemplated=True,
+    excluded_handlers=["/health", "/health/ready", "/metrics"],
+).instrument(app).expose(app, endpoint="/metrics")
 
 settings = get_settings()
 app.add_middleware(
@@ -44,8 +59,54 @@ app.include_router(auth.router)
 app.include_router(cases.router)
 app.include_router(payments.router)
 app.include_router(admin.router)
+app.include_router(liveness.router)
+app.include_router(mukhtar.router)
 
 
 @app.get("/health")
 async def health():
+    """Liveness — the process is running."""
     return {"status": "healthy", "service": "gateway"}
+
+
+@app.get("/health/ready")
+async def ready():
+    """Readiness — DB, Redis, and upstream AI services are all reachable."""
+    settings = get_settings()
+    checks: dict = {}
+    overall_ok = True
+
+    # Database
+    try:
+        async with async_session() as session:
+            await session.execute(text("SELECT 1"))
+        checks["db"] = {"ok": True}
+    except Exception as e:
+        checks["db"] = {"ok": False, "error": str(e)[:200]}
+        overall_ok = False
+
+    # Redis
+    try:
+        if rate_limit_mod._redis is None:
+            raise RuntimeError("redis client not initialised")
+        await rate_limit_mod._redis.ping()
+        checks["redis"] = {"ok": True}
+    except Exception as e:
+        checks["redis"] = {"ok": False, "error": str(e)[:200]}
+        overall_ok = False
+
+    # Upstream AI services (liveness only — /health on each)
+    async with httpx.AsyncClient(timeout=3.0) as client:
+        for name, url in (("ocr", settings.ocr_service_url), ("face", settings.face_service_url)):
+            try:
+                r = await client.get(f"{url}/health")
+                ok = r.status_code == 200
+                checks[f"{name}_service"] = {"ok": ok, "status_code": r.status_code}
+                if not ok:
+                    overall_ok = False
+            except Exception as e:
+                checks[f"{name}_service"] = {"ok": False, "error": str(e)[:200]}
+                overall_ok = False
+
+    body = {"status": "ready" if overall_ok else "not_ready", "checks": checks}
+    return JSONResponse(status_code=200 if overall_ok else 503, content=body)
