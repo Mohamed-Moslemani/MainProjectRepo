@@ -1,29 +1,33 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useState } from 'react';
 import { authApi } from '../api/auth';
 
-const AuthContext = createContext(null);
+// Context object — exported so hooks in the same directory can consume it.
+// The useAuth hook lives in ./useAuth.js to keep this file
+// components-only (satisfies eslint's react-refresh rule).
+// eslint-disable-next-line react-refresh/only-export-components
+export const AuthContext = createContext(null);
+
+
+function readStoredUser() {
+  const token = localStorage.getItem('access_token');
+  if (!token) return null;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    if (payload.exp * 1000 > Date.now()) {
+      return { id: payload.sub, role: payload.role };
+    }
+    localStorage.clear();
+  } catch {
+    localStorage.clear();
+  }
+  return null;
+}
+
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const token = localStorage.getItem('access_token');
-    if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        // Check expiry
-        if (payload.exp * 1000 > Date.now()) {
-          setUser({ id: payload.sub, role: payload.role });
-        } else {
-          localStorage.clear();
-        }
-      } catch {
-        localStorage.clear();
-      }
-    }
-    setLoading(false);
-  }, []);
+  // Lazy initial state reads localStorage synchronously on mount — no
+  // useEffect + setState flicker, no cascading re-renders.
+  const [user, setUser] = useState(readStoredUser);
 
   const login = async (email, password) => {
     const { data } = await authApi.login({ email, password });
@@ -40,14 +44,8 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading: false, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
 }
-
-export const useAuth = () => {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
-  return ctx;
-};

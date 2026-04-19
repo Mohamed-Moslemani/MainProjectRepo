@@ -103,9 +103,11 @@ jobs:
       - name: Install test-runner deps
         run: pip install requests "passlib[bcrypt]" psycopg2-binary "redis[hiredis]==5.2.1"
 
-      - name: Write a CI env file
+      - name: Write .env.dev for compose
+        # Must be named .env.dev because docker-compose.yml hard-codes
+        # `env_file: .env.dev` on the gateway service.
         run: |
-          cat > .env.ci <<EOF
+          cat > .env.dev <<EOF
           GATEWAY_JWT_SECRET=${GATEWAY_JWT_SECRET}
           GATEWAY_STRIPE_SECRET_KEY=${GATEWAY_STRIPE_SECRET_KEY}
           GATEWAY_STRIPE_WEBHOOK_SECRET=${GATEWAY_STRIPE_WEBHOOK_SECRET}
@@ -124,7 +126,7 @@ jobs:
 
       - name: Bring up backend stack
         run: |
-          docker compose --env-file .env.ci up -d --build db redis gateway ocr face
+          docker compose --env-file .env.dev up -d --build db redis gateway ocr face
 
       - name: Wait for gateway readiness
         run: |
@@ -152,4 +154,4 @@ jobs:
 
       - name: Tear down
         if: always()
-        run: docker compose --env-file .env.ci down -v
+        run: docker compose --env-file .env.dev down -v

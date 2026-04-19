@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { casesApi } from '../api/cases';
 import LivenessCheck from '../components/LivenessCheck';
 import flagImg from '../assets/Figure_1.png';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
 import '../styles/dashboard.css';
 
 const LIVENESS_DOC_TYPES = ['selfie', 'liveness_capture'];
