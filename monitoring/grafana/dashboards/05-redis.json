@@ -1,0 +1,124 @@
+{
+  "id": null,
+  "uid": "docflow-redis",
+  "title": "DocFlow — Redis",
+  "tags": ["docflow", "redis", "infrastructure"],
+  "timezone": "browser",
+  "refresh": "15s",
+  "time": { "from": "now-30m", "to": "now" },
+  "panels": [
+    {
+      "id": 1, "title": "Redis Status", "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "targets": [{ "expr": "redis_up", "legendFormat": "Status", "refId": "A" }],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [{ "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }],
+          "thresholds": { "mode": "absolute", "steps": [{ "value": null, "color": "red" }, { "value": 1, "color": "green" }] }
+        }
+      },
+      "options": { "colorMode": "background", "graphMode": "none" }
+    },
+    {
+      "id": 2, "title": "Uptime", "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "targets": [{ "expr": "redis_uptime_in_seconds", "legendFormat": "Uptime", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "s", "color": { "mode": "fixed", "fixedColor": "green" } } },
+      "options": { "colorMode": "value", "graphMode": "none" }
+    },
+    {
+      "id": 3, "title": "Connected Clients", "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "targets": [{ "expr": "redis_connected_clients", "legendFormat": "Clients", "refId": "A" }],
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "blue" } } },
+      "options": { "colorMode": "value", "graphMode": "area" }
+    },
+    {
+      "id": 4, "title": "Memory Used", "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "targets": [{ "expr": "redis_memory_used_bytes", "legendFormat": "Used", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "bytes", "color": { "mode": "fixed", "fixedColor": "orange" } } },
+      "options": { "colorMode": "value", "graphMode": "area" }
+    },
+    {
+      "id": 5, "title": "Memory RSS", "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
+      "targets": [{ "expr": "redis_memory_used_rss_bytes", "legendFormat": "RSS", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "bytes", "color": { "mode": "fixed", "fixedColor": "purple" } } },
+      "options": { "colorMode": "value", "graphMode": "area" }
+    },
+    {
+      "id": 6, "title": "Total Keys", "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
+      "targets": [{ "expr": "sum(redis_db_keys)", "legendFormat": "Keys", "refId": "A" }],
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "blue" } } },
+      "options": { "colorMode": "value", "graphMode": "area" }
+    },
+    {
+      "id": 10, "title": "Commands / sec", "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [
+        { "expr": "rate(redis_commands_processed_total[1m])", "legendFormat": "Commands/s", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "fillOpacity": 20 }, "color": { "mode": "fixed", "fixedColor": "blue" } } }
+    },
+    {
+      "id": 11, "title": "Network I/O", "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [
+        { "expr": "rate(redis_net_input_bytes_total[1m])", "legendFormat": "Input", "refId": "A" },
+        { "expr": "rate(redis_net_output_bytes_total[1m])", "legendFormat": "Output", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "Bps", "custom": { "fillOpacity": 15 } } }
+    },
+    {
+      "id": 12, "title": "Hit Rate", "type": "gauge",
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 12 },
+      "targets": [
+        { "expr": "redis_keyspace_hits_total / (redis_keyspace_hits_total + redis_keyspace_misses_total) * 100", "legendFormat": "Hit %", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent", "min": 0, "max": 100,
+          "thresholds": { "mode": "absolute", "steps": [{ "value": null, "color": "red" }, { "value": 80, "color": "yellow" }, { "value": 95, "color": "green" }] }
+        }
+      }
+    },
+    {
+      "id": 13, "title": "Hits vs Misses / sec", "type": "timeseries",
+      "gridPos": { "h": 8, "w": 10, "x": 6, "y": 12 },
+      "targets": [
+        { "expr": "rate(redis_keyspace_hits_total[1m])", "legendFormat": "Hits", "refId": "A" },
+        { "expr": "rate(redis_keyspace_misses_total[1m])", "legendFormat": "Misses", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "fillOpacity": 15 } } }
+    },
+    {
+      "id": 14, "title": "Memory Over Time", "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 12 },
+      "targets": [
+        { "expr": "redis_memory_used_bytes", "legendFormat": "Used", "refId": "A" },
+        { "expr": "redis_memory_used_rss_bytes", "legendFormat": "RSS", "refId": "B" },
+        { "expr": "redis_memory_used_peak_bytes", "legendFormat": "Peak", "refId": "C" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "bytes", "custom": { "fillOpacity": 10 } } }
+    },
+    {
+      "id": 15, "title": "Keys by DB", "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "targets": [
+        { "expr": "redis_db_keys", "legendFormat": "db{{db}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "fillOpacity": 15 } } }
+    },
+    {
+      "id": 16, "title": "Expired & Evicted Keys / sec", "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "targets": [
+        { "expr": "rate(redis_expired_keys_total[1m])", "legendFormat": "Expired", "refId": "A" },
+        { "expr": "rate(redis_evicted_keys_total[1m])", "legendFormat": "Evicted", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "fillOpacity": 15 } } }
+    }
+  ]
+}

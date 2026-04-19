@@ -1,0 +1,42 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+scrape_configs:
+  # Application services
+  - job_name: "gateway"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["gateway:8000"]
+        labels:
+          service: gateway
+
+  - job_name: "ocr"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["ocr:8001"]
+        labels:
+          service: ocr
+
+  - job_name: "face"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["face:8002"]
+        labels:
+          service: face
+
+  # Infrastructure
+  - job_name: "postgresql"
+    static_configs:
+      - targets: ["postgres-exporter:9187"]
+
+  - job_name: "redis"
+    static_configs:
+      - targets: ["redis-exporter:9121"]
+
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
