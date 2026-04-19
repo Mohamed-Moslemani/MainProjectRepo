@@ -2,7 +2,7 @@ fastapi==0.115.6
 uvicorn[standard]==0.34.0
 pydantic==2.10.4
 pydantic-settings==2.7.1
-boto3==1.36.2
+google-cloud-vision==3.9.0
 opencv-python-headless==4.10.0.84
 numpy==2.2.1
 prometheus-fastapi-instrumentator==7.0.2
