@@ -34,6 +34,14 @@ class Settings:
         self.stripe_secret_key = get_env("GATEWAY_STRIPE_SECRET_KEY", "")
         self.stripe_webhook_secret = get_env("GATEWAY_STRIPE_WEBHOOK_SECRET", "")
 
+        # Frontend origin used for building Stripe success/cancel URLs and
+        # verification-email links. Falls back to the first CORS origin so
+        # existing dev flows keep working even without the new env var.
+        self.frontend_base_url = get_env(
+            "GATEWAY_FRONTEND_BASE_URL",
+            get_env("GATEWAY_CORS_ALLOWED_ORIGINS", "http://localhost:3000").split(",")[0].strip(),
+        )
+
         # File storage
         self.upload_dir = get_env("GATEWAY_UPLOAD_DIR", "/app/uploads")
         self.max_upload_size_mb = int(get_env("GATEWAY_MAX_UPLOAD_SIZE_MB", "10"))

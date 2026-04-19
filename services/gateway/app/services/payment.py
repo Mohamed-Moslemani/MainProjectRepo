@@ -63,8 +63,8 @@ async def create_checkout_session(db: AsyncSession, case: Case, user_id: str) ->
             "tracking_id": case.tracking_id,
             "service_type": case.service_type,
         },
-        success_url=f"{settings.cors_allowed_origins.split(',')[0].strip()}/case/{case.id}?payment=success",
-        cancel_url=f"{settings.cors_allowed_origins.split(',')[0].strip()}/case/{case.id}?payment=cancelled",
+        success_url=f"{settings.frontend_base_url}/payment/success?case_id={case.id}&session_id={{CHECKOUT_SESSION_ID}}",
+        cancel_url=f"{settings.frontend_base_url}/payment/cancelled?case_id={case.id}",
     )
 
     payment = Payment(

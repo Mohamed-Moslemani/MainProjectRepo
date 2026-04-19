@@ -10,6 +10,8 @@ import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
 import CaseDetail from './pages/CaseDetail';
+import PaymentSuccess from './pages/PaymentSuccess';
+import PaymentCancelled from './pages/PaymentCancelled';
 
 import NotFound from './pages/NotFound';
 import AdminLayout from './components/AdminLayout';
@@ -47,6 +49,25 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <CaseDetail />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Stripe return routes — both live behind auth so the polling
+              call to /cases/:id has the token already. */}
+          <Route
+            path="/payment/success"
+            element={
+              <ProtectedRoute>
+                <PaymentSuccess />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/payment/cancelled"
+            element={
+              <ProtectedRoute>
+                <PaymentCancelled />
               </ProtectedRoute>
             }
           />
