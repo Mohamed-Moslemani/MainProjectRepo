@@ -12,6 +12,11 @@ venv/
 credentials/
 **/google-vision.json
 
+# TLS certs — dev certs are regenerated via scripts/generate-dev-certs.sh;
+# real certs should never be committed.
+nginx/certs/*.crt
+nginx/certs/*.key
+
 # Uploads
 uploads/
 
@@ -25,5 +30,6 @@ Thumbs.db
 
 # Eval outputs
 evaluation/results/
+**.csv
 
 appdoc.txt
