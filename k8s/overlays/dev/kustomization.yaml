@@ -1,0 +1,56 @@
+# Local dev overlay — kind / k3d / minikube.
+# Mock mode ON so the cluster doesn't need AWS / Google credentials to
+# exercise the full pipeline.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: docflow
+
+resources:
+  - ../../base
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+configMapGenerator:
+  - name: docflow-config
+    behavior: merge
+    literals:
+      - OCR_MOCK_MODE=true
+      - FACE_MOCK_MODE=true
+      - GATEWAY_APP_BASE_URL=http://localhost:8080
+      - GATEWAY_FRONTEND_BASE_URL=http://localhost:8080
+      - GATEWAY_CORS_ALLOWED_ORIGINS=http://localhost:8080
+
+# Dev uses "latest" images — typically built locally and loaded into
+# the kind cluster with `kind load docker-image`.
+images:
+  - name: ghcr.io/mohamed-moslemani/docflow-gateway
+    newName: finalproject-gateway
+    newTag: latest
+  - name: ghcr.io/mohamed-moslemani/docflow-ocr
+    newName: finalproject-ocr
+    newTag: latest
+  - name: ghcr.io/mohamed-moslemani/docflow-face
+    newName: finalproject-face
+    newTag: latest
+  - name: ghcr.io/mohamed-moslemani/docflow-registry
+    newName: finalproject-registry
+    newTag: latest
+  - name: ghcr.io/mohamed-moslemani/docflow-web
+    newName: finalproject-web
+    newTag: latest
+
+# Patch the Ingress host + disable Let's Encrypt in dev
+patches:
+  - target: { kind: Ingress, name: docflow }
+    patch: |-
+      - op: replace
+        path: /metadata/annotations/cert-manager.io~1cluster-issuer
+        value: ""
+      - op: replace
+        path: /spec/tls
+        value: []
+      - op: replace
+        path: /spec/rules/0/host
+        value: localhost

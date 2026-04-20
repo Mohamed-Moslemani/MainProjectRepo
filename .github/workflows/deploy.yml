@@ -1,0 +1,124 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches: ["main", "develop"]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false   # don't cancel an in-flight rollout
+
+env:
+  REGISTRY: ghcr.io
+  REPO_OWNER: ${{ github.repository_owner }}
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  # ── Build and push every image to GHCR, tagged by git SHA + branch ───────
+  build:
+    name: Build & push ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [gateway, ocr, face, registry, web]
+    outputs:
+      sha: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract lowercase repo owner
+        id: lcowner
+        run: echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: services/${{ matrix.service }}/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ steps.lcowner.outputs.owner }}/docflow-${{ matrix.service }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ steps.lcowner.outputs.owner }}/docflow-${{ matrix.service }}:${{ github.ref_name }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # For the web image, bake in the production API URL so axios
+          # calls go to https://<your-domain>. The prod overlay's
+          # GATEWAY_FRONTEND_BASE_URL needs to match.
+          build-args: |
+            VITE_API_URL=${{ matrix.service == 'web' && format('https://{0}', vars.DOCFLOW_DOMAIN) || '' }}
+
+  # ── Deploy to the cluster (only on develop / main) ───────────────────────
+  deploy:
+    name: Deploy to cluster
+    needs: build
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install kubectl + kustomize
+        run: |
+          curl -LO https://dl.k8s.io/release/v1.30.0/bin/linux/amd64/kubectl
+          chmod +x kubectl && sudo mv kubectl /usr/local/bin/
+          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          sudo mv kustomize /usr/local/bin/
+
+      - name: Write kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" > ~/.kube/config
+          chmod 600 ~/.kube/config
+          kubectl version --client
+
+      - name: Substitute domain into prod overlay
+        working-directory: k8s/overlays/prod
+        env:
+          DOMAIN: ${{ vars.DOCFLOW_DOMAIN }}
+        run: |
+          if [ -z "$DOMAIN" ]; then
+            echo "DOCFLOW_DOMAIN repository variable is not set"
+            exit 1
+          fi
+          sed -i "s/DOMAIN_PLACEHOLDER/${DOMAIN}/g" kustomization.yaml
+
+      - name: Pin image tags to this SHA
+        working-directory: k8s/overlays/prod
+        run: |
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          for svc in gateway ocr face registry web; do
+            kustomize edit set image \
+              "ghcr.io/${OWNER}/docflow-${svc}=ghcr.io/${OWNER}/docflow-${svc}:${{ github.sha }}"
+          done
+
+      - name: Ensure namespace + secrets exist
+        run: |
+          kubectl apply -f k8s/base/namespace.yaml
+          # secrets are applied manually once per cluster (see k8s/README.md).
+          # Warn if they're missing so the Deployment can't roll without them.
+          kubectl -n docflow get secret docflow-secrets        > /dev/null 2>&1 || echo "::warning::docflow-secrets missing — apply k8s/secrets.yaml manually"
+          kubectl -n docflow get secret docflow-google-vision  > /dev/null 2>&1 || echo "::warning::docflow-google-vision missing — create it manually (see k8s/README.md)"
+
+      - name: Kustomize + apply
+        run: |
+          kustomize build k8s/overlays/prod | kubectl apply -f -
+
+      - name: Wait for rollout
+        run: |
+          for svc in gateway ocr face registry web; do
+            kubectl -n docflow rollout status deployment/$svc --timeout=180s
+          done

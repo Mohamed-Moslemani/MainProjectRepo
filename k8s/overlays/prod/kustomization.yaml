@@ -1,0 +1,58 @@
+# Production overlay — Hetzner VPS with k3s.
+# Real AWS / Google / Stripe credentials live in a Secret the user
+# creates manually from k8s/secrets.yaml (see k8s/README.md).
+#
+# Edit DOMAIN_PLACEHOLDER below to your actual domain, or CI will
+# substitute it from the DOCFLOW_DOMAIN repo variable at deploy time.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: docflow
+
+resources:
+  - ../../base
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+configMapGenerator:
+  - name: docflow-config
+    behavior: merge
+    literals:
+      - OCR_MOCK_MODE=false
+      - FACE_MOCK_MODE=false
+      - GATEWAY_APP_BASE_URL=https://DOMAIN_PLACEHOLDER
+      - GATEWAY_FRONTEND_BASE_URL=https://DOMAIN_PLACEHOLDER
+      - GATEWAY_CORS_ALLOWED_ORIGINS=https://DOMAIN_PLACEHOLDER
+
+# Image tags are rewritten by CI (kustomize edit set image) to the
+# git-sha-tagged images pushed to GHCR on the current build.
+images:
+  - name: ghcr.io/mohamed-moslemani/docflow-gateway
+    newTag: latest
+  - name: ghcr.io/mohamed-moslemani/docflow-ocr
+    newTag: latest
+  - name: ghcr.io/mohamed-moslemani/docflow-face
+    newTag: latest
+  - name: ghcr.io/mohamed-moslemani/docflow-registry
+    newTag: latest
+  - name: ghcr.io/mohamed-moslemani/docflow-web
+    newTag: latest
+
+patches:
+  # Ingress host + TLS secret name
+  - target: { kind: Ingress, name: docflow }
+    patch: |-
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: DOMAIN_PLACEHOLDER
+      - op: replace
+        path: /spec/rules/0/host
+        value: DOMAIN_PLACEHOLDER
+
+  # cert-manager email for Let's Encrypt notifications
+  - target: { kind: ClusterIssuer, name: letsencrypt-prod }
+    patch: |-
+      - op: replace
+        path: /spec/acme/email
+        value: moslemanomohamed@gmail.com

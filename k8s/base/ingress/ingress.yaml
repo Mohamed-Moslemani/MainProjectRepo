@@ -1,0 +1,75 @@
+# Single Ingress routing the whole stack through nginx-ingress.
+#
+# Routes match what our standalone nginx/nginx.conf does today:
+#   /                 → web SPA
+#   /api/*            → gateway
+#   /health/*         → gateway
+#   /docs, /redoc, /openapi.json → gateway (FastAPI docs)
+#   /metrics          → intentionally NOT exposed (Prometheus scrapes
+#                        gateway:8000 cluster-internally)
+#
+# The host is set in overlays/prod/ingress-patch.yaml.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: docflow
+  namespace: docflow
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "15m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    # Security headers (matches our standalone nginx.conf)
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+      add_header X-Content-Type-Options "nosniff" always;
+      add_header X-Frame-Options "DENY" always;
+      add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - REPLACE_WITH_YOUR_DOMAIN
+      secretName: docflow-tls
+  rules:
+    - host: REPLACE_WITH_YOUR_DOMAIN
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway
+                port: { number: 8000 }
+          - path: /health
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway
+                port: { number: 8000 }
+          - path: /docs
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway
+                port: { number: 8000 }
+          - path: /openapi.json
+            pathType: Exact
+            backend:
+              service:
+                name: gateway
+                port: { number: 8000 }
+          - path: /redoc
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway
+                port: { number: 8000 }
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port: { number: 80 }

@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: docflow
+  labels:
+    app.kubernetes.io/name: docflow
+    app.kubernetes.io/part-of: docflow-lebanon

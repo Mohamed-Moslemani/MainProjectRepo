@@ -1,0 +1,97 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: docflow
+
+labels:
+  - includeSelectors: false
+    pairs:
+      app.kubernetes.io/part-of: docflow-lebanon
+
+resources:
+  # Namespace
+  - namespace.yaml
+
+  # Storage
+  - storage/uploads-pvc.yaml
+
+  # Stateful dependencies
+  - postgres/statefulset.yaml
+  - postgres/service.yaml
+  - registry-postgres/statefulset.yaml
+  - registry-postgres/service.yaml
+  - redis/statefulset.yaml
+  - redis/service.yaml
+
+  # Application services
+  - gateway/deployment.yaml
+  - ocr/deployment.yaml
+  - face/deployment.yaml
+  - registry/deployment.yaml
+  - web/deployment.yaml
+
+  # Ingress + TLS
+  - ingress/cluster-issuer.yaml
+  - ingress/ingress.yaml
+
+# Stable ConfigMap name (no hash suffix) so Deployments can reference
+# `docflow-config` directly.
+generatorOptions:
+  disableNameSuffixHash: true
+
+configMapGenerator:
+  - name: docflow-config
+    literals:
+      # Internal service URLs (K8s service DNS)
+      - GATEWAY_OCR_SERVICE_URL=http://ocr:8001
+      - GATEWAY_FACE_SERVICE_URL=http://face:8002
+      - GATEWAY_REGISTRY_SERVICE_URL=http://registry:8003
+      - GATEWAY_REDIS_URL=redis://redis:6379/0
+      - GATEWAY_DATABASE_URL=postgresql+asyncpg://docflow:docflow@postgres:5432/docflow
+      # Registry service
+      - REGISTRY_DATABASE_URL=postgresql+asyncpg://registry:registry@registry-postgres:5432/registry
+      - REGISTRY_AUTO_SEED=true
+      - REGISTRY_SEED_FILE_PATH=/app/seed/citizens.json
+      # OCR / Face knobs
+      - OCR_GOOGLE_CREDENTIALS_PATH=/app/credentials/google-vision.json
+      - OCR_MIN_CONFIDENCE_THRESHOLD=0.7
+      - OCR_MOCK_MODE=false
+      - FACE_MOCK_MODE=false
+      - FACE_AWS_REGION=us-east-1
+      # Gateway identity + JWT + tokens
+      - GATEWAY_JWT_ALGORITHM=HS256
+      - GATEWAY_JWT_EXPIRY_MINUTES=60
+      - GATEWAY_JWT_REFRESH_EXPIRY_DAYS=2
+      - GATEWAY_RESET_TOKEN_EXPIRY_MINUTES=15
+      - GATEWAY_VERIFICATION_TOKEN_EXPIRY_HOURS=24
+      - GATEWAY_UPLOAD_DIR=/app/uploads
+      - GATEWAY_MAX_UPLOAD_SIZE_MB=10
+      # SMTP non-secret knobs
+      - GATEWAY_SMTP_HOST=smtp.gmail.com
+      - GATEWAY_SMTP_PORT=587
+      - GATEWAY_SMTP_FROM_EMAIL=noreply@docflow.lb
+      - GATEWAY_SMTP_FROM_NAME=DocFlow Lebanon
+      - GATEWAY_SMTP_USE_TLS=true
+      # Rate limiting
+      - GATEWAY_RATE_LIMIT_PER_MINUTE=60
+      - GATEWAY_RATE_LIMIT_LOGIN_PER_MINUTE=10
+      - GATEWAY_RATE_LIMIT_LOGIN_PER_EMAIL_PER_MINUTE=5
+      - GATEWAY_RATE_LIMIT_RESET_PER_IP_PER_HOUR=5
+      - GATEWAY_RATE_LIMIT_VERIFICATION_PER_IP_PER_HOUR=5
+      # Public-facing URLs (overlays override per environment)
+      - GATEWAY_APP_BASE_URL=http://localhost:8000
+      - GATEWAY_FRONTEND_BASE_URL=http://localhost:3000
+      - GATEWAY_CORS_ALLOWED_ORIGINS=http://localhost:3000
+
+# Image tags — overlays pin these via `kustomize edit set image`
+images:
+  - name: ghcr.io/mohamed-moslemani/docflow-gateway
+    newTag: latest
+  - name: ghcr.io/mohamed-moslemani/docflow-ocr
+    newTag: latest
+  - name: ghcr.io/mohamed-moslemani/docflow-face
+    newTag: latest
+  - name: ghcr.io/mohamed-moslemani/docflow-registry
+    newTag: latest
+  - name: ghcr.io/mohamed-moslemani/docflow-web
+    newTag: latest

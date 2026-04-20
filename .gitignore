@@ -22,6 +22,12 @@ credentials/
 nginx/certs/*.crt
 nginx/certs/*.key
 
+# Kubernetes Secrets — templated in k8s/base/secrets.example.yaml; the
+# filled-in version (k8s/secrets.yaml) must never be committed.
+k8s/secrets.yaml
+k8s/**/secrets.yaml
+**/kubeconfig*.yaml
+
 # Uploads
 uploads/
 
