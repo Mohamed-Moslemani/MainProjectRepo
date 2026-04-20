@@ -25,7 +25,27 @@ router = APIRouter(prefix="/api/v1/mukhtar", tags=["mukhtar"])
 
 
 class MukhtarDecision(BaseModel):
-    decision: str  # "approve", "reject", "need_info"
+    """Mukhtar decision payload.
+
+    Real Lebanese mukhtars attest to three things when stamping an
+    application: (1) the citizen lives in their district, (2) the
+    submitted photo matches the person standing in front of them, and
+    (3) the citizen was physically present in the mukhtar's office
+    when the application was signed. We require all three to be True
+    for an "approve" decision — this mirrors the legal attestation
+    the mukhtar signs on paper today.
+    """
+
+    decision: str  # "approve" | "reject" | "need_info"
+
+    # Three structured attestations — all required for approve
+    residence_verified: bool = False
+    photo_verified: bool = False
+    presence_verified: bool = False
+
+    # Free-text context
+    residence_notes: str | None = None   # e.g. "resident for 12+ years, known to me"
+    failed_attestation_reason: str | None = None  # why any of the three couldn't be attested
     notes: str | None = None
     rejection_reasons: list[str] | None = None
 
@@ -261,9 +281,25 @@ async def mukhtar_decide(
 
     now = datetime.now(timezone.utc)
 
+    attestations = {
+        "residence_verified": body.residence_verified,
+        "photo_verified": body.photo_verified,
+        "presence_verified": body.presence_verified,
+    }
+    all_attested = all(attestations.values())
+
     if body.decision == "approve":
+        if not all_attested:
+            failed = [k for k, v in attestations.items() if not v]
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Approve requires all three attestations: residence, photo, and presence. "
+                    f"Missing: {', '.join(failed)}"
+                ),
+            )
         target_status = "approved"
-        message = "Mukhtar approved: identity verified and application stamped"
+        message = "Mukhtar approved: residence, photo, and presence attested"
     elif body.decision == "reject":
         target_status = "rejected"
         message = "Mukhtar rejected the application"
@@ -278,11 +314,15 @@ async def mukhtar_decide(
     if not can_transition(case.status, target_status):
         raise HTTPException(status_code=400, detail=f"Cannot transition from {case.status} to {target_status}")
 
-    # Record mukhtar approval details
+    # Record mukhtar approval details — including the three-part attestation
+    # that Lebanese mukhtars legally sign off on.
     case.mukhtar_approval = {
         "decision": body.decision,
         "mukhtar_id": user.id,
         "mukhtar_name": user.full_name,
+        "attestations": attestations,
+        "residence_notes": body.residence_notes,
+        "failed_attestation_reason": body.failed_attestation_reason,
         "notes": body.notes,
         "rejection_reasons": body.rejection_reasons,
         "timestamp": now.isoformat(),
@@ -317,7 +357,11 @@ async def mukhtar_decide(
         db, "mukhtar_decision", user_id=user.id, case_id=case.id,
         details={
             "decision": body.decision,
+            "attestations": attestations,
+            "residence_notes": body.residence_notes,
+            "failed_attestation_reason": body.failed_attestation_reason,
             "notes": body.notes,
+            "rejection_reasons": body.rejection_reasons,
             "final_status": case.status,
         },
     )

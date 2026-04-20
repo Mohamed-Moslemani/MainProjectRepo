@@ -56,6 +56,12 @@ export default function MukhtarCases() {
   const [modal, setModal] = useState(null);
   const [notes, setNotes] = useState('');
   const [rejectionReasons, setRejectionReasons] = useState('');
+  // The three attestations a Lebanese mukhtar signs for in person:
+  const [residenceVerified, setResidenceVerified] = useState(false);
+  const [photoVerified, setPhotoVerified] = useState(false);
+  const [presenceVerified, setPresenceVerified] = useState(false);
+  const [residenceNotes, setResidenceNotes] = useState('');
+  const [failedAttestationReason, setFailedAttestationReason] = useState('');
   const [deciding, setDeciding] = useState(false);
   const [alert, setAlert] = useState(null);
   const [transferModal, setTransferModal] = useState(false);
@@ -135,7 +141,23 @@ export default function MukhtarCases() {
     }
   };
 
+  const allAttested = residenceVerified && photoVerified && presenceVerified;
+
+  const resetDecisionForm = () => {
+    setNotes('');
+    setRejectionReasons('');
+    setResidenceVerified(false);
+    setPhotoVerified(false);
+    setPresenceVerified(false);
+    setResidenceNotes('');
+    setFailedAttestationReason('');
+  };
+
   const handleDecision = async (decision) => {
+    if (decision === 'approve' && !allAttested) {
+      setAlert({ type: 'error', msg: 'All three attestations (residence, photo, presence) are required to approve' });
+      return;
+    }
     if (decision === 'reject' && !rejectionReasons.trim()) {
       setAlert({ type: 'error', msg: 'Rejection reasons are required' });
       return;
@@ -144,6 +166,11 @@ export default function MukhtarCases() {
     try {
       await mukhtarApi.decide(selected, {
         decision,
+        residence_verified: residenceVerified,
+        photo_verified: photoVerified,
+        presence_verified: presenceVerified,
+        residence_notes: residenceNotes || null,
+        failed_attestation_reason: failedAttestationReason || null,
         notes: notes || null,
         rejection_reasons: decision === 'reject' ? rejectionReasons.split('\n').filter(Boolean) : null,
       });
@@ -151,8 +178,7 @@ export default function MukhtarCases() {
       setModal(null);
       setSelected(null);
       setDetail(null);
-      setNotes('');
-      setRejectionReasons('');
+      resetDecisionForm();
       loadCases();
     } catch (err) {
       setAlert({ type: 'error', msg: err.response?.data?.detail || 'Decision failed' });
@@ -424,6 +450,37 @@ export default function MukhtarCases() {
               {modal === 'need_info' && <><span className="ar">طلب معلومات إضافية</span><span className="en">Request Additional Info</span></>}
             </h3>
 
+            {modal === 'approve' && (
+              <div style={{ marginBottom: '1rem', padding: '0.75rem 1rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8 }}>
+                <p style={{ margin: '0 0 0.5rem', fontWeight: 500, fontSize: '0.9rem', color: '#334155' }}>
+                  <span className="ar">أصادق كمختار على التالي</span>
+                  <span className="en">As mukhtar, I attest to the following</span>
+                </p>
+                <label style={{ display: 'block', marginBottom: '0.4rem', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={residenceVerified} onChange={(e) => setResidenceVerified(e.target.checked)} style={{ marginInlineEnd: '0.5rem' }} />
+                  <span className="ar">المواطن يقيم في نطاق اختصاصي</span>
+                  <span className="en">The citizen resides in my jurisdiction</span>
+                </label>
+                <label style={{ display: 'block', marginBottom: '0.4rem', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={photoVerified} onChange={(e) => setPhotoVerified(e.target.checked)} style={{ marginInlineEnd: '0.5rem' }} />
+                  <span className="ar">الصورة المقدّمة تُطابق المواطن</span>
+                  <span className="en">The submitted photo matches the citizen</span>
+                </label>
+                <label style={{ display: 'block', marginBottom: '0.5rem', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={presenceVerified} onChange={(e) => setPresenceVerified(e.target.checked)} style={{ marginInlineEnd: '0.5rem' }} />
+                  <span className="ar">المواطن حضر شخصيًا في مكتبي</span>
+                  <span className="en">The citizen was physically present in my office</span>
+                </label>
+                <textarea
+                  value={residenceNotes}
+                  onChange={(e) => setResidenceNotes(e.target.value)}
+                  rows={2}
+                  style={{ width: '100%', padding: '0.5rem', borderRadius: 6, border: '1px solid var(--gray-300)', resize: 'vertical', marginTop: '0.25rem' }}
+                  placeholder="Residence notes, e.g. 'resident for 12+ years, known to me'"
+                />
+              </div>
+            )}
+
             <div style={{ marginBottom: '1rem' }}>
               <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>
                 <span className="ar">ملاحظات</span>
@@ -461,7 +518,12 @@ export default function MukhtarCases() {
               <button
                 className={`btn ${modal === 'approve' ? 'btn--success' : modal === 'reject' ? 'btn--danger' : 'btn--warning'}`}
                 onClick={() => handleDecision(modal)}
-                disabled={deciding}
+                disabled={deciding || (modal === 'approve' && !allAttested)}
+                title={
+                  modal === 'approve' && !allAttested
+                    ? 'All three attestations required'
+                    : undefined
+                }
               >
                 {deciding ? <div className="spinner" /> : (
                   modal === 'approve' ? <><span className="ar">موافقة</span><span className="en">Approve</span></> :

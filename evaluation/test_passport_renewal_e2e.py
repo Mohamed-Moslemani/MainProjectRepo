@@ -441,8 +441,78 @@ def step_audit_logs_are_reproducible(case_id: str):
     assert_truthy("decision log has pipeline_duration_seconds", "pipeline_duration_seconds" in decision_log)
 
 
+def step_mukhtar_three_part_attestation(case_id: str):
+    """Real Lebanese mukhtars attest to three things in person. The decide
+    endpoint should refuse approval when any of the three is missing, and
+    should record all three in the audit log on success.
+    """
+    print("\n--- Step 11: Mukhtar three-part attestation ---")
+
+    # Mukhtar was seeded with email=MUKHTAR_EMAIL and password=TEST_PASSWORD
+    # (seed_mukhtar hashes it with the same passlib setup the app uses).
+    r = requests.post(f"{API}/auth/login", json={
+        "email": MUKHTAR_EMAIL, "password": TEST_PASSWORD,
+    })
+    assert_status("mukhtar login", r, 200)
+    mukhtar_token = r.json()["access_token"]
+    m_headers = {"Authorization": f"Bearer {mukhtar_token}"}
+
+    # Approve without all three attestations → 400
+    r = requests.post(
+        f"{API}/mukhtar/cases/{case_id}/decide",
+        json={
+            "decision": "approve",
+            "residence_verified": True,
+            "photo_verified": True,
+            "presence_verified": False,  # missing the third
+            "residence_notes": "known to me",
+        },
+        headers=m_headers,
+    )
+    assert_status("approve WITHOUT presence_verified rejected", r, 400)
+    assert_truthy(
+        "error mentions missing attestations",
+        "presence_verified" in (r.json().get("detail") or "").lower()
+        or "attestation" in (r.json().get("detail") or "").lower(),
+    )
+
+    # Approve with all three → 200
+    r = requests.post(
+        f"{API}/mukhtar/cases/{case_id}/decide",
+        json={
+            "decision": "approve",
+            "residence_verified": True,
+            "photo_verified": True,
+            "presence_verified": True,
+            "residence_notes": "Resident in district for 12+ years",
+            "notes": "All three attestations confirmed in person",
+        },
+        headers=m_headers,
+    )
+    assert_status("approve WITH all three attestations", r, 200)
+    body = r.json()
+    assert_eq("decision returned", body["decision"], "approve")
+    # approve auto-chains to payment_pending
+    assert_eq("new_status is payment_pending", body["new_status"], "payment_pending")
+
+    # Audit log captures each attestation explicitly
+    with db_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT details FROM audit_logs WHERE case_id = %s AND action = 'mukhtar_decision'",
+            (case_id,),
+        )
+        rows = cur.fetchall()
+    assert_truthy("mukhtar_decision audit log present", rows)
+    details = rows[0][0] or {}
+    assert_truthy("audit log has attestations dict", "attestations" in details)
+    atts = details["attestations"]
+    for key in ("residence_verified", "photo_verified", "presence_verified"):
+        assert_eq(f"audit log records {key}=True", atts.get(key), True)
+    assert_truthy("audit log has residence_notes", "residence_notes" in details)
+
+
 def step_tracking_shows_full_history(token: str, case_id: str):
-    print("\n--- Step 10: Tracking shows full pipeline history ---")
+    print("\n--- Step 12: Tracking shows full pipeline history ---")
     r = requests.get(f"{API}/cases/{case_id}/tracking", headers=auth_headers(token))
     assert_status("GET /tracking", r, 200)
     events = [e["status"] for e in r.json()["events"]]
@@ -450,6 +520,8 @@ def step_tracking_shows_full_history(token: str, case_id: str):
     assert_truthy("validated event", "validated" in events)
     assert_truthy("risk_evaluated event", "risk_evaluated" in events)
     assert_truthy("pending_mukhtar event", "pending_mukhtar" in events)
+    assert_truthy("approved event", "approved" in events)
+    assert_truthy("payment_pending event", "payment_pending" in events)
 
 
 # ── Cleanup ───────────────────────────────────────────────────────────────
@@ -502,6 +574,7 @@ def main():
         step_assert_pipeline_artifacts(final_case, user_id)
         step_assert_final_status_and_mukhtar(final_case, mukhtar_id)
         step_audit_logs_are_reproducible(case_id)
+        step_mukhtar_three_part_attestation(case_id)
         step_tracking_shows_full_history(token, case_id)
 
         print("\n" + "=" * 60)
