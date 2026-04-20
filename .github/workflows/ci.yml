@@ -135,7 +135,8 @@ jobs:
 
       - name: Bring up backend stack
         run: |
-          docker compose --env-file .env.dev up -d --build db redis gateway ocr face
+          docker compose --env-file .env.dev up -d --build \
+            db redis registry_db gateway ocr face registry
 
       - name: Wait for gateway readiness
         run: |
