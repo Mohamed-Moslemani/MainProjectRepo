@@ -31,6 +31,7 @@ class Case(Base):
 
     # Processing results
     reconciliation_result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    registry_result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     risk_result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # Tracking

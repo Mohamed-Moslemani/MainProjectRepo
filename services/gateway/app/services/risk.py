@@ -1,7 +1,9 @@
 """Risk scoring service - weighted model combining all validation signals.
 
-Inputs: OCR confidence, face similarity, liveness confidence, mismatch flags,
-        service type severity, duplicate detection.
+Inputs: OCR confidence, face similarity, liveness confidence,
+        declared-vs-OCR reconciliation integrity, civil-registry match,
+        document quality, service-type severity, mismatch + duplicate
+        penalties.
 
 Output: risk score (0-100) and routing decision.
 """
@@ -10,14 +12,19 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Weights for risk components (must sum to 1.0)
+# Weights for risk components (must sum to 1.0).
+# Rebalanced when the civil-registry check was added: registry is the
+# authoritative identity signal, so it carries a high weight; OCR +
+# reconciliation are downweighted slightly because they're now
+# corroborating rather than primary.
 WEIGHTS = {
-    "ocr_confidence": 0.15,
+    "registry_match": 0.25,   # authoritative identity check (Ministry lookup)
     "face_similarity": 0.20,
-    "liveness": 0.20,
-    "reconciliation": 0.25,
+    "liveness": 0.15,
+    "reconciliation": 0.15,   # declared vs OCR consistency
+    "ocr_confidence": 0.10,
     "document_quality": 0.10,
-    "service_severity": 0.10,
+    "service_severity": 0.05,
 }
 
 # Passport is stricter than ID; new is stricter than renewal
@@ -43,11 +50,17 @@ def compute_risk_score(
     service_type: str,
     mismatch_count: int = 0,
     duplicate_detected: bool = False,
+    registry_match_score: float = 1.0,  # 0-1 from civil registry verification
+    registry_deceased: bool = False,
 ) -> dict:
     """Compute weighted risk score.
 
     Lower score = lower risk = more likely to auto-approve.
     Higher score = higher risk = more likely to reject or review.
+
+    A `registry_deceased=True` hard-overrides the score to 100 regardless
+    of other inputs — no document can be issued to a registered-dead
+    citizen, period.
     """
 
     # Convert all inputs to risk (0 = no risk, 100 = max risk)
@@ -55,11 +68,13 @@ def compute_risk_score(
     face_risk = max(0, 100 - face_similarity)  # similarity 90 -> risk 10
     liveness_risk = (1 - liveness_score) * 100
     reconciliation_risk = (1 - reconciliation_integrity) * 100
+    registry_risk = (1 - registry_match_score) * 100
     quality_risk = (1 - document_quality_avg) * 100
     severity = SERVICE_SEVERITY.get(service_type, 0.5) * 100
 
     # Weighted sum
     raw_score = (
+        WEIGHTS["registry_match"] * registry_risk +
         WEIGHTS["ocr_confidence"] * ocr_risk +
         WEIGHTS["face_similarity"] * face_risk +
         WEIGHTS["liveness"] * liveness_risk +
@@ -75,10 +90,16 @@ def compute_risk_score(
     if duplicate_detected:
         raw_score += 30
 
+    # Deceased override — always reject
+    if registry_deceased:
+        raw_score = 100
+
     risk_score = min(100, max(0, round(raw_score, 2)))
 
     # Routing decision
-    if risk_score <= AUTO_APPROVE_THRESHOLD:
+    if registry_deceased:
+        routing = "reject"
+    elif risk_score <= AUTO_APPROVE_THRESHOLD:
         routing = "auto_approve"
     elif risk_score <= MANUAL_REVIEW_THRESHOLD:
         routing = "manual_review"
@@ -89,6 +110,7 @@ def compute_risk_score(
         "risk_score": risk_score,
         "routing": routing,
         "breakdown": {
+            "registry_risk": round(registry_risk, 2),
             "ocr_risk": round(ocr_risk, 2),
             "face_risk": round(face_risk, 2),
             "liveness_risk": round(liveness_risk, 2),
@@ -97,5 +119,6 @@ def compute_risk_score(
             "severity": round(severity, 2),
             "mismatch_penalty": mismatch_count * 8,
             "duplicate_penalty": 30 if duplicate_detected else 0,
+            "registry_deceased_override": registry_deceased,
         },
     }

@@ -78,6 +78,33 @@ services:
       - uploads:/app/uploads
       - ./shared:/app/shared
 
+  # ── Simulated Lebanese civil registry (Ministry of Interior lookup) ────────
+  registry_db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: registry
+      POSTGRES_PASSWORD: registry
+      POSTGRES_DB: registry
+    volumes:
+      - registry_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U registry"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  registry:
+    build:
+      context: .
+      dockerfile: services/registry/Dockerfile
+    ports:
+      - "8003:8003"
+    environment:
+      REGISTRY_DATABASE_URL: postgresql+asyncpg://registry:registry@registry_db:5432/registry
+    depends_on:
+      registry_db:
+        condition: service_healthy
+
   web:
     build:
       context: .
@@ -152,6 +179,7 @@ services:
 
 volumes:
   postgres_data:
+  registry_data:
   uploads:
   prometheus_data:
   grafana_data:

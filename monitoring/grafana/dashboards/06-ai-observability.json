@@ -177,11 +177,58 @@
       "fieldConfig": { "defaults": { "unit": "short", "custom": { "fillOpacity": 10 } } }
     },
 
-    { "id": 40, "title": "Risk & Pipeline Decisions", "type": "row", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 60 }, "collapsed": false },
+    { "id": 50, "title": "Civil Registry", "type": "row", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 60 }, "collapsed": false },
+
+    {
+      "id": 51, "title": "Registry Requests (total)", "type": "stat",
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 61 },
+      "targets": [{ "expr": "docflow_registry_requests_total or vector(0)", "legendFormat": "Requests", "refId": "A" }],
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "blue" } } },
+      "options": { "colorMode": "value", "graphMode": "area" }
+    },
+    {
+      "id": 52, "title": "Registry Latency p50 / p95", "type": "timeseries",
+      "gridPos": { "h": 5, "w": 12, "x": 6, "y": 61 },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum by (le) (rate(docflow_registry_duration_seconds_bucket[5m])))", "legendFormat": "p50", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum by (le) (rate(docflow_registry_duration_seconds_bucket[5m])))", "legendFormat": "p95", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "fillOpacity": 10 } } }
+    },
+    {
+      "id": 53, "title": "Registry Match-rate", "type": "gauge",
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 61 },
+      "targets": [{ "expr": "(sum(docflow_registry_results_total{status=\"exact_match\"}) / sum(docflow_registry_results_total)) * 100 or vector(0)", "legendFormat": "%", "refId": "A" }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent", "min": 0, "max": 100,
+          "thresholds": { "mode": "absolute", "steps": [
+            { "value": null, "color": "red" },
+            { "value": 60, "color": "yellow" },
+            { "value": 85, "color": "green" }
+          ] }
+        }
+      }
+    },
+
+    {
+      "id": 54, "title": "Registry Outcomes", "type": "piechart",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 66 },
+      "targets": [{ "expr": "sum by (status) (docflow_registry_results_total)", "legendFormat": "{{status}}", "refId": "A" }],
+      "options": { "legend": { "displayMode": "table", "placement": "right" } }
+    },
+    {
+      "id": 55, "title": "Registry Match Confidence Avg", "type": "timeseries",
+      "gridPos": { "h": 8, "w": 16, "x": 8, "y": 66 },
+      "targets": [{ "expr": "rate(docflow_registry_match_confidence_sum[5m]) / rate(docflow_registry_match_confidence_count[5m])", "legendFormat": "avg confidence", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1, "custom": { "fillOpacity": 15 } } }
+    },
+
+    { "id": 40, "title": "Risk & Pipeline Decisions", "type": "row", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 74 }, "collapsed": false },
 
     {
       "id": 41, "title": "Risk Score Distribution (p50 / p95)", "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 61 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 75 },
       "targets": [
         { "expr": "histogram_quantile(0.50, sum by (le) (rate(docflow_risk_score_bucket[5m])))", "legendFormat": "p50 risk", "refId": "A" },
         { "expr": "histogram_quantile(0.95, sum by (le) (rate(docflow_risk_score_bucket[5m])))", "legendFormat": "p95 risk", "refId": "B" }
@@ -190,14 +237,14 @@
     },
     {
       "id": 42, "title": "Pipeline Decisions", "type": "piechart",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 61 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 75 },
       "targets": [{ "expr": "sum by (decision) (docflow_pipeline_decisions_total)", "legendFormat": "{{decision}}", "refId": "A" }],
       "options": { "legend": { "displayMode": "table", "placement": "right" } }
     },
 
     {
       "id": 43, "title": "Pipeline Duration (p50 / p95)", "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 69 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 83 },
       "targets": [
         { "expr": "histogram_quantile(0.50, sum by (le, service_type) (rate(docflow_pipeline_duration_seconds_bucket[5m])))", "legendFormat": "p50 — {{service_type}}", "refId": "A" },
         { "expr": "histogram_quantile(0.95, sum by (le, service_type) (rate(docflow_pipeline_duration_seconds_bucket[5m])))", "legendFormat": "p95 — {{service_type}}", "refId": "B" }
@@ -206,7 +253,7 @@
     },
     {
       "id": 44, "title": "External AI Call Latency (avg)", "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 69 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 83 },
       "targets": [{ "expr": "rate(docflow_external_call_duration_seconds_sum[5m]) / rate(docflow_external_call_duration_seconds_count[5m])", "legendFormat": "{{service}}", "refId": "A" }],
       "fieldConfig": { "defaults": { "unit": "s", "custom": { "fillOpacity": 10 } } }
     }

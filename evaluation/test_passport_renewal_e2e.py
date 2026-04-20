@@ -401,6 +401,18 @@ def step_audit_logs_are_reproducible(case_id: str):
     assert_truthy("face log has liveness_score", "liveness_score" in face_log)
     assert_truthy("face log has decision", "decision" in face_log)
 
+    assert_truthy("registry_verification_completed log present", by_action.get("registry_verification_completed"))
+    registry_log = by_action["registry_verification_completed"][0]
+    assert_truthy("registry log has status", "status" in registry_log)
+    assert_truthy("registry log has confidence", "confidence" in registry_log)
+    assert_truthy("registry log has field_scores", "field_scores" in registry_log)
+    # Our seeded Mohamed Saad / 12345 / Beirut citizen should match exact_match
+    assert_eq("registry status = exact_match", registry_log["status"], "exact_match")
+    assert_truthy(
+        f"registry confidence >= 0.9 (got {registry_log.get('confidence')})",
+        (registry_log.get("confidence") or 0) >= 0.9,
+    )
+
     assert_truthy("reconciliation_completed log present", by_action.get("reconciliation_completed"))
     recon_log = by_action["reconciliation_completed"][0]
     assert_truthy("recon log has field_results", "field_results" in recon_log)
@@ -414,7 +426,8 @@ def step_audit_logs_are_reproducible(case_id: str):
     assert_truthy("risk log has routing", "routing" in risk_log)
     inputs = risk_log["inputs"]
     for key in ("ocr_avg_confidence", "face_similarity", "liveness_score",
-                "reconciliation_integrity", "service_type", "mismatch_count"):
+                "reconciliation_integrity", "service_type", "mismatch_count",
+                "registry_match_score", "registry_status"):
         assert_truthy(f"risk inputs include {key}", key in inputs)
 
     assert_truthy("decision_made log present", by_action.get("decision_made"))

@@ -245,3 +245,36 @@ groups:
         annotations:
           summary: "Face service errors above 0.1/sec"
           description: "Face service reporting {{ $value }} errors/sec across all operations over the last 5 minutes."
+
+      # Civil registry: high no_match rate = data integrity issue or
+      # widespread fake submissions
+      - alert: RegistryNoMatchSpike
+        expr: |
+          (
+            sum(rate(docflow_registry_results_total{status="no_match"}[10m]))
+            /
+            sum(rate(docflow_registry_results_total[10m]))
+          ) > 0.4
+          and sum(rate(docflow_registry_results_total[10m])) > 0.02
+        for: 10m
+        labels:
+          severity: warning
+          component: registry
+        annotations:
+          summary: "Civil registry no_match rate above 40%"
+          description: "{{ $value | humanizePercentage }} of registry verifications returned no_match. Possible causes: seed drift vs real population, widespread mistyped applications, or model issue."
+
+      # Registry p95 latency high — the lookup is meant to be fast (<250ms)
+      - alert: RegistryLatencyHigh
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (rate(docflow_registry_duration_seconds_bucket[5m]))
+          ) > 1.0
+        for: 5m
+        labels:
+          severity: warning
+          component: registry
+        annotations:
+          summary: "Registry p95 latency above 1s"
+          description: "Civil registry lookup p95 is {{ $value | humanizeDuration }} — expected sub-250ms. Check registry_db health and index usage."

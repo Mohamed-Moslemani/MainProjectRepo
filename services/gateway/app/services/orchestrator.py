@@ -153,6 +153,49 @@ async def call_face_service(case_id: str, selfie_path: str, reference_path: str)
         EXTERNAL_CALL_DURATION.labels(service="face").observe(_time.time() - start)
 
 
+async def call_registry_service(declared: dict) -> dict:
+    """Cross-check declared identity fields against the civil registry.
+
+    Returns the raw service response. On failure (service down, network
+    error), returns a best-effort "error" result so the pipeline can
+    continue in degraded mode rather than crashing.
+    """
+    import time as _time
+    settings = get_settings()
+    start = _time.time()
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(
+                f"{settings.registry_service_url}/api/v1/registry/verify",
+                json={
+                    "full_name": declared.get("full_name"),
+                    "father_name": declared.get("father_name"),
+                    "mother_name": declared.get("mother_name"),
+                    "date_of_birth": declared.get("date_of_birth"),
+                    "place_of_birth": declared.get("place_of_birth"),
+                    "registry_number": declared.get("registry_number"),
+                    "registry_place": declared.get("registry_place"),
+                },
+            )
+            response.raise_for_status()
+            return response.json()
+    except Exception as e:
+        EXTERNAL_CALL_ERRORS.labels(service="registry").inc()
+        logger.warning("Registry service unavailable, continuing with no_match: %s", e)
+        # Degrade gracefully — treat as no_match so the case flows to
+        # manual_review rather than crashing the submit.
+        return {
+            "status": "error",
+            "confidence": 0.0,
+            "matched_citizen": None,
+            "field_scores": {},
+            "reasons": [f"Registry service unavailable: {e}"],
+            "processing_time_ms": 0,
+        }
+    finally:
+        EXTERNAL_CALL_DURATION.labels(service="registry").observe(_time.time() - start)
+
+
 def _transition(case: Case, new_status: str, message: str):
     """Helper to transition case and record history."""
     if can_transition(case.status, new_status):
@@ -389,6 +432,32 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
         },
     )
 
+    # ---- Step 3.5: Civil registry verification ----
+    registry_result = await call_registry_service(declared)
+    case.registry_result = registry_result
+    results["registry"] = registry_result
+
+    registry_status = registry_result.get("status", "error")
+    registry_confidence = float(registry_result.get("confidence") or 0.0)
+    registry_deceased = registry_status == "deceased"
+
+    await log_action(
+        db, "registry_verification_completed", case_id=case.id,
+        details={
+            "status": registry_status,
+            "confidence": registry_confidence,
+            "matched_citizen": registry_result.get("matched_citizen"),
+            "field_scores": registry_result.get("field_scores", {}),
+            "reasons": registry_result.get("reasons", []),
+            "processing_time_ms": registry_result.get("processing_time_ms"),
+        },
+    )
+
+    if registry_status == "no_match":
+        results["issues"].append("No matching record in the civil registry")
+    elif registry_deceased:
+        results["issues"].append("Civil registry records citizen as deceased")
+
     # ---- Step 4: Risk scoring ----
     avg_confidence = (
         sum(all_confidence_scores.values()) / len(all_confidence_scores)
@@ -404,6 +473,8 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
         document_quality_avg=avg_quality,
         service_type=case.service_type,
         mismatch_count=len(recon_result["mismatch_flags"]),
+        registry_match_score=registry_confidence,
+        registry_deceased=registry_deceased,
     )
     case.risk_result = risk_result
     results["risk"] = risk_result
@@ -428,6 +499,9 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
                 "document_quality_avg": avg_quality,
                 "service_type": case.service_type,
                 "mismatch_count": len(recon_result["mismatch_flags"]),
+                "registry_match_score": registry_confidence,
+                "registry_status": registry_status,
+                "registry_deceased": registry_deceased,
             },
         },
     )

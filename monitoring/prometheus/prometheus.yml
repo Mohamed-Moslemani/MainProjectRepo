@@ -28,6 +28,13 @@ scrape_configs:
         labels:
           service: face
 
+  - job_name: "registry"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["registry:8003"]
+        labels:
+          service: registry
+
   # Infrastructure
   - job_name: "postgresql"
     static_configs:

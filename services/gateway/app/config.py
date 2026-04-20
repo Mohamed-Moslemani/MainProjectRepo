@@ -29,6 +29,7 @@ class Settings:
         # Internal services
         self.ocr_service_url = get_env("GATEWAY_OCR_SERVICE_URL", "http://ocr:8001")
         self.face_service_url = get_env("GATEWAY_FACE_SERVICE_URL", "http://face:8002")
+        self.registry_service_url = get_env("GATEWAY_REGISTRY_SERVICE_URL", "http://registry:8003")
 
         # Stripe
         self.stripe_secret_key = get_env("GATEWAY_STRIPE_SECRET_KEY", "")
