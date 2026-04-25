@@ -352,11 +352,73 @@ async def _get_user_case(db: AsyncSession, case_id: str, user: User) -> Case:
     return case
 
 
+PIPELINE_BUDGET_SECONDS = 120
+
+
 async def _process_case_bg(case_id: str):
-    """Background task to run the processing pipeline."""
+    """Background task to run the processing pipeline.
+
+    Wrapped in a wall-clock budget: if OCR / face / registry hangs for
+    over PIPELINE_BUDGET_SECONDS combined, force the case to NEED_INFO
+    so it doesn't sit in SUBMITTED forever. The citizen can resubmit
+    once whatever was hanging recovers.
+    """
+    import asyncio
+    import logging as _logging
+
     from ..db import async_session
+    from .. import metrics
+    from ..services.case_machine import can_transition
+
+    log = _logging.getLogger(__name__)
+
     async with async_session() as db:
         result = await db.execute(select(Case).where(Case.id == case_id))
         case = result.scalar_one_or_none()
-        if case:
-            await process_case(db, case)
+        if not case:
+            return
+        try:
+            await asyncio.wait_for(process_case(db, case), timeout=PIPELINE_BUDGET_SECONDS)
+        except asyncio.TimeoutError:
+            log.error("Pipeline budget exceeded for case %s — bouncing to need_info", case_id)
+            # Refetch in case the pipeline started writing then stalled
+            result = await db.execute(select(Case).where(Case.id == case_id))
+            case = result.scalar_one_or_none()
+            if not case:
+                return
+            if can_transition(case.status, "need_info"):
+                case.status = "need_info"
+                case.retake_reasons = [{
+                    "document_type": "_pipeline",
+                    "reasons": [
+                        f"Processing took longer than {PIPELINE_BUDGET_SECONDS}s "
+                        "and was cancelled. Please re-submit."
+                    ],
+                }]
+                case.status_history = case.status_history + [{
+                    "status": "need_info",
+                    "message": "Processing pipeline timed out",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }]
+                await db.commit()
+                metrics.CASE_STATUS_TRANSITIONS.labels(
+                    from_status=case.status, to_status="need_info",
+                ).inc()
+        except Exception:
+            log.exception("Pipeline crashed for case %s", case_id)
+            # Same bounce-to-need_info on any uncaught error so we never
+            # leave the case stuck in SUBMITTED.
+            result = await db.execute(select(Case).where(Case.id == case_id))
+            case = result.scalar_one_or_none()
+            if case and can_transition(case.status, "need_info"):
+                case.status = "need_info"
+                case.retake_reasons = [{
+                    "document_type": "_pipeline",
+                    "reasons": ["Internal processing error. Please re-submit."],
+                }]
+                case.status_history = case.status_history + [{
+                    "status": "need_info",
+                    "message": "Pipeline crashed",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }]
+                await db.commit()

@@ -166,7 +166,7 @@ async def call_registry_service(declared: dict) -> dict:
     settings = get_settings()
     start = _time.time()
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=10.0, headers=propagate_headers()) as client:
             response = await client.post(
                 f"{settings.registry_service_url}/api/v1/registry/verify",
                 json={
@@ -444,11 +444,28 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
 
             except Exception as e:
                 logger.error(f"Face verification failed for case {case.id}: {e}")
-                results["issues"].append("Face verification service unavailable")
                 await log_action(
                     db, "face_verification_failure", case_id=case.id,
                     details={"error": str(e)},
                 )
+                # Face service down — bounce back to citizen rather than
+                # running risk on a 0-similarity score (which would auto-reject
+                # an honest applicant for an infra outage).
+                case.retake_reasons = [{
+                    "document_type": "selfie",
+                    "reasons": ["Face verification temporarily unavailable. Please re-submit shortly."],
+                }]
+                results["routing"] = "needs_info"
+                CASE_STATUS_TRANSITIONS.labels(
+                    from_status=case.status, to_status="need_info",
+                ).inc()
+                _transition(case, "need_info", "Face service unavailable")
+                await db.commit()
+                PIPELINE_DURATION.labels(service_type=case.service_type).observe(
+                    _time.time() - pipeline_start
+                )
+                PIPELINE_DECISIONS.labels(decision="needs_info").inc()
+                return results
         else:
             results["issues"].append("Missing selfie or reference document for face verification")
     elif not policy.get("face_match_required"):
