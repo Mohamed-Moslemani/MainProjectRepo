@@ -298,6 +298,46 @@ async def mukhtar_decide(
                     f"Missing: {', '.join(failed)}"
                 ),
             )
+
+        # Jurisdiction guard: a Lebanese mukhtar may legally attest only
+        # residents of his own محلة (locality). Compare the case's
+        # registry_place / municipality against the mukhtar's profile.
+        # Auto-assignment already filters by jurisdiction at routing
+        # time, but a manually-reassigned case (or one where the
+        # citizen edited their declared registry_place between assign
+        # and decide) could slip through — guard explicitly here.
+        declared = case.declared_fields or {}
+        case_municipality = (declared.get("municipality") or "").strip().lower()
+        case_registry = (declared.get("registry_place") or "").strip().lower()
+        mukh_municipality = (user.municipality or "").strip().lower()
+        mukh_registry = (user.registry_place or "").strip().lower()
+
+        municipality_match = bool(
+            case_municipality and mukh_municipality and case_municipality == mukh_municipality
+        )
+        district_match = bool(
+            case_registry and mukh_registry and case_registry == mukh_registry
+        )
+
+        if not (municipality_match or district_match):
+            await log_action(
+                db, "mukhtar_jurisdiction_violation", user_id=user.id, case_id=case_id,
+                details={
+                    "case_municipality": case_municipality or None,
+                    "case_registry_place": case_registry or None,
+                    "mukhtar_municipality": mukh_municipality or None,
+                    "mukhtar_registry_place": mukh_registry or None,
+                },
+            )
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "Out of jurisdiction — a mukhtar may only attest residents of his "
+                    "own locality. The case's registry place does not match yours. "
+                    "Use 'reject' or 'need_info' to flag this case for re-routing."
+                ),
+            )
+
         target_status = "approved"
         message = "Mukhtar approved: residence, photo, and presence attested"
     elif body.decision == "reject":
