@@ -31,6 +31,8 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.request_id import get_request_id
+
 from ..models.audit_log import AuditLog
 
 
@@ -135,12 +137,14 @@ async def log_action(
     details: dict | None = None,
     ip_address: str | None = None,
 ) -> AuditLog:
+    rid = get_request_id()
     entry = AuditLog(
         user_id=user_id,
         case_id=case_id,
         action=action,
         details=redact_details(details or {}),
         ip_address=ip_address,
+        request_id=None if rid == "-" else rid,
     )
     db.add(entry)
     await db.commit()

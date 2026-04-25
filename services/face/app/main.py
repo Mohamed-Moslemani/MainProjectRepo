@@ -6,11 +6,14 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from prometheus_fastapi_instrumentator import Instrumentator
 
+from shared.request_id import RequestIDMiddleware, install_logging_filter
+
 from .config import get_settings
 from .routers import face, liveness
 from . import metrics  # noqa: F401 — registers Prometheus collectors
 
 logging.basicConfig(level=logging.INFO)
+install_logging_filter()
 logger = logging.getLogger(__name__)
 
 
@@ -31,6 +34,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="DocFlow - Face Verification Service", version="0.1.0", lifespan=lifespan)
+app.add_middleware(RequestIDMiddleware)
 
 Instrumentator(
     should_group_status_codes=False,

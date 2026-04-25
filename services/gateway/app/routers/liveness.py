@@ -7,6 +7,8 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
+from shared.request_id import propagate_headers
+
 from ..db import get_db
 from ..config import get_settings
 from ..models.user import User
@@ -33,7 +35,7 @@ async def get_liveness_credentials(
     """Get temporary AWS credentials for the frontend liveness component."""
     settings = get_settings()
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=10.0, headers=propagate_headers()) as client:
             resp = await client.get(
                 f"{settings.face_service_url}/api/v1/face/liveness/credentials"
             )
@@ -87,7 +89,7 @@ async def create_liveness_session(
 
     settings = get_settings()
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        async with httpx.AsyncClient(timeout=15.0, headers=propagate_headers()) as client:
             resp = await client.post(
                 f"{settings.face_service_url}/api/v1/face/liveness/create-session"
             )
@@ -149,7 +151,7 @@ async def get_liveness_results(
 
     settings = get_settings()
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=30.0, headers=propagate_headers()) as client:
             payload = {
                 "session_id": req.session_id,
                 "reference_doc_path": reference_doc_path,

@@ -14,6 +14,8 @@ from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
+from shared.request_id import propagate_headers
+
 from ..config import get_settings
 from ..models.case import Case
 from ..models.document import Document
@@ -112,7 +114,7 @@ async def call_ocr_service(document: Document) -> dict:
     settings = get_settings()
     start = _time.time()
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=30.0, headers=propagate_headers()) as client:
             response = await client.post(
                 f"{settings.ocr_service_url}/api/v1/ocr/process",
                 json={
@@ -135,7 +137,7 @@ async def call_face_service(case_id: str, selfie_path: str, reference_path: str)
     settings = get_settings()
     start = _time.time()
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=30.0, headers=propagate_headers()) as client:
             response = await client.post(
                 f"{settings.face_service_url}/api/v1/face/verify",
                 json={

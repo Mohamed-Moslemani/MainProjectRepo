@@ -8,6 +8,8 @@ from fastapi.responses import JSONResponse
 from prometheus_fastapi_instrumentator import Instrumentator
 from sqlalchemy import text
 
+from shared.request_id import RequestIDMiddleware, install_logging_filter
+
 from .config import get_settings
 from .db import init_db, async_session
 from .middleware import rate_limit as rate_limit_mod
@@ -15,6 +17,7 @@ from .middleware.rate_limit import init_redis, close_redis
 from .routers import auth, cases, payments, admin, liveness, mukhtar
 
 logging.basicConfig(level=logging.INFO)
+install_logging_filter()
 logger = logging.getLogger(__name__)
 
 
@@ -47,12 +50,14 @@ Instrumentator(
 ).instrument(app).expose(app, endpoint="/metrics")
 
 settings = get_settings()
+app.add_middleware(RequestIDMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in settings.cors_allowed_origins.split(",") if o.strip()],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+    expose_headers=["X-Request-ID"],
 )
 
 app.include_router(auth.router)

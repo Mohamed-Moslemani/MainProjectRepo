@@ -8,6 +8,8 @@ from fastapi.responses import JSONResponse
 from prometheus_fastapi_instrumentator import Instrumentator
 from sqlalchemy import select, func, text
 
+from shared.request_id import RequestIDMiddleware, install_logging_filter
+
 from .config import get_settings
 from .db import init_db, async_session
 from .routers import registry
@@ -15,6 +17,7 @@ from . import metrics  # noqa: F401
 from .models.citizen import Citizen
 
 logging.basicConfig(level=logging.INFO)
+install_logging_filter()
 logger = logging.getLogger(__name__)
 
 
@@ -69,6 +72,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="DocFlow - Civil Registry Service", version="0.1.0", lifespan=lifespan)
+app.add_middleware(RequestIDMiddleware)
 
 Instrumentator(
     should_group_status_codes=False,
