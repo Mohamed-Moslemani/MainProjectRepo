@@ -32,6 +32,8 @@ class CaseDetailResponse(CaseResponse):
     reconciliation_result: dict | None = None
     risk_result: dict | None = None
     rejection_reasons: list | None = None
+    # Per-document quality-gate failures: [{"document_type": "...", "reasons": [...]}]
+    retake_reasons: list | None = None
     production_tracking_number: str | None = None
     pickup_center: str | None = None
     mukhtar_id: str | None = None

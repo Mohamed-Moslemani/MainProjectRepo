@@ -253,6 +253,48 @@ export default function CaseDetail() {
         {error && <div className="alert alert--error">{error}</div>}
         {success && <div className="alert alert--success">{success}</div>}
 
+        {/* Retake reasons (quality gate failed — citizen must re-upload) */}
+        {isNeedInfo && caseData.retake_reasons?.length > 0 && (
+          <div className="alert alert--warning">
+            <strong className="ar">صور غير واضحة — يرجى إعادة الرفع:</strong>
+            <strong className="en" style={{ display: 'block', fontSize: '0.75rem' }}>
+              Some uploads couldn't be read. Please retake and re-submit:
+            </strong>
+            <ul style={{ marginTop: '0.5rem', paddingRight: '1.25rem' }}>
+              {caseData.retake_reasons.map((finding, i) => {
+                const docLabel = DOC_LABELS[finding.document_type];
+                return (
+                  <li key={i} style={{ marginBottom: '0.5rem' }}>
+                    <strong>
+                      {docLabel ? (
+                        <>
+                          <span className="ar">{docLabel.ar}</span>
+                          <span className="en"> · {docLabel.en}</span>
+                        </>
+                      ) : (
+                        finding.document_type
+                      )}
+                    </strong>
+                    {finding.reasons?.length > 0 && (
+                      <ul style={{ marginTop: '0.25rem', paddingRight: '1rem', fontSize: '0.85rem' }}>
+                        {finding.reasons.map((r, j) => <li key={j}>{r}</li>)}
+                      </ul>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+            <p style={{ marginTop: '0.5rem', fontSize: '0.8rem', opacity: 0.85 }}>
+              <span className="ar">
+                نصائح: استخدم إضاءة جيدة، ضع المستند على سطح داكن، تجنب الانعكاسات والظل.
+              </span>
+              <span className="en" style={{ display: 'block' }}>
+                Tip: bright even lighting, dark flat surface, avoid glare and shadows.
+              </span>
+            </p>
+          </div>
+        )}
+
         {/* Rejection reasons */}
         {caseData.rejection_reasons?.length > 0 && (
           <div className="alert alert--error">

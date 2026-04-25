@@ -239,7 +239,7 @@ class TestBreakdownStructure:
         result = compute_risk_score(**_perfect(mismatch_count=2, duplicate_detected=True))
         expected_keys = {
             "registry_risk", "ocr_risk", "face_risk", "liveness_risk",
-            "reconciliation_risk", "quality_risk", "severity",
+            "reconciliation_risk", "severity",
             "mismatch_penalty", "duplicate_penalty",
             "registry_deceased_override",
         }
@@ -254,7 +254,7 @@ class TestComponentContributions:
     """Each component should contribute exactly its weighted share."""
 
     def test_only_ocr_risk(self):
-        """ocr=0 → ocr_risk=100 → contributes 10. + severity 1 → 11."""
+        """ocr=0 → ocr_risk=100 → contributes 15. + severity 1 → 16."""
         result = compute_risk_score(
             ocr_avg_confidence=0.0,
             face_similarity=100.0,
@@ -264,7 +264,7 @@ class TestComponentContributions:
             service_type="id_renewal",
             registry_match_score=1.0,
         )
-        assert result["risk_score"] == pytest.approx(11.0)
+        assert result["risk_score"] == pytest.approx(16.0)
         assert result["breakdown"]["ocr_risk"] == 100.0
 
     def test_only_face_risk(self):
@@ -282,7 +282,7 @@ class TestComponentContributions:
         assert result["breakdown"]["face_risk"] == 50.0
 
     def test_only_reconciliation_risk(self):
-        """recon 0.5 → risk 50 → contributes 7.5. + severity 1 → 8.5."""
+        """recon 0.5 → risk 50 → contributes 10. + severity 1 → 11."""
         result = compute_risk_score(
             ocr_avg_confidence=1.0,
             face_similarity=100.0,
@@ -292,7 +292,7 @@ class TestComponentContributions:
             service_type="id_renewal",
             registry_match_score=1.0,
         )
-        assert result["risk_score"] == pytest.approx(8.5)
+        assert result["risk_score"] == pytest.approx(11.0)
 
     def test_only_registry_risk(self):
         """registry 0.0 → risk 100 → contributes 25. + severity 1 → 26."""

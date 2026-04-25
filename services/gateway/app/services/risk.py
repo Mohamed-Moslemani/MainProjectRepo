@@ -13,17 +13,19 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Weights for risk components (must sum to 1.0).
-# Rebalanced when the civil-registry check was added: registry is the
-# authoritative identity signal, so it carries a high weight; OCR +
-# reconciliation are downweighted slightly because they're now
-# corroborating rather than primary.
+#
+# Document quality used to live here, but it's now a *gate* enforced by
+# the orchestrator before scoring (any retake_required short-circuits to
+# NEED_INFO). When risk runs, every doc is already readable, so quality
+# carries no signal. Its 0.10 weight was redistributed: +0.05 to
+# reconciliation, +0.05 to ocr_confidence — both gain meaning once we
+# know the underlying images were sharp.
 WEIGHTS = {
     "registry_match": 0.25,   # authoritative identity check (Ministry lookup)
     "face_similarity": 0.20,
+    "reconciliation": 0.20,   # declared vs OCR consistency
     "liveness": 0.15,
-    "reconciliation": 0.15,   # declared vs OCR consistency
-    "ocr_confidence": 0.10,
-    "document_quality": 0.10,
+    "ocr_confidence": 0.15,
     "service_severity": 0.05,
 }
 
@@ -46,12 +48,12 @@ def compute_risk_score(
     face_similarity: float,            # 0-100
     liveness_score: float,             # 0-1
     reconciliation_integrity: float,   # 0-1
-    document_quality_avg: float,       # 0-1 (avg quality across docs)
     service_type: str,
     mismatch_count: int = 0,
     duplicate_detected: bool = False,
     registry_match_score: float = 1.0,  # 0-1 from civil registry verification
     registry_deceased: bool = False,
+    document_quality_avg: float | None = None,  # deprecated; retained for callers
 ) -> dict:
     """Compute weighted risk score.
 
@@ -69,7 +71,6 @@ def compute_risk_score(
     liveness_risk = (1 - liveness_score) * 100
     reconciliation_risk = (1 - reconciliation_integrity) * 100
     registry_risk = (1 - registry_match_score) * 100
-    quality_risk = (1 - document_quality_avg) * 100
     severity = SERVICE_SEVERITY.get(service_type, 0.5) * 100
 
     # Weighted sum
@@ -79,7 +80,6 @@ def compute_risk_score(
         WEIGHTS["face_similarity"] * face_risk +
         WEIGHTS["liveness"] * liveness_risk +
         WEIGHTS["reconciliation"] * reconciliation_risk +
-        WEIGHTS["document_quality"] * quality_risk +
         WEIGHTS["service_severity"] * severity
     )
 
@@ -115,7 +115,6 @@ def compute_risk_score(
             "face_risk": round(face_risk, 2),
             "liveness_risk": round(liveness_risk, 2),
             "reconciliation_risk": round(reconciliation_risk, 2),
-            "quality_risk": round(quality_risk, 2),
             "severity": round(severity, 2),
             "mismatch_penalty": mismatch_count * 8,
             "duplicate_penalty": 30 if duplicate_detected else 0,

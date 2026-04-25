@@ -211,6 +211,7 @@ async def submit_case(
 
     # Save declared fields
     case.declared_fields = req.declared_fields
+    prev_status = case.status  # "draft" or "need_info" (resubmit after retake)
     case.status = "submitted"
     case.status_history = case.status_history + [{
         "status": "submitted",
@@ -220,7 +221,7 @@ async def submit_case(
     await db.commit()
 
     CASES_SUBMITTED.labels(service_type=case.service_type).inc()
-    CASE_STATUS_TRANSITIONS.labels(from_status="draft", to_status="submitted").inc()
+    CASE_STATUS_TRANSITIONS.labels(from_status=prev_status, to_status="submitted").inc()
     await log_action(db, "case_submitted", user_id=user.id, case_id=case_id)
 
     # Process in background

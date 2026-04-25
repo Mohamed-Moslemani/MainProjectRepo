@@ -233,7 +233,11 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
     ocr_documents = policy.get("ocr_documents", [])
     all_extracted_fields = {}
     all_confidence_scores = {}
-    quality_scores = []
+    # Per-doc retake reasons collected from the OCR service. Quality is a
+    # *gate*, not a risk signal: any retake_required short-circuits the
+    # pipeline and routes the case back to the citizen (NEED_INFO), so the
+    # officer queue never sees blurry uploads.
+    retake_findings: list[dict] = []
 
     for doc_type in ocr_documents:
         doc_type_val = doc_type.value if hasattr(doc_type, 'value') else doc_type
@@ -260,13 +264,13 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
             all_extracted_fields.update(ocr_data.get("extracted_fields", {}))
             all_confidence_scores.update(ocr_data.get("confidence_scores", {}))
 
-            # Quality score
-            quality = ocr_data.get("quality", {})
-            if quality.get("is_readable"):
-                quality_scores.append(1.0)
-            else:
-                quality_scores.append(0.3)
-                results["issues"].extend(ocr_data.get("retake_reasons", []))
+            # Collect retake findings — short-circuit at the end of the loop
+            # if any required doc failed quality.
+            if ocr_data.get("retake_required"):
+                retake_findings.append({
+                    "document_type": doc_type_val,
+                    "reasons": ocr_data.get("retake_reasons", []),
+                })
 
             await log_action(
                 db, "ocr_completed", case_id=case.id,
@@ -286,11 +290,54 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
         except Exception as e:
             logger.error(f"OCR failed for {doc_type_val}: {e}")
             results["issues"].append(f"OCR failed for {doc_type_val}")
-            quality_scores.append(0.0)
+            # Treat OCR service failure as a retake/resubmit need — the
+            # citizen can't fix infra issues, but routing to NEED_INFO keeps
+            # the case out of the officer queue and lets us retry on resubmit.
+            retake_findings.append({
+                "document_type": doc_type_val,
+                "reasons": [f"OCR service unavailable for {doc_type_val}"],
+            })
             await log_action(
                 db, "ocr_failure", case_id=case.id,
                 details={"document_type": doc_type_val, "error": str(e)},
             )
+
+    # ---- Quality gate ----
+    # If any required document needs a retake (blur, glare, low-res, skew,
+    # OCR failure), short-circuit and bounce the case back to the citizen.
+    # We do NOT run face / registry / risk on un-readable documents — those
+    # signals would be unreliable and would pollute officer queues with
+    # cases that just need a better photo.
+    if retake_findings:
+        case.retake_reasons = retake_findings
+        results["retake_findings"] = retake_findings
+        results["routing"] = "needs_info"
+
+        CASE_STATUS_TRANSITIONS.labels(
+            from_status="submitted", to_status="need_info",
+        ).inc()
+        _transition(
+            case, "need_info",
+            "Document quality gate failed — citizen must retake",
+        )
+        await db.commit()
+
+        await log_action(
+            db, "quality_gate_failed", case_id=case.id,
+            details={"retake_findings": retake_findings},
+        )
+
+        PIPELINE_DURATION.labels(service_type=case.service_type).observe(
+            _time.time() - pipeline_start
+        )
+        PIPELINE_DECISIONS.labels(decision="needs_info").inc()
+        return results
+
+    # All required docs passed the quality gate; clear any prior retake state
+    # so a previously-bounced case that re-submitted with better photos
+    # isn't carrying stale reasons.
+    if case.retake_reasons:
+        case.retake_reasons = None
 
     # ---- Step 2: Face verification ----
     face_similarity = 0.0
@@ -459,18 +506,19 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
         results["issues"].append("Civil registry records citizen as deceased")
 
     # ---- Step 4: Risk scoring ----
+    # Quality is no longer a risk input — every doc that reaches this step
+    # has already passed the quality gate above, so quality carries no
+    # signal. See risk.py header for the weight redistribution.
     avg_confidence = (
         sum(all_confidence_scores.values()) / len(all_confidence_scores)
         if all_confidence_scores else 0.0
     )
-    avg_quality = sum(quality_scores) / len(quality_scores) if quality_scores else 0.0
 
     risk_result = compute_risk_score(
         ocr_avg_confidence=avg_confidence,
         face_similarity=face_similarity,
         liveness_score=liveness_score,
         reconciliation_integrity=recon_result["integrity_score"],
-        document_quality_avg=avg_quality,
         service_type=case.service_type,
         mismatch_count=len(recon_result["mismatch_flags"]),
         registry_match_score=registry_confidence,
@@ -496,7 +544,6 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
                 "face_similarity": face_similarity,
                 "liveness_score": liveness_score,
                 "reconciliation_integrity": recon_result["integrity_score"],
-                "document_quality_avg": avg_quality,
                 "service_type": case.service_type,
                 "mismatch_count": len(recon_result["mismatch_flags"]),
                 "registry_match_score": registry_confidence,

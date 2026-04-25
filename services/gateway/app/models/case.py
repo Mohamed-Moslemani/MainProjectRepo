@@ -37,6 +37,10 @@ class Case(Base):
     # Tracking
     status_history: Mapped[list] = mapped_column(JSON, default=list)
     rejection_reasons: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # Set when the pipeline rejects an upload for quality reasons (blur,
+    # glare, low-res, skew). Drives the citizen-facing "retake" UX. Cleared
+    # when the case is re-submitted.
+    retake_reasons: Mapped[list | None] = mapped_column(JSON, nullable=True)
     notes: Mapped[str | None] = mapped_column(String, nullable=True)
 
     # Production
