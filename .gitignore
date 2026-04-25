@@ -43,4 +43,9 @@ Thumbs.db
 evaluation/results/
 **.csv
 
+# Real document samples — may contain PII; never commit
+evaluation/real_samples/**
+!evaluation/real_samples/manifest.example.yaml
+!evaluation/real_samples/README.md
+
 appdoc.txt

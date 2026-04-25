@@ -1,0 +1,32 @@
+# Real-document test manifest — copy to manifest.yaml and fill in.
+# Drop images under evaluation/real_samples/<case_id>/ and reference
+# them relative to this file.
+#
+# document_type must match one of the values the OCR service recognizes:
+#   old_id_front, old_id_back, new_id_front, new_id_back,
+#   passport_bio, passport_photo_page, selfie, proof_of_residence
+#
+# expected fields are the ground truth you want the pipeline to extract.
+# Per-field accuracy is computed by normalized string comparison
+# (lowercased, whitespace stripped).
+
+cases:
+  - case_id: sample_01_mohamed_saad
+    documents:
+      - path: sample_01_mohamed_saad/old_id_front.jpg
+        document_type: old_id_front
+        expected:
+          national_id: "1990123456"
+          full_name: "Mohamed Saad"
+          date_of_birth: "1990-05-12"
+          registry_place: "Beirut"
+      - path: sample_01_mohamed_saad/passport_bio.jpg
+        document_type: passport_bio
+        expected:
+          passport_number: "LR1234567"
+          full_name: "Mohamed Saad"
+          date_of_birth: "1990-05-12"
+          nationality: "LBN"
+    face:
+      selfie: sample_01_mohamed_saad/selfie.jpg
+      reference: sample_01_mohamed_saad/passport_bio.jpg
