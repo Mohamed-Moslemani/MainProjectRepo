@@ -18,6 +18,7 @@ import PaymentCancelled from './pages/PaymentCancelled';
 import PublicTrack from './pages/PublicTrack';
 import AccountSettings from './pages/AccountSettings';
 import Help from './pages/Help';
+import Landing from './pages/Landing';
 
 import NotFound from './pages/NotFound';
 import AdminLayout from './components/AdminLayout';
@@ -38,6 +39,7 @@ export default function App() {
           <IdleLogout />
           <Routes>
             {/* Public — no auth required */}
+            <Route path="/" element={<Landing />} />
             <Route path="/track" element={<PublicTrack />} />
             <Route path="/track/:trackingId" element={<PublicTrack />} />
             <Route path="/help" element={<Help />} />

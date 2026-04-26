@@ -1,0 +1,173 @@
+/* Landing page — public homepage at "/" */
+
+.landing {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 90% -10%, rgba(22,163,74,0.10), transparent 55%),
+    radial-gradient(circle at -10% 100%, rgba(220,38,38,0.08), transparent 50%),
+    var(--gray-50, #f9fafb);
+  display: flex;
+  flex-direction: column;
+}
+
+.landing__nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 2rem;
+  background: rgba(255,255,255,0.85);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--gray-200, #e5e7eb);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+.landing__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.landing__brand strong { display: block; font-size: 1rem; }
+.landing__tagline { display: block; font-size: 0.75rem; color: var(--gray-500, #6b7280); }
+
+.landing__nav-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.landing__main {
+  flex: 1;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2.5rem 2rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.landing__hero {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 2rem;
+  margin-bottom: 3rem;
+  align-items: start;
+}
+
+.landing__hero-text h1 {
+  font-size: 2rem;
+  line-height: 1.25;
+  margin: 0 0 1rem;
+  color: #111827;
+}
+.landing__hero-sub {
+  color: #374151;
+  line-height: 1.6;
+  margin-bottom: 1.5rem;
+  font-size: 1rem;
+}
+.landing__cta {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.landing__track-card {
+  background: var(--white, #fff);
+  border: 1px solid var(--gray-200, #e5e7eb);
+  border-radius: 12px;
+  padding: 1.25rem;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.04);
+}
+.landing__track-card h2 { font-size: 1.05rem; margin: 0 0 0.75rem; }
+.landing__track-form {
+  display: flex;
+  gap: 0.4rem;
+}
+.landing__track-form input {
+  flex: 1;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--gray-300, #d1d5db);
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+}
+.landing__track-form input:focus {
+  outline: 2px solid var(--cedar, #16a34a);
+  border-color: var(--cedar, #16a34a);
+}
+.landing__track-hint {
+  font-size: 0.8rem;
+  color: #6b7280;
+  margin: 0.6rem 0 0;
+}
+
+.landing__how, .landing__features {
+  margin-top: 2.5rem;
+}
+.landing__how h2, .landing__features h2 {
+  font-size: 1.3rem;
+  margin: 0 0 1rem;
+}
+
+.landing__how-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+.landing__how-card {
+  background: var(--white, #fff);
+  border: 1px solid var(--gray-200, #e5e7eb);
+  border-radius: 12px;
+  padding: 1.25rem;
+}
+.landing__how-icon {
+  display: inline-block;
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+.landing__how-card h3 { font-size: 1rem; margin: 0 0 0.4rem; }
+.landing__how-card p { color: #4b5563; font-size: 0.9rem; line-height: 1.55; margin: 0; }
+
+.landing__features ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+}
+.landing__features li {
+  background: rgba(22,163,74,0.06);
+  border: 1px solid rgba(22,163,74,0.15);
+  border-radius: 8px;
+  padding: 0.7rem 0.9rem;
+  font-size: 0.9rem;
+}
+
+.landing__footer {
+  padding: 1.25rem 2rem;
+  background: var(--white, #fff);
+  border-top: 1px solid var(--gray-200, #e5e7eb);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  font-size: 0.85rem;
+  color: var(--gray-500, #6b7280);
+  flex-wrap: wrap;
+}
+.landing__footer nav { display: flex; gap: 1rem; }
+.landing__footer a { color: var(--gray-700, #374151); text-decoration: none; }
+.landing__footer a:hover { text-decoration: underline; }
+
+/* Mobile */
+@media (max-width: 768px) {
+  .landing__nav { padding: 0.75rem 1rem; }
+  .landing__main { padding: 1.5rem 1rem; }
+  .landing__hero { grid-template-columns: 1fr; gap: 1.25rem; margin-bottom: 2rem; }
+  .landing__hero-text h1 { font-size: 1.5rem; }
+  .landing__how-grid { grid-template-columns: 1fr; }
+  .landing__features ul { grid-template-columns: 1fr; }
+}
