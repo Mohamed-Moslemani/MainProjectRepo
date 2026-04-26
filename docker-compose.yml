@@ -224,6 +224,24 @@ services:
       timeout: 5s
       retries: 10
 
+  # Runs Django migrations once on startup before the web/worker
+  # containers come up. Without this, /login 500s with
+  # 'relation "users_user" does not exist' on first boot.
+  glitchtip_migrate:
+    image: glitchtip/glitchtip:v4.1
+    depends_on:
+      glitchtip_db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://glitchtip:glitchtip@glitchtip_db:5432/glitchtip
+      SECRET_KEY: change-me-in-prod-please
+      EMAIL_URL: consolemail://
+      GLITCHTIP_DOMAIN: http://localhost:8005
+      DEFAULT_FROM_EMAIL: noreply@docflow.lb
+      REDIS_URL: redis://redis:6379/1
+    command: ./manage.py migrate
+    restart: "no"
+
   glitchtip:
     image: glitchtip/glitchtip:v4.1
     depends_on:
@@ -231,6 +249,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      glitchtip_migrate:
+        condition: service_completed_successfully
     environment:
       DATABASE_URL: postgres://glitchtip:glitchtip@glitchtip_db:5432/glitchtip
       SECRET_KEY: change-me-in-prod-please
@@ -253,6 +273,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      glitchtip_migrate:
+        condition: service_completed_successfully
     command: ./bin/run-celery-with-beat.sh
     environment:
       DATABASE_URL: postgres://glitchtip:glitchtip@glitchtip_db:5432/glitchtip
