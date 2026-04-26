@@ -4,6 +4,7 @@ import { casesApi } from '../api/cases';
 import LivenessCheck from '../components/LivenessCheck';
 import UploadPreview from '../components/UploadPreview';
 import AuthImage from '../components/AuthImage';
+import { SkeletonCard } from '../components/Skeleton';
 import { checkImageQuality } from '../utils/imageQuality';
 import { useCasePolling } from '../hooks/useCasePolling';
 import flagImg from '../assets/Figure_1.png';
@@ -230,7 +231,11 @@ export default function CaseDetail() {
   if (loading) {
     return (
       <div className="dashboard" dir="rtl">
-        <div className="dashboard-main"><div className="loading-spinner" /></div>
+        <div className="dashboard-main">
+          <SkeletonCard rows={2} />
+          <SkeletonCard rows={4} />
+          <SkeletonCard rows={3} />
+        </div>
       </div>
     );
   }

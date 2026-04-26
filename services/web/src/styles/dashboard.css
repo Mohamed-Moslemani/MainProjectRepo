@@ -798,6 +798,31 @@ a:focus:not(:focus-visible) {
   .btn--lg { width: 100%; }
 }
 
+/* ── Skeleton loaders ── */
+.skeleton {
+  display: block;
+  background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.skeleton-card {
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md, 8px);
+  padding: 1rem 1.25rem;
+  margin-bottom: 1rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; background: var(--gray-100); }
+}
+
 /* ── Buttons ── */
 .btn {
   display: inline-flex;
