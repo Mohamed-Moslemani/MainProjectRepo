@@ -11,7 +11,17 @@ from .config import get_settings
 
 logger = logging.getLogger(__name__)
 
-engine = create_async_engine(get_settings().database_url, echo=False)
+# Pool tuning matches the gateway's — registry serves a smaller QPS
+# but the same pool_pre_ping + pool_recycle pattern protects against
+# stale connections after network blips.
+engine = create_async_engine(
+    get_settings().database_url,
+    echo=False,
+    pool_size=10,
+    max_overflow=5,
+    pool_pre_ping=True,
+    pool_recycle=1800,
+)
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 

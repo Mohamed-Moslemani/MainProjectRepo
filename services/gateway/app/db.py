@@ -9,7 +9,22 @@ from .config import get_settings
 
 logger = logging.getLogger(__name__)
 
-engine = create_async_engine(get_settings().database_url, echo=False)
+# Connection pool sized for a multi-tenant API gateway. Defaults
+# (pool_size=5) exhaust quickly under any real load — uvicorn workers
+# share the pool and one slow query per worker is enough to starve
+# the rest. 20 + 10 overflow gives headroom without overwhelming
+# Postgres. pool_pre_ping checks each checkout so a network blip
+# doesn't hand out dead connections; pool_recycle rotates them every
+# 30min to avoid the classic "idle connection cleared by NAT/load
+# balancer" failure.
+engine = create_async_engine(
+    get_settings().database_url,
+    echo=False,
+    pool_size=20,
+    max_overflow=10,
+    pool_pre_ping=True,
+    pool_recycle=1800,
+)
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
