@@ -26,18 +26,26 @@ export default function AdminAuditLogs() {
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
 
-  const [caseIdFilter, setCaseIdFilter] = useState('');
-  const [actionFilter, setActionFilter] = useState('');
-  const [appliedCaseId, setAppliedCaseId] = useState('');
-  const [appliedAction, setAppliedAction] = useState('');
+  const [filters, setFilters] = useState({
+    case_id: '', action: '', user_id: '', request_id: '', since: '', until: '',
+  });
+  const [applied, setApplied] = useState(filters);
 
   const loadLogs = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
+      // Convert local <input type="datetime-local"> values (no tz) to
+      // ISO-8601 with explicit UTC suffix so the backend interprets
+      // them consistently across DST changes.
+      const toIso = (v) => (v ? new Date(v).toISOString() : undefined);
       const { data } = await adminApi.getAuditLogs({
-        case_id: appliedCaseId || undefined,
-        action: appliedAction || undefined,
+        case_id: applied.case_id || undefined,
+        action: applied.action || undefined,
+        user_id: applied.user_id || undefined,
+        request_id: applied.request_id || undefined,
+        since: toIso(applied.since),
+        until: toIso(applied.until),
         limit: PAGE_SIZE,
         offset: page * PAGE_SIZE,
       });
@@ -48,7 +56,7 @@ export default function AdminAuditLogs() {
     } finally {
       setLoading(false);
     }
-  }, [appliedCaseId, appliedAction, page]);
+  }, [applied, page]);
 
   useEffect(() => {
     loadLogs();
@@ -57,17 +65,25 @@ export default function AdminAuditLogs() {
   const applyFilters = (e) => {
     e.preventDefault();
     setPage(0);
-    setAppliedCaseId(caseIdFilter.trim());
-    setAppliedAction(actionFilter);
+    setApplied({
+      case_id: filters.case_id.trim(),
+      action: filters.action,
+      user_id: filters.user_id.trim(),
+      request_id: filters.request_id.trim(),
+      since: filters.since,
+      until: filters.until,
+    });
   };
 
   const clearFilters = () => {
-    setCaseIdFilter('');
-    setActionFilter('');
-    setAppliedCaseId('');
-    setAppliedAction('');
+    const empty = { case_id: '', action: '', user_id: '', request_id: '', since: '', until: '' };
+    setFilters(empty);
+    setApplied(empty);
     setPage(0);
   };
+
+  const hasActiveFilters = Object.values(applied).some(Boolean);
+  const setF = (k, v) => setFilters({ ...filters, [k]: v });
 
   const getActionLabel = (action) => ACTION_LABELS[action] || { ar: action, en: action };
 
@@ -85,35 +101,67 @@ export default function AdminAuditLogs() {
       </div>
 
       {/* Filters */}
-      <form className="audit-filters" onSubmit={applyFilters}>
+      <form className="audit-filters" onSubmit={applyFilters} style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
         <input
           type="text"
           className="form-input"
-          placeholder="فلترة حسب رقم الطلب..."
-          value={caseIdFilter}
-          onChange={(e) => setCaseIdFilter(e.target.value)}
-          style={{ maxWidth: 280 }}
+          placeholder="Case ID"
+          value={filters.case_id}
+          onChange={(e) => setF('case_id', e.target.value)}
+          style={{ maxWidth: 200 }}
+          dir="ltr"
+        />
+        <input
+          type="text"
+          className="form-input"
+          placeholder="User ID"
+          value={filters.user_id}
+          onChange={(e) => setF('user_id', e.target.value)}
+          style={{ maxWidth: 200 }}
+          dir="ltr"
+        />
+        <input
+          type="text"
+          className="form-input"
+          placeholder="Request ID"
+          value={filters.request_id}
+          onChange={(e) => setF('request_id', e.target.value)}
+          style={{ maxWidth: 200 }}
           dir="ltr"
         />
         <select
           className="form-input"
-          value={actionFilter}
-          onChange={(e) => setActionFilter(e.target.value)}
+          value={filters.action}
+          onChange={(e) => setF('action', e.target.value)}
           style={{ maxWidth: 220 }}
         >
-          <option value="">كل الإجراءات / All Actions</option>
+          <option value="">All actions</option>
           {Object.entries(ACTION_LABELS).map(([key, label]) => (
-            <option key={key} value={key}>{label.ar} / {label.en}</option>
+            <option key={key} value={key}>{label.en}</option>
           ))}
         </select>
+        <input
+          type="datetime-local"
+          className="form-input"
+          value={filters.since}
+          onChange={(e) => setF('since', e.target.value)}
+          title="Since (inclusive)"
+        />
+        <input
+          type="datetime-local"
+          className="form-input"
+          value={filters.until}
+          onChange={(e) => setF('until', e.target.value)}
+          title="Until (inclusive)"
+        />
         <button type="submit" className="btn-small btn-small--primary">
           <span className="ar">تطبيق</span>
-          <span className="en">Apply</span>
+          <span className="en"> · Apply</span>
         </button>
-        {(appliedCaseId || appliedAction) && (
+        {hasActiveFilters && (
           <button type="button" className="btn-small btn-small--ghost" onClick={clearFilters}>
             <span className="ar">مسح</span>
-            <span className="en">Clear</span>
+            <span className="en"> · Clear</span>
           </button>
         )}
       </form>
@@ -140,6 +188,7 @@ export default function AdminAuditLogs() {
                   <th><span className="ar">الإجراء</span><span className="en">Action</span></th>
                   <th><span className="ar">المستخدم</span><span className="en">User ID</span></th>
                   <th><span className="ar">الطلب</span><span className="en">Case ID</span></th>
+                  <th><span className="ar">طلب HTTP</span><span className="en">Request ID</span></th>
                   <th><span className="ar">التفاصيل</span><span className="en">Details</span></th>
                 </tr>
               </thead>
@@ -157,8 +206,42 @@ export default function AdminAuditLogs() {
                           <span className="en">{actionLabel.en}</span>
                         </span>
                       </td>
-                      <td className="audit-id">{log.user_id ? log.user_id.slice(0, 8) + '...' : '—'}</td>
-                      <td className="audit-id">{log.case_id ? log.case_id.slice(0, 8) + '...' : '—'}</td>
+                      <td className="audit-id">
+                        {log.user_id ? (
+                          <button
+                            type="button"
+                            className="btn-link"
+                            title="Filter by this user"
+                            onClick={() => { setF('user_id', log.user_id); setApplied({ ...applied, user_id: log.user_id }); setPage(0); }}
+                          >
+                            {log.user_id.slice(0, 8)}…
+                          </button>
+                        ) : '—'}
+                      </td>
+                      <td className="audit-id">
+                        {log.case_id ? (
+                          <button
+                            type="button"
+                            className="btn-link"
+                            title="Filter by this case"
+                            onClick={() => { setF('case_id', log.case_id); setApplied({ ...applied, case_id: log.case_id }); setPage(0); }}
+                          >
+                            {log.case_id.slice(0, 8)}…
+                          </button>
+                        ) : '—'}
+                      </td>
+                      <td className="audit-id">
+                        {log.request_id ? (
+                          <button
+                            type="button"
+                            className="btn-link"
+                            title="Filter by this request"
+                            onClick={() => { setF('request_id', log.request_id); setApplied({ ...applied, request_id: log.request_id }); setPage(0); }}
+                          >
+                            {log.request_id.slice(0, 8)}…
+                          </button>
+                        ) : '—'}
+                      </td>
                       <td>
                         {log.details && Object.keys(log.details).length > 0 ? (
                           <code className="audit-details">

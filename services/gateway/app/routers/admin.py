@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, case as sql_case, extract
 
@@ -104,16 +104,51 @@ async def get_case_full(
 async def list_audit_logs(
     case_id: str | None = None,
     action: str | None = None,
+    user_id: str | None = None,
+    request_id: str | None = None,
+    since: str | None = None,   # ISO-8601 inclusive lower bound
+    until: str | None = None,   # ISO-8601 inclusive upper bound
     limit: int = Query(default=50, le=200),
     offset: int = 0,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_role("admin")),
 ):
+    """List audit log rows.
+
+    All filter params combine with AND. The `since` / `until` bounds
+    accept any ISO-8601 timestamp (with or without timezone — bare
+    timestamps are interpreted as UTC). Used by the admin console
+    to scope investigations to a date range / user / request.
+    """
+    from datetime import datetime, timezone
+
+    def _parse_dt(raw: str) -> datetime:
+        # Strip trailing Z so fromisoformat accepts it on Python <3.11
+        cleaned = raw.replace("Z", "+00:00")
+        dt = datetime.fromisoformat(cleaned)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+
     query = select(AuditLog).order_by(AuditLog.created_at.desc())
     if case_id:
         query = query.where(AuditLog.case_id == case_id)
     if action:
         query = query.where(AuditLog.action == action)
+    if user_id:
+        query = query.where(AuditLog.user_id == user_id)
+    if request_id:
+        query = query.where(AuditLog.request_id == request_id)
+    if since:
+        try:
+            query = query.where(AuditLog.created_at >= _parse_dt(since))
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid 'since' timestamp: {since}")
+    if until:
+        try:
+            query = query.where(AuditLog.created_at <= _parse_dt(until))
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid 'until' timestamp: {until}")
     query = query.offset(offset).limit(limit)
 
     result = await db.execute(query)
