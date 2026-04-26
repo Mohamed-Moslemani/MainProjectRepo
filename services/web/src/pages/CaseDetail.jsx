@@ -5,6 +5,7 @@ import LivenessCheck from '../components/LivenessCheck';
 import UploadPreview from '../components/UploadPreview';
 import AuthImage from '../components/AuthImage';
 import { checkImageQuality } from '../utils/imageQuality';
+import { useCasePolling } from '../hooks/useCasePolling';
 import flagImg from '../assets/Figure_1.png';
 import { useAuth } from '../context/useAuth';
 import '../styles/dashboard.css';
@@ -104,6 +105,10 @@ export default function CaseDetail() {
   useEffect(() => {
     loadCase();
   }, [loadCase]);
+
+  // Live status updates while the case is moving through the pipeline.
+  // Hook is a no-op for terminal / citizen-edit states.
+  useCasePolling(caseData?.status, loadCase);
 
   // Run the client-side quality check, then open the preview modal so
   // the citizen can review before we actually hit the gateway. We
