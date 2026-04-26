@@ -24,6 +24,12 @@ class User(Base):
     registry_number: Mapped[str | None] = mapped_column(String, nullable=True)
     registry_place: Mapped[str | None] = mapped_column(String, nullable=True)
     municipality: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Religious sect (مذهب) — Lebanese civil records carry this. 18
+    # officially recognised sects span Christian, Muslim, Druze, and
+    # Jewish denominations. Stored as the canonical English token
+    # ("maronite", "sunni", "druze", etc); citizen-facing UI maps to
+    # Arabic. Optional because some citizens decline to disclose.
+    religious_sect: Mapped[str | None] = mapped_column(String, nullable=True)
 
     # Contact & address
     phone: Mapped[str | None] = mapped_column(String, nullable=True)
