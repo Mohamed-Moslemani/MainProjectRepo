@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import RoleRoute from './components/RoleRoute';
+import ErrorBoundary from './components/ErrorBoundary';
 
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -12,6 +13,7 @@ import Dashboard from './pages/Dashboard';
 import CaseDetail from './pages/CaseDetail';
 import PaymentSuccess from './pages/PaymentSuccess';
 import PaymentCancelled from './pages/PaymentCancelled';
+import PublicTrack from './pages/PublicTrack';
 
 import NotFound from './pages/NotFound';
 import AdminLayout from './components/AdminLayout';
@@ -25,9 +27,14 @@ import MukhtarCases from './pages/mukhtar/MukhtarCases';
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <Routes>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <AuthProvider>
+          <Routes>
+            {/* Public — no auth required */}
+            <Route path="/track" element={<PublicTrack />} />
+            <Route path="/track/:trackingId" element={<PublicTrack />} />
+
           {/* Auth */}
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
@@ -104,5 +111,6 @@ export default function App() {
         </Routes>
       </AuthProvider>
     </BrowserRouter>
+    </ErrorBoundary>
   );
 }
