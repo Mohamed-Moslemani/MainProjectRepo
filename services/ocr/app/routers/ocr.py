@@ -5,6 +5,8 @@ import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from shared.model_info import build_model_info, hash_file
+
 from ..services.quality import assess_quality
 from ..services.google_ocr import extract_text
 from ..services.field_extractor import extract_fields
@@ -136,6 +138,7 @@ async def process_document(req: ProcessRequest):
 
         total_ms = int((time.time() - start) * 1000)
 
+        settings_snapshot = get_settings()
         return {
             "document_id": req.document_id,
             "status": "completed",
@@ -146,6 +149,23 @@ async def process_document(req: ProcessRequest):
             "retake_required": retake_required,
             "retake_reasons": retake_reasons,
             "processing_time_ms": total_ms,
+            # Reproducibility metadata. The image hash + this dict
+            # together let an investigator replay the exact same
+            # inputs through the same code months later.
+            "input_hash": hash_file(req.file_path),
+            "model_info": build_model_info(
+                service_name="ocr",
+                provider="mock" if settings_snapshot.mock_mode else "google-cloud-vision",
+                provider_version="mock-v1" if settings_snapshot.mock_mode else "v1",
+                config={
+                    "min_confidence_threshold": settings_snapshot.min_confidence_threshold,
+                    "blur_threshold": settings_snapshot.blur_threshold,
+                    "min_resolution": [
+                        settings_snapshot.min_resolution_width,
+                        settings_snapshot.min_resolution_height,
+                    ],
+                },
+            ),
         }
     finally:
         OCR_DURATION.labels(document_type=req.document_type).observe(time.time() - start)

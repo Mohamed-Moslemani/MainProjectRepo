@@ -4,7 +4,10 @@ import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from shared.model_info import build_model_info, hash_file
+
 from ..services.verifier import verify
+from ..config import get_settings
 from ..metrics import (
     FACE_VERIFY_REQUESTS,
     FACE_VERIFY_DURATION,
@@ -35,6 +38,22 @@ async def verify_face(req: VerifyRequest):
         FACE_VERIFY_DECISIONS.labels(decision=result["decision"]).inc()
         FACE_SIMILARITY_SCORE.observe(result["similarity_score"])
         FACE_LIVENESS_SCORE.observe(result["liveness_score"])
+
+        # Reproducibility metadata — image hashes plus the model info
+        # that produced this similarity / liveness score.
+        settings = get_settings()
+        result["selfie_hash"] = hash_file(req.selfie_path)
+        result["reference_hash"] = hash_file(req.reference_path)
+        result["model_info"] = build_model_info(
+            service_name="face",
+            provider="mock" if settings.mock_mode else "aws-rekognition",
+            provider_version="mock-v1" if settings.mock_mode else "rekognition-2016-06-27",
+            config={
+                "similarity_threshold": getattr(settings, "similarity_threshold", None),
+                "liveness_pass_threshold": getattr(settings, "liveness_pass_threshold", None),
+                "aws_region": getattr(settings, "aws_region", None),
+            },
+        )
 
         return result
     except FileNotFoundError as e:

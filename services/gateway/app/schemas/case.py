@@ -34,6 +34,8 @@ class CaseDetailResponse(CaseResponse):
     rejection_reasons: list | None = None
     # Per-document quality-gate failures: [{"document_type": "...", "reasons": [...]}]
     retake_reasons: list | None = None
+    # Provenance for AI decisions — keyed by stage (ocr, face, registry, risk).
+    model_versions: dict | None = None
     production_tracking_number: str | None = None
     pickup_center: str | None = None
     mukhtar_id: str | None = None

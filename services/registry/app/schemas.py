@@ -45,3 +45,7 @@ class VerifyResponse(BaseModel):
     field_scores: dict[str, float] = Field(default_factory=dict)  # per-field similarity
     reasons: list[str] = Field(default_factory=list)
     processing_time_ms: int = 0
+    # Reproducibility: which matcher version + thresholds produced
+    # this decision. Persisted on the case alongside the OCR + face
+    # equivalents.
+    model_info: dict | None = None

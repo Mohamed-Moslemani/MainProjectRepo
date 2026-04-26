@@ -230,6 +230,11 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
         "risk": None,
         "issues": [],
     }
+    # Captured per-stage and persisted on case.model_versions at the
+    # end of the pipeline. Investigators reading audit trails months
+    # later use this to replay decisions against the exact same
+    # provider + config that produced them.
+    model_versions: dict[str, dict] = {}
 
     # ---- Step 1: OCR extraction ----
     ocr_documents = policy.get("ocr_documents", [])
@@ -265,6 +270,14 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
             # Aggregate fields
             all_extracted_fields.update(ocr_data.get("extracted_fields", {}))
             all_confidence_scores.update(ocr_data.get("confidence_scores", {}))
+
+            # First OCR call wins the model_info entry (all docs use the
+            # same OCR provider; this captures it once). Image hashes
+            # are per-doc and stored on the OCRResult row.
+            if "ocr" not in model_versions and ocr_data.get("model_info"):
+                model_versions["ocr"] = ocr_data["model_info"]
+            if ocr_data.get("input_hash"):
+                ocr_record.input_hash = ocr_data["input_hash"]
 
             # Collect retake findings — short-circuit at the end of the loop
             # if any required doc failed quality.
@@ -314,6 +327,13 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
         case.retake_reasons = retake_findings
         results["retake_findings"] = retake_findings
         results["routing"] = "needs_info"
+
+        # Persist whatever model_versions we've captured so far (just
+        # OCR at this stage) so even bounced cases have provenance —
+        # important if the same image keeps getting bounced and we
+        # need to reproduce the OCR run.
+        if model_versions:
+            case.model_versions = model_versions
 
         CASE_STATUS_TRANSITIONS.labels(
             from_status="submitted", to_status="need_info",
@@ -425,6 +445,9 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
                 face_similarity = face_data["similarity_score"]
                 liveness_score = face_data["liveness_score"]
 
+                if face_data.get("model_info"):
+                    model_versions["face"] = face_data["model_info"]
+
                 if face_data["decision"] == "fail":
                     results["issues"].extend(face_data.get("reasons", []))
 
@@ -502,6 +525,8 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
     registry_result = await call_registry_service(declared)
     case.registry_result = registry_result
     results["registry"] = registry_result
+    if registry_result.get("model_info"):
+        model_versions["registry"] = registry_result["model_info"]
 
     registry_status = registry_result.get("status", "error")
     registry_confidence = float(registry_result.get("confidence") or 0.0)
@@ -545,6 +570,27 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
     )
     case.risk_result = risk_result
     results["risk"] = risk_result
+
+    # Snapshot the risk-scoring config (weights + thresholds at this
+    # moment) so a decision can be replayed against the exact same
+    # rule set even if we tune the weights later.
+    from .risk import WEIGHTS, AUTO_APPROVE_THRESHOLD, MANUAL_REVIEW_THRESHOLD
+    model_versions["risk"] = {
+        "service_name": "risk",
+        "service_version": (
+            __import__("os").environ.get("GIT_SHA")
+            or __import__("os").environ.get("DOCFLOW_VERSION")
+            or "dev"
+        ),
+        "provider": "docflow-risk-engine",
+        "provider_version": "v1",
+        "config": {
+            "weights": WEIGHTS,
+            "auto_approve_threshold": AUTO_APPROVE_THRESHOLD,
+            "manual_review_threshold": MANUAL_REVIEW_THRESHOLD,
+        },
+    }
+    case.model_versions = model_versions
 
     # ---- Transition: VALIDATED -> RISK_EVALUATED ----
     CASE_STATUS_TRANSITIONS.labels(from_status="validated", to_status="risk_evaluated").inc()

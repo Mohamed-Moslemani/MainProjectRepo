@@ -33,6 +33,11 @@ class Case(Base):
     reconciliation_result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     registry_result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     risk_result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # Provenance: { "ocr": {...}, "face": {...}, "registry": {...},
+    # "risk": {...} } captured from each AI service's model_info dict
+    # on every pipeline run. Lets us replay a decision against the
+    # exact same model versions + thresholds that produced it.
+    model_versions: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # Tracking
     status_history: Mapped[list] = mapped_column(JSON, default=list)
