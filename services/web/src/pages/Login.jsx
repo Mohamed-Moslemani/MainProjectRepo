@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import AuthLayout from '../components/AuthLayout';
 import PasswordInput from '../components/PasswordInput';
 import { useAuth } from '../context/useAuth';
@@ -7,10 +7,15 @@ import { useAuth } from '../context/useAuth';
 export default function Login() {
   const navigate = useNavigate();
   const { login } = useAuth();
+  const [searchParams] = useSearchParams();
 
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Honour ?reason=idle from the auto-logout flow so the citizen knows
+  // *why* they're back at the login screen.
+  const idleReason = searchParams.get('reason') === 'idle';
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -50,6 +55,14 @@ export default function Login() {
         <span className="en">Sign in to your DocFlow account</span>
       </p>
 
+      {idleReason && !error && (
+        <div className="alert alert--info">
+          <span className="ar">تم تسجيل خروجك تلقائياً بسبب عدم النشاط. الرجاء تسجيل الدخول من جديد.</span>
+          <span className="en" style={{ display: 'block', fontSize: '0.85rem' }}>
+            You were logged out automatically due to inactivity. Please sign in again.
+          </span>
+        </div>
+      )}
       {error && <div className="alert alert--error">{error}</div>}
 
       <form onSubmit={handleSubmit}>

@@ -3,6 +3,7 @@ import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import RoleRoute from './components/RoleRoute';
 import ErrorBoundary from './components/ErrorBoundary';
+import IdleLogout from './components/IdleLogout';
 
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -30,6 +31,7 @@ export default function App() {
     <ErrorBoundary>
       <BrowserRouter>
         <AuthProvider>
+          <IdleLogout />
           <Routes>
             {/* Public — no auth required */}
             <Route path="/track" element={<PublicTrack />} />
