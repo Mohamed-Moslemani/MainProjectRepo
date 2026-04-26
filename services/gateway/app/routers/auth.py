@@ -14,6 +14,7 @@ from ..schemas.auth import (
 from ..services.auth import (
     register_user, authenticate_user, create_access_token, create_refresh_token,
     decode_token, hash_password, verify_password,
+    issue_refresh_token, rotate_refresh_token,
 )
 from ..middleware.auth import get_current_user
 from datetime import datetime, timezone
@@ -63,17 +64,37 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
 
     AUTH_LOGINS.labels(status="success").inc()
     access = create_access_token(user.id, user.role)
-    refresh = create_refresh_token(user.id, user.role)
+    refresh = await issue_refresh_token(db, user.id, user.role)
     await log_action(db, "user_login", user_id=user.id)
     return TokenResponse(access_token=access, refresh_token=refresh)
 
 
 @router.post("/refresh", response_model=TokenResponse, dependencies=[Depends(rate_limit_login)])
 async def refresh(req: RefreshRequest, db: AsyncSession = Depends(get_db)):
+    """Single-use refresh-token rotation with reuse detection.
+
+    The refresh token carries a `jti` claim that's tracked in the
+    refresh_tokens table. Each call:
+      1. Decode the JWT (signature + expiry).
+      2. Hand off to rotate_refresh_token which atomically marks the
+         old jti consumed and mints a fresh one. If the jti is
+         missing, expired, mismatched, or already-used (reuse), it
+         returns None and we 401.
+
+    Reuse detection (presented jti has used_at != NULL) revokes all
+    active sessions for the user as a defensive blast — the only
+    ways that branch fires are a bug or a leaked token; in either
+    case forcing the legitimate user back through /login is safer
+    than letting the attacker keep going.
+    """
     try:
         payload = decode_token(req.refresh_token, expected_type="refresh")
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
+
+    jti = payload.get("jti")
+    if not jti:
+        raise HTTPException(status_code=401, detail="Token missing jti — please log in again")
 
     user_id = payload.get("sub")
     user = await db.execute(select(User).where(User.id == user_id))
@@ -81,21 +102,12 @@ async def refresh(req: RefreshRequest, db: AsyncSession = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
 
-    # Reject refresh tokens issued before a password reset
-    if user.tokens_valid_after:
-        from datetime import datetime, timezone
-        token_iat = payload.get("iat")
-        if token_iat is not None:
-            issued_at = datetime.fromtimestamp(token_iat, tz=timezone.utc)
-            if issued_at < user.tokens_valid_after:
-                raise HTTPException(
-                    status_code=401,
-                    detail="Token has been revoked. Please log in again.",
-                )
+    new_refresh = await rotate_refresh_token(db, user, jti)
+    if new_refresh is None:
+        raise HTTPException(status_code=401, detail="Refresh token revoked or already used")
 
     access = create_access_token(user.id, user.role)
-    refresh = create_refresh_token(user.id, user.role)
-    return TokenResponse(access_token=access, refresh_token=refresh)
+    return TokenResponse(access_token=access, refresh_token=new_refresh)
 
 
 @router.post("/forgot-password", dependencies=[Depends(rate_limit_reset)])
