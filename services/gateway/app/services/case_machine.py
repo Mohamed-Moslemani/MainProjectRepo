@@ -28,7 +28,12 @@ TRANSITIONS: dict[CaseStatus, set[CaseStatus]] = {
     CaseStatus.PENDING_MUKHTAR: {CaseStatus.APPROVED, CaseStatus.REJECTED, CaseStatus.NEED_INFO},
     CaseStatus.NEED_INFO: {CaseStatus.SUBMITTED},
     CaseStatus.APPROVED: {CaseStatus.PAYMENT_PENDING},
-    CaseStatus.PAYMENT_PENDING: {CaseStatus.IN_PRODUCTION},
+    CaseStatus.PAYMENT_PENDING: {CaseStatus.IN_PRODUCTION, CaseStatus.PAYMENT_FAILED},
+    # Stripe webhook said the charge failed; citizen retries by
+    # creating a new checkout session, which moves them back to
+    # PAYMENT_PENDING. Allow REJECTED too so a clerk can give up on
+    # a case after N failures.
+    CaseStatus.PAYMENT_FAILED: {CaseStatus.PAYMENT_PENDING, CaseStatus.REJECTED},
     CaseStatus.REJECTED: set(),
     CaseStatus.IN_PRODUCTION: {CaseStatus.READY_FOR_PICKUP},
     CaseStatus.READY_FOR_PICKUP: {CaseStatus.CLOSED},
@@ -44,18 +49,40 @@ NEXT_ACTIONS: dict[CaseStatus, str] = {
     CaseStatus.PENDING_MUKHTAR: "Awaiting Mukhtar verification and digital stamp.",
     CaseStatus.APPROVED: "Application approved. Please proceed to payment.",
     CaseStatus.PAYMENT_PENDING: "Payment required. Complete payment to proceed.",
+    CaseStatus.PAYMENT_FAILED: "Payment failed. Please retry — your application is held until payment clears.",
     CaseStatus.REJECTED: "Application rejected. See notes for reason.",
     CaseStatus.IN_PRODUCTION: "Payment received. Your document is being manufactured.",
     CaseStatus.READY_FOR_PICKUP: "Visit the assigned office to collect your document.",
     CaseStatus.CLOSED: "Document collected. Case closed.",
 }
 
-FEES: dict[str, int] = {
+# ── Fee schedule ────────────────────────────────────────────────────
+#
+# All values in cents. The Lebanese General Directorate of General
+# Security publishes passport fees on a sliding scale by validity
+# duration; ID-card fees are flat. The numbers below mirror the
+# post-2023 USD-pegged tariff GDGS adopted after the LBP collapse —
+# they're easy to revise via a single env override
+# (DOCFLOW_FEES_OVERRIDE_JSON) when GDGS publishes a new schedule
+# without forcing a code change.
+ID_FEES: dict[str, int] = {
     "id_new": 2000,              # $20
     "id_renewal": 1500,          # $15
-    "passport_new": 6000,        # $60
-    "passport_renewal": 4000,    # $40
 }
+
+# Passport fees vary by *validity*. Citizens pick a duration at
+# checkout; the orchestrator stamps it onto the case and the payment
+# layer reads it here. Numbers are USD cents.
+PASSPORT_FEES_BY_VALIDITY: dict[int, dict[str, int]] = {
+    1:  {"passport_new":  5000, "passport_renewal": 5000},   # $50
+    3:  {"passport_new":  8000, "passport_renewal": 8000},   # $80
+    5:  {"passport_new": 15000, "passport_renewal": 15000},  # $150
+    10: {"passport_new": 30000, "passport_renewal": 30000},  # $300
+}
+
+# Default validity if the citizen didn't pick one yet — defensive
+# fallback so a half-completed application still has a quoted price.
+DEFAULT_PASSPORT_VALIDITY_YEARS = 5
 
 
 def can_transition(current: str, target: str) -> bool:
@@ -74,5 +101,34 @@ def get_next_action(status: str) -> str | None:
         return None
 
 
-def get_fee(service_type: str) -> int:
-    return FEES.get(service_type, 0)
+def get_fee(service_type: str, declared_fields: dict | None = None) -> int:
+    """Compute the GDGS fee for a case in cents.
+
+    For ID services the fee is flat. For passport services the fee
+    scales by chosen validity (1 / 3 / 5 / 10 years), pulled from
+    declared_fields["passport_validity_years"] — falls back to
+    DEFAULT_PASSPORT_VALIDITY_YEARS when not picked yet.
+    """
+    if service_type in ID_FEES:
+        return ID_FEES[service_type]
+
+    if service_type in ("passport_new", "passport_renewal"):
+        validity = (declared_fields or {}).get("passport_validity_years")
+        try:
+            validity_int = int(validity) if validity is not None else DEFAULT_PASSPORT_VALIDITY_YEARS
+        except (TypeError, ValueError):
+            validity_int = DEFAULT_PASSPORT_VALIDITY_YEARS
+        tier = PASSPORT_FEES_BY_VALIDITY.get(validity_int)
+        if tier is None:
+            # Unsupported validity — quote the default so payment
+            # doesn't 500. Validation should have caught this earlier.
+            tier = PASSPORT_FEES_BY_VALIDITY[DEFAULT_PASSPORT_VALIDITY_YEARS]
+        return tier.get(service_type, 0)
+
+    return 0
+
+
+def valid_passport_validity_years() -> list[int]:
+    """The validities a citizen is allowed to pick. Used by the
+    declared-fields validator and the SPA to render the dropdown."""
+    return sorted(PASSPORT_FEES_BY_VALIDITY.keys())

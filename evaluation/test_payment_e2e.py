@@ -215,8 +215,12 @@ def step_payment_failed_flow(token: str):
     print("\n--- Step 6: Payment failed flow ---")
 
     # Create another case in payment_pending
+    # Use the 1-year passport tier so the assertion is unambiguous;
+    # default validity (5y) would cost $150 under the new
+    # validity-tiered fee schedule.
     r = requests.post(f"{API}/cases", json={
-        "service_type": "passport_new", "declared_fields": {},
+        "service_type": "passport_new",
+        "declared_fields": {"passport_validity_years": 1},
     }, headers=auth_headers(token))
     case_id = r.json()["id"]
 
@@ -227,7 +231,8 @@ def step_payment_failed_flow(token: str):
     # Create checkout
     r = requests.post(f"{API}/payments", json={"case_id": case_id}, headers=auth_headers(token))
     assert_status("create checkout (passport)", r, 200)
-    assert_eq("passport amount is 6000", r.json()["amount"], 6000)
+    # 1-year passport tier = $50 = 5000 cents
+    assert_eq("passport amount is 5000 (1y tier)", r.json()["amount"], 5000)
     payment_id = r.json()["id"]
 
     # Simulate failed payment

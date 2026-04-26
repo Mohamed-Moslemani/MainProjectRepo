@@ -32,7 +32,7 @@ async def create_checkout_session(db: AsyncSession, case: Case, user_id: str) ->
     settings = get_settings()
     _get_stripe()
 
-    amount = get_fee(case.service_type)
+    amount = get_fee(case.service_type, declared_fields=case.declared_fields)
     if amount == 0:
         raise ValueError(f"No fee defined for service type: {case.service_type}")
 
@@ -163,6 +163,24 @@ async def handle_payment_failed(db: AsyncSession, session: dict) -> str:
 
     payment.status = "failed"
     PAYMENTS_FAILED.inc()
+
+    # Move the parent case to PAYMENT_FAILED so the citizen sees a
+    # clear "retry" state in the UI. can_transition guards against
+    # double-fires (a redelivered webhook for an already-failed case
+    # silently no-ops).
+    from sqlalchemy import select as _select
+    from ..models.case import Case
+    case_row = await db.execute(_select(Case).where(Case.id == payment.case_id))
+    case = case_row.scalar_one_or_none()
+    if case and can_transition(case.status, "payment_failed"):
+        from datetime import datetime, timezone
+        case.status = "payment_failed"
+        case.status_history = case.status_history + [{
+            "status": "payment_failed",
+            "message": "Payment failed — citizen can retry from /case detail",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }]
+
     await db.commit()
 
     await log_action(
