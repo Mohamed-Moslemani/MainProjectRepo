@@ -49,3 +49,11 @@ scrape_configs:
   - job_name: "prometheus"
     static_configs:
       - targets: ["localhost:9090"]
+
+  # Pushgateway — short-lived jobs (continuous eval, daily sweeps)
+  # push metrics here. honor_labels keeps the job= label set by the
+  # pusher rather than overwriting it with "pushgateway".
+  - job_name: "pushgateway"
+    honor_labels: true
+    static_configs:
+      - targets: ["pushgateway:9091"]

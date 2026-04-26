@@ -119,3 +119,43 @@ groups:
             quality changed materially or the weights / thresholds
             were tuned recently — confirm with the latest
             model_versions snapshot on a fresh case.
+
+  - name: continuous_eval
+    rules:
+      # ───── Real-doc accuracy regression ─────
+      # The continuous-eval job (scripts/run_continuous_eval.py)
+      # pushes docflow_eval_field_accuracy daily. If accuracy on
+      # the labelled golden set drops > 10 points vs the rolling
+      # 7-day average, something in the AI stack regressed.
+      - alert: RealDocEvalAccuracyRegression
+        expr: |
+          (
+            avg_over_time(docflow_eval_field_accuracy{harness="real_docs"}[7d])
+            - docflow_eval_field_accuracy{harness="real_docs"}
+          ) > 0.10
+        for: 1h
+        labels:
+          severity: warning
+          category: ai-eval
+        annotations:
+          summary: "Real-doc eval accuracy regressed > 10pp vs 7-day baseline"
+          description: |
+            Continuous-eval reports {{ $value | humanizePercentage }}
+            below the 7-day mean. Compare model_versions on the
+            golden-set cases against the previous run — a provider
+            update is the most common cause.
+
+      # ───── Eval freshness ─────
+      # If the daily eval hasn't pushed in 36h, the cron is broken.
+      - alert: ContinuousEvalStale
+        expr: |
+          time() - docflow_eval_field_accuracy{harness="real_docs"}_created > 36 * 3600
+        for: 30m
+        labels:
+          severity: warning
+          category: ai-eval
+        annotations:
+          summary: "Continuous evaluation hasn't reported in > 36 hours"
+          description: |
+            The scheduled real-doc evaluation should run daily.
+            Check the cron / CronJob / GitHub Actions schedule.
