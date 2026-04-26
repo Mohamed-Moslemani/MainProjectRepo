@@ -174,6 +174,23 @@ export default function AdminCases() {
     }
   };
 
+  const handleExportCsv = async () => {
+    try {
+      const { data } = await adminApi.exportCasesCsv({
+        status: filterStatus || undefined,
+      });
+      const url = window.URL.createObjectURL(new Blob([data], { type: 'text/csv' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `docflow-cases-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      // Inline alert is enough — no toast wired into this page yet.
+      setError('فشل في تصدير CSV');
+    }
+  };
+
   const openUpdateModal = (c) => {
     const nextStatuses = TRANSITIONS[c.status] || [];
     if (nextStatuses.length === 0) return;
@@ -214,15 +231,25 @@ export default function AdminCases() {
 
   return (
     <div className="admin-page">
-      <div className="admin-page__header">
-        <h1 className="admin-page__title">
-          <span className="ar">الطلبات</span>
-          <span className="en">Cases</span>
-        </h1>
-        <p className="admin-page__subtitle">
-          <span className="ar">{total} طلب إجمالي</span>
-          <span className="en">{total} total cases</span>
-        </p>
+      <div className="admin-page__header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
+        <div>
+          <h1 className="admin-page__title">
+            <span className="ar">الطلبات</span>
+            <span className="en">Cases</span>
+          </h1>
+          <p className="admin-page__subtitle">
+            <span className="ar">{total} طلب إجمالي</span>
+            <span className="en">{total} total cases</span>
+          </p>
+        </div>
+        <button
+          type="button"
+          className="btn-small btn-small--ghost"
+          onClick={handleExportCsv}
+          title="Export current filter to CSV"
+        >
+          ⬇ <span className="en">Export CSV</span>
+        </button>
       </div>
 
       {/* Filter bar */}

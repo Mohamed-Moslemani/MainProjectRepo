@@ -30,6 +30,15 @@ export const adminApi = {
   updateCaseStatus: (caseId, { status, notes, rejection_reasons }) =>
     api.patch(`/cases/${caseId}/status`, { status, notes, rejection_reasons }),
 
+  // CSV export of the filtered case list (same filter shape as getCases)
+  exportCasesCsv: ({ status, service_type, search } = {}) => {
+    const params = {};
+    if (status) params.status = status;
+    if (service_type) params.service_type = service_type;
+    if (search) params.search = search;
+    return api.get('/admin/cases.csv', { params, responseType: 'blob' });
+  },
+
   getCaseDetail: (caseId) => api.get(`/cases/${caseId}`),
 
   getCaseDocuments: (caseId) => api.get(`/cases/${caseId}/documents`),

@@ -51,6 +51,71 @@ async def list_all_cases(
     return {"cases": cases, "total": total, "limit": limit, "offset": offset}
 
 
+@router.get("/cases.csv")
+async def export_cases_csv(
+    status: str | None = None,
+    service_type: str | None = None,
+    search: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("clerk", "admin")),
+):
+    """Export the filtered case list as CSV.
+
+    Same filter contract as /admin/cases (status, service_type,
+    search by tracking_id). Streams the full filtered set (no
+    pagination) so a clerk can pull a ministry-style report. The
+    columns are intentionally a *non-PII* projection — tracking
+    ID, service, status, age, risk score, routing — so the exported
+    file can be passed around inside the admin team without
+    leaking citizen names or registry numbers.
+    """
+    import csv
+    import io
+    from fastapi.responses import StreamingResponse
+
+    query = select(Case).order_by(Case.created_at.desc())
+    if status:
+        query = query.where(Case.status == status)
+    if service_type:
+        query = query.where(Case.service_type == service_type)
+    if search:
+        query = query.where(Case.tracking_id.ilike(f"%{search}%"))
+
+    result = await db.execute(query)
+    cases = list(result.scalars().all())
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow([
+        "tracking_id", "service_type", "status",
+        "created_at", "updated_at",
+        "risk_score", "routing",
+        "mukhtar_assigned", "has_payment",
+    ])
+    for c in cases:
+        risk = (c.risk_result or {}).get("risk_score")
+        routing = (c.risk_result or {}).get("routing")
+        writer.writerow([
+            c.tracking_id,
+            c.service_type,
+            c.status,
+            c.created_at.isoformat() if c.created_at else "",
+            c.updated_at.isoformat() if c.updated_at else "",
+            "" if risk is None else risk,
+            routing or "",
+            "yes" if c.mukhtar_id else "",
+            "yes" if c.payments else "",
+        ])
+
+    buf.seek(0)
+    filename = f"docflow-cases-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}.csv"
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.get("/cases/{case_id}/full")
 async def get_case_full(
     case_id: str,
