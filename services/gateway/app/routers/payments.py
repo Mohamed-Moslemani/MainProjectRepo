@@ -42,8 +42,22 @@ async def create_payment(
         raise HTTPException(status_code=404, detail="Case not found")
     if case.user_id != user.id:
         raise HTTPException(status_code=403, detail="Not authorized")
-    if case.status != "payment_pending":
-        raise HTTPException(status_code=400, detail="Case is not in payment_pending status")
+    # Accept both payment_pending (first attempt) and payment_failed
+    # (retry after Stripe webhook reported a charge failure). When
+    # retrying we transition payment_failed → payment_pending so the
+    # state machine reflects "fresh checkout in flight".
+    if case.status not in ("payment_pending", "payment_failed"):
+        raise HTTPException(status_code=400, detail="Case is not in a payable state")
+    if case.status == "payment_failed":
+        from ..services.case_machine import can_transition as _ct
+        if _ct(case.status, "payment_pending"):
+            case.status = "payment_pending"
+            case.status_history = case.status_history + [{
+                "status": "payment_pending",
+                "message": "Citizen retried payment after a previous failure",
+                "timestamp": __import__("datetime").datetime.utcnow().isoformat() + "Z",
+            }]
+            await db.commit()
 
     try:
         data = await create_checkout_session(db, case, user.id)
