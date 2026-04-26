@@ -361,6 +361,81 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
     if case.retake_reasons:
         case.retake_reasons = None
 
+    # ---- Step 1.5: Lebanese eligibility rules ────────────────────
+    # Apply legal / procedural rules from the General Directorate of
+    # General Security before we burn cycles on face + registry. These
+    # produce specific citizen-facing guidance ("apply as new passport",
+    # "upload guardian consent") rather than the generic manual_review
+    # outcome the risk model would otherwise emit.
+    from .lebanese_rules import (
+        check_passport_renewal_eligibility,
+        check_minor_guardian_requirements,
+    )
+    eligibility_issues = []
+    uploaded_doc_types = set(documents.keys())
+
+    if case.service_type == "passport_renewal":
+        # Find the MRZ from the passport_data_page OCR result if any.
+        passport_ocr = (
+            results["ocr_results"].get("passport_data_page")
+            or results["ocr_results"].get("old_passport_data_page")
+        )
+        mrz_result = (passport_ocr or {}).get("mrz")
+        issue = check_passport_renewal_eligibility(
+            declared_fields=case.declared_fields or {},
+            ocr_extracted_fields=all_extracted_fields,
+            mrz_result=mrz_result,
+        )
+        if issue:
+            eligibility_issues.append(issue)
+
+    # Guardian-consent check applies to *every* service type — minors
+    # always need it, regardless of which document they're applying for.
+    minor_issue = check_minor_guardian_requirements(
+        declared_fields=case.declared_fields or {},
+        uploaded_doc_types=uploaded_doc_types,
+    )
+    if minor_issue:
+        eligibility_issues.append(minor_issue)
+
+    if eligibility_issues:
+        # Bundle issues into the retake-banner format so the existing
+        # frontend renders them without UI changes.
+        case.retake_reasons = [
+            {
+                "document_type": "_eligibility",
+                "code": issue.code,
+                "reasons": [issue.message_en],
+                "reasons_ar": [issue.message_ar],
+                "suggested_action": issue.suggested_action,
+            }
+            for issue in eligibility_issues
+        ]
+        results["eligibility_issues"] = [issue.code for issue in eligibility_issues]
+        results["routing"] = "needs_info"
+
+        if model_versions:
+            case.model_versions = model_versions
+
+        CASE_STATUS_TRANSITIONS.labels(
+            from_status="submitted", to_status="need_info",
+        ).inc()
+        _transition(case, "need_info", "Lebanese eligibility rule failed")
+        await db.commit()
+
+        await log_action(
+            db, "eligibility_rule_failed", case_id=case.id,
+            details={"issues": [
+                {"code": i.code, "severity": i.severity, "action": i.suggested_action}
+                for i in eligibility_issues
+            ]},
+        )
+        PIPELINE_DURATION.labels(service_type=case.service_type).observe(
+            _time.time() - pipeline_start
+        )
+        PIPELINE_DECISIONS.labels(decision="needs_info").inc()
+        return results
+
     # ---- Step 2: Face verification ----
     face_similarity = 0.0
     liveness_score = 0.0
