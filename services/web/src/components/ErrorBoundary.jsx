@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import * as Sentry from '@sentry/react';
 
 /**
  * Catch-all React error boundary.
@@ -29,8 +30,10 @@ export default class ErrorBoundary extends Component {
     console.error('Unhandled UI error:', error, info);
     this.setState({ info });
 
-    // Future hook:
-    //   if (window.Sentry) window.Sentry.captureException(error, { extra: info });
+    // Ship to Sentry / GlitchTip if a DSN is configured. Sentry.init()
+    // is a no-op when the DSN is unset, so captureException is safe
+    // to call unconditionally.
+    Sentry.captureException(error, { extra: { componentStack: info?.componentStack } });
   }
 
   handleReload = () => {
