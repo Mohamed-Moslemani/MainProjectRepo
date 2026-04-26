@@ -3,6 +3,7 @@ import { useAuth } from '../context/useAuth';
 import { useNavigate, Link } from 'react-router-dom';
 import { casesApi } from '../api/cases';
 import { useToast } from '../context/useToast';
+import { SkeletonCard } from '../components/Skeleton';
 import flagImg from '../assets/Figure_1.png';
 import '../styles/dashboard.css';
 
@@ -93,6 +94,10 @@ export default function Dashboard() {
         </div>
         <div className="dashboard-header__actions">
           <span className="dashboard-header__role">{user?.role}</span>
+          <Link to="/help" className="btn btn--ghost btn--sm" aria-label="Help">
+            <span className="ar">مساعدة</span>
+            <span className="en"> · Help</span>
+          </Link>
           <Link to="/account" className="btn btn--ghost btn--sm" aria-label="Account settings">
             <span className="ar">الحساب</span>
             <span className="en"> · Account</span>
@@ -177,7 +182,7 @@ export default function Dashboard() {
             <span className="en">Active Applications</span>
           </h2>
           {loading ? (
-            <div className="loading-spinner" />
+            <SkeletonCard rows={3} />
           ) : activeCases.length === 0 ? (
             <div className="empty-state">
               <p className="ar">لا توجد طلبات نشطة</p>
@@ -222,7 +227,7 @@ export default function Dashboard() {
             <span className="en">Past Applications</span>
           </h2>
           {loading ? (
-            <div className="loading-spinner" />
+            <SkeletonCard rows={3} />
           ) : pastCases.length === 0 ? (
             <div className="empty-state">
               <p className="ar">لا توجد طلبات سابقة</p>

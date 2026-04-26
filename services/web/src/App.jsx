@@ -17,6 +17,7 @@ import PaymentSuccess from './pages/PaymentSuccess';
 import PaymentCancelled from './pages/PaymentCancelled';
 import PublicTrack from './pages/PublicTrack';
 import AccountSettings from './pages/AccountSettings';
+import Help from './pages/Help';
 
 import NotFound from './pages/NotFound';
 import AdminLayout from './components/AdminLayout';
@@ -39,6 +40,9 @@ export default function App() {
             {/* Public — no auth required */}
             <Route path="/track" element={<PublicTrack />} />
             <Route path="/track/:trackingId" element={<PublicTrack />} />
+            <Route path="/help" element={<Help />} />
+            <Route path="/terms" element={<Help />} />
+            <Route path="/privacy" element={<Help />} />
 
           {/* Auth */}
           <Route path="/login" element={<Login />} />
