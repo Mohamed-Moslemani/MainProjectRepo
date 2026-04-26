@@ -99,3 +99,22 @@ class UserResponse(BaseModel):
     role: str
 
     model_config = {"from_attributes": True}
+
+
+class ProfileUpdateRequest(BaseModel):
+    """Editable subset of the user profile.
+
+    Email + full_name + identity numbers (registry / DOB) are
+    intentionally NOT here — those are identity fields the citizen
+    declared at registration and should only be changed through a
+    formal identity-correction flow, not by editing a profile form.
+    """
+    phone: str | None = None
+    address: str | None = None
+    marital_status: str | None = None
+    place_of_birth: str | None = None
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str

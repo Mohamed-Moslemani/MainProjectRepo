@@ -9,4 +9,13 @@ export const authApi = {
   resetPassword: (token, newPassword) =>
     api.post('/auth/reset-password', { token, new_password: newPassword }),
   refresh: (refreshToken) => api.post('/auth/refresh', { refresh_token: refreshToken }),
+
+  // Account self-service
+  me: () => api.get('/auth/me'),
+  updateProfile: (patch) => api.patch('/auth/me', patch),
+  changePassword: (currentPassword, newPassword) =>
+    api.post('/auth/change-password', {
+      current_password: currentPassword,
+      new_password: newPassword,
+    }),
 };

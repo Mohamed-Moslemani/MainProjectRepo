@@ -9,8 +9,14 @@ from ..schemas.auth import (
     RegisterRequest, LoginRequest, TokenResponse, UserResponse,
     RefreshRequest, ForgotPasswordRequest, ResetPasswordRequest,
     VerifyEmailRequest, ResendVerificationRequest,
+    ProfileUpdateRequest, ChangePasswordRequest,
 )
-from ..services.auth import register_user, authenticate_user, create_access_token, create_refresh_token, decode_token
+from ..services.auth import (
+    register_user, authenticate_user, create_access_token, create_refresh_token,
+    decode_token, hash_password, verify_password,
+)
+from ..middleware.auth import get_current_user
+from datetime import datetime, timezone
 from ..services.audit import log_action
 from ..services.password_reset import create_reset_token, validate_and_reset_password
 from ..services.email_verification import create_verification_token, verify_email_token
@@ -165,3 +171,68 @@ async def resend_verification(req: ResendVerificationRequest, db: AsyncSession =
         )
 
     return {"message": "If an unverified account with that email exists, a verification link has been sent."}
+
+
+# ---- Account self-service ----
+
+@router.get("/me", response_model=UserResponse)
+async def get_me(user: User = Depends(get_current_user)):
+    """Return the currently-logged-in user's profile."""
+    return user
+
+
+@router.patch("/me", response_model=UserResponse)
+async def update_me(
+    req: ProfileUpdateRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Update the editable subset of the user's profile.
+
+    Identity fields (full_name, DOB, registry number) intentionally
+    can't be patched here — they were declared at registration and
+    cross-checked against the civil registry. A formal correction
+    flow would handle those, not an in-app form.
+    """
+    payload = req.model_dump(exclude_unset=True)
+    changed = []
+    for field in ("phone", "address", "marital_status", "place_of_birth"):
+        if field in payload and payload[field] != getattr(user, field):
+            setattr(user, field, payload[field])
+            changed.append(field)
+    if changed:
+        await db.commit()
+        await db.refresh(user)
+        await log_action(
+            db, "profile_updated", user_id=user.id,
+            details={"fields_changed": changed},
+        )
+    return user
+
+
+@router.post("/change-password")
+async def change_password(
+    req: ChangePasswordRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Change password for the logged-in user.
+
+    Requires the current password (so a stolen access token alone
+    can't pivot to permanent account takeover) and rotates
+    tokens_valid_after to invalidate every other active session
+    for this user — same revocation pattern as forgot-password reset.
+    """
+    if not verify_password(req.current_password, user.password_hash):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    if len(req.new_password) < 8:
+        raise HTTPException(status_code=400, detail="New password must be at least 8 characters")
+    if req.new_password == req.current_password:
+        raise HTTPException(status_code=400, detail="New password must be different from the current one")
+
+    user.password_hash = hash_password(req.new_password)
+    user.tokens_valid_after = datetime.now(timezone.utc)
+    await db.commit()
+
+    await log_action(db, "password_changed", user_id=user.id)
+    return {"message": "Password changed. All other sessions have been signed out."}
