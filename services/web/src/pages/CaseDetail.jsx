@@ -1,7 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { casesApi } from '../api/cases';
 import LivenessCheck from '../components/LivenessCheck';
+import UploadPreview from '../components/UploadPreview';
+import AuthImage from '../components/AuthImage';
+import { checkImageQuality } from '../utils/imageQuality';
 import flagImg from '../assets/Figure_1.png';
 import { useAuth } from '../context/useAuth';
 import '../styles/dashboard.css';
@@ -69,6 +72,14 @@ export default function CaseDetail() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  // Pre-flight upload state. When a file is picked we run the client-
+  // side quality checker, stash the verdict + the file, and render
+  // <UploadPreview /> so the citizen can review before we hit the
+  // gateway. Confirm flushes through to handleUpload below.
+  const [pendingUpload, setPendingUpload] = useState(null);
+  const [checkingFile, setCheckingFile] = useState(false);
+  const fileInputsRef = useRef({});
+
   const loadCase = useCallback(async () => {
     try {
       const [caseRes, docsRes, reqDocsRes, compRes] = await Promise.all([
@@ -94,13 +105,53 @@ export default function CaseDetail() {
     loadCase();
   }, [loadCase]);
 
-  const handleUpload = async (docType, file) => {
+  // Run the client-side quality check, then open the preview modal so
+  // the citizen can review before we actually hit the gateway. We
+  // *don't* upload here — confirmUpload below does that once the user
+  // OKs the preview.
+  const handleFileSelected = async (docType, file) => {
+    if (!file) return;
+    setError('');
+    setCheckingFile(true);
+    try {
+      const verdict = await checkImageQuality(file);
+      setPendingUpload({ docType, file, verdict });
+    } catch {
+      setError('تعذر فحص جودة الصورة');
+    } finally {
+      setCheckingFile(false);
+    }
+  };
+
+  const cancelPendingUpload = () => {
+    if (pendingUpload?.verdict?.previewUrl) {
+      URL.revokeObjectURL(pendingUpload.verdict.previewUrl);
+    }
+    setPendingUpload(null);
+  };
+
+  const retakePendingUpload = () => {
+    const docType = pendingUpload?.docType;
+    cancelPendingUpload();
+    // Re-trigger the hidden <input type="file"> for this doc so the
+    // citizen lands straight back in the picker.
+    if (docType && fileInputsRef.current[docType]) {
+      fileInputsRef.current[docType].value = '';
+      fileInputsRef.current[docType].click();
+    }
+  };
+
+  const confirmPendingUpload = async () => {
+    if (!pendingUpload) return;
+    const { docType, file, verdict } = pendingUpload;
     setUploading(docType);
     setError('');
     try {
       await casesApi.uploadDocument(caseId, file, docType);
       setSuccess('تم رفع الملف بنجاح');
       setTimeout(() => setSuccess(''), 3000);
+      if (verdict.previewUrl) URL.revokeObjectURL(verdict.previewUrl);
+      setPendingUpload(null);
       await loadCase();
     } catch (err) {
       setError(err.response?.data?.detail || 'فشل في رفع الملف');
@@ -344,16 +395,27 @@ export default function CaseDetail() {
                     <span className="doc-card__label ar">{label.ar}</span>
                     <span className="doc-card__label en">{label.en}</span>
                     {uploaded && (
-                      <span className="doc-card__filename">{uploaded.original_filename}</span>
+                      <>
+                        {uploaded.mime_type?.startsWith('image/') && (
+                          <AuthImage
+                            src={casesApi.getDocumentImageUrl(caseId, uploaded.id)}
+                            alt={`Uploaded ${label.en}`}
+                            className="doc-card__thumb"
+                          />
+                        )}
+                        <span className="doc-card__filename">{uploaded.original_filename}</span>
+                      </>
                     )}
                   </div>
                   <div className="doc-card__action">
                     {uploaded ? (
                       <span className="doc-card__check">&#10003;</span>
                     ) : canEdit ? (
-                      <label className={`btn btn--sm btn--outline ${isUploading ? 'btn--loading' : ''}`}>
+                      <label className={`btn btn--sm btn--outline ${isUploading || checkingFile ? 'btn--loading' : ''}`}>
                         {isUploading ? (
                           <span className="ar">جارٍ الرفع...</span>
+                        ) : checkingFile ? (
+                          <span className="ar">جاري الفحص...</span>
                         ) : (
                           <>
                             <span className="ar">رفع</span>
@@ -364,10 +426,13 @@ export default function CaseDetail() {
                           type="file"
                           accept="image/jpeg,image/png,image/webp,application/pdf"
                           style={{ display: 'none' }}
+                          ref={(el) => { fileInputsRef.current[docType] = el; }}
                           onChange={(e) => {
-                            if (e.target.files[0]) handleUpload(docType, e.target.files[0]);
+                            if (e.target.files[0]) handleFileSelected(docType, e.target.files[0]);
+                            // Reset so picking the same filename twice still triggers onChange
+                            e.target.value = '';
                           }}
-                          disabled={isUploading}
+                          disabled={isUploading || checkingFile}
                         />
                       </label>
                     ) : (
@@ -551,6 +616,17 @@ export default function CaseDetail() {
         {/* Tracking Timeline */}
         {!isDraft && <TrackingTimeline caseId={caseId} />}
       </main>
+
+      {pendingUpload && (
+        <UploadPreview
+          docLabel={DOC_LABELS[pendingUpload.docType] || { ar: pendingUpload.docType, en: pendingUpload.docType }}
+          file={pendingUpload.file}
+          verdict={pendingUpload.verdict}
+          onConfirm={confirmPendingUpload}
+          onCancel={cancelPendingUpload}
+          onRetake={retakePendingUpload}
+        />
+      )}
     </div>
   );
 }

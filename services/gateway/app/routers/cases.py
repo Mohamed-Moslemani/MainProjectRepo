@@ -179,6 +179,43 @@ async def list_documents(
     return response
 
 
+@router.get("/{case_id}/documents/{document_id}/image")
+async def serve_case_document_image(
+    case_id: str,
+    document_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Serve an uploaded document image to its owner.
+
+    The citizen needs to see what they uploaded for the inline doc-card
+    thumbnail in CaseDetail. Reuses the same path-on-disk model as the
+    mukhtar endpoint, just scoped to case ownership instead of mukhtar
+    assignment. Admins/clerks aren't covered here — they get the image
+    from /admin endpoints.
+    """
+    import os
+    from fastapi.responses import FileResponse
+
+    case = await _get_user_case(db, case_id, user)
+    doc_result = await db.execute(
+        select(Document).where(
+            Document.id == document_id,
+            Document.case_id == case.id,
+        )
+    )
+    doc = doc_result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if not os.path.exists(doc.file_path):
+        raise HTTPException(status_code=404, detail="File not found on disk")
+    return FileResponse(
+        doc.file_path,
+        media_type=doc.mime_type,
+        filename=doc.original_filename,
+    )
+
+
 # ---- Submit case (triggers pipeline) ----
 
 @router.post("/{case_id}/submit")

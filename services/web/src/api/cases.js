@@ -23,6 +23,11 @@ export const casesApi = {
 
   getDocuments: (caseId) => api.get(`/cases/${caseId}/documents`),
 
+  // Auth-gated URL of an uploaded doc image. Render via <AuthImage src={...} />
+  // so the JWT bearer header is attached on the GET.
+  getDocumentImageUrl: (caseId, documentId) =>
+    `${api.defaults.baseURL}/cases/${caseId}/documents/${documentId}/image`,
+
   submit: (caseId, declaredFields) =>
     api.post(`/cases/${caseId}/submit`, { declared_fields: declaredFields }),
 
