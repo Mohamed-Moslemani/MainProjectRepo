@@ -520,6 +520,69 @@ h1 .en, h2 .en { font-size: 0.55em; }
   border: 1px solid var(--gray-200);
 }
 
+/* ── Reconciliation diff (admin / review queue) ── */
+.recon-diff {
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  overflow: hidden;
+}
+
+.recon-diff__summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0.75rem 1rem;
+  background: var(--gray-50);
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.recon-diff__title { font-weight: 600; font-size: 0.95rem; color: var(--gray-800); }
+.recon-diff__score { font-size: 1.4rem; font-weight: 700; }
+
+.recon-diff__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.recon-diff__table th {
+  padding: 0.5rem 0.75rem;
+  text-align: start;
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--gray-500);
+  background: var(--gray-50);
+  border-bottom: 1px solid var(--gray-200);
+}
+.recon-diff__table td {
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--gray-100);
+  vertical-align: top;
+}
+.recon-diff__field {
+  font-weight: 600;
+  color: var(--gray-800);
+  white-space: nowrap;
+  width: 1%;
+}
+.recon-diff__value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  color: var(--gray-800);
+  word-break: break-word;
+}
+.recon-diff__pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 /* ── Buttons ── */
 .btn {
   display: inline-flex;
