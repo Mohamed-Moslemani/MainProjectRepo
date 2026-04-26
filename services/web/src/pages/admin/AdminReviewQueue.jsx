@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { adminApi } from '../../api/admin';
+import AgeBadge from '../../components/AgeBadge';
+import ReconciliationDiff from '../../components/ReconciliationDiff';
 
 const SERVICE_LABELS = {
   id_new: { ar: 'هوية جديدة', en: 'New ID' },
@@ -159,6 +161,7 @@ export default function AdminReviewQueue() {
               <span className="ar">مراجعة يدوية</span>
               <span className="en">Manual Review</span>
             </span>
+            <AgeBadge createdAt={c.created_at} />
             <span className="review-header__date">
               {new Date(c.created_at).toLocaleDateString('ar-LB')}
             </span>
@@ -311,6 +314,13 @@ export default function AdminReviewQueue() {
             </dl>
           </div>
 
+          {/* Reconciliation diff */}
+          {d.reconciliation_result?.field_results && (
+            <div className="review-section">
+              <ReconciliationDiff reconciliation={d.reconciliation_result} />
+            </div>
+          )}
+
           {/* Documents */}
           <div className="review-section">
             <h3>
@@ -460,6 +470,7 @@ export default function AdminReviewQueue() {
                   <span className="review-queue__date">
                     {new Date(c.created_at).toLocaleDateString('ar-LB')}
                   </span>
+                  <AgeBadge createdAt={c.created_at} />
                 </div>
                 <div className="review-queue__card-right">
                   {riskScore != null && (

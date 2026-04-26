@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { adminApi } from '../../api/admin';
+import AgeBadge from '../../components/AgeBadge';
+import ReconciliationDiff from '../../components/ReconciliationDiff';
 
 const ALL_STATUSES = [
   'draft', 'submitted', 'validated', 'risk_evaluated',
@@ -233,7 +235,12 @@ export default function AdminCases() {
                           </span>
                         </td>
                         <td className="cases-table__date">
-                          {new Date(c.created_at).toLocaleDateString('ar-LB')}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                            <AgeBadge createdAt={c.created_at} />
+                            <span style={{ fontSize: '0.8rem', color: '#6b7280' }}>
+                              {new Date(c.created_at).toLocaleDateString('ar-LB')}
+                            </span>
+                          </div>
                         </td>
                         <td>
                           {(TRANSITIONS[c.status] || []).length > 0 && (
@@ -450,6 +457,12 @@ function CaseDetailView({ detail }) {
           </div>
         )}
       </div>
+
+      {detail.reconciliation_result?.field_results && (
+        <div className="case-detail__section">
+          <ReconciliationDiff reconciliation={detail.reconciliation_result} />
+        </div>
+      )}
 
       {detail.rejection_reasons?.length > 0 && (
         <div className="case-detail__section">

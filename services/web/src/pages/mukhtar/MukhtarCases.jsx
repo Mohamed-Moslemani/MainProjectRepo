@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { mukhtarApi } from '../../api/mukhtar';
 import AuthImage from '../../components/AuthImage';
+import AgeBadge from '../../components/AgeBadge';
 
 const DOC_TYPE_LABELS = {
   selfie: { ar: 'صورة شخصية (سيلفي)', en: 'Selfie' },
@@ -231,7 +232,12 @@ export default function MukhtarCases() {
                         <span className="en">{sl.en}</span>
                       </span>
                     </td>
-                    <td style={{ fontSize: '0.85rem' }}>{new Date(c.created_at).toLocaleDateString('en-GB')}</td>
+                    <td style={{ fontSize: '0.85rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <AgeBadge createdAt={c.created_at} />
+                        <span style={{ color: '#6b7280' }}>{new Date(c.created_at).toLocaleDateString('en-GB')}</span>
+                      </div>
+                    </td>
                     <td>
                       <button className="btn btn--sm btn--ghost" onClick={() => openDetail(c.id)}>
                         <span className="ar">عرض</span><span className="en">View</span>
