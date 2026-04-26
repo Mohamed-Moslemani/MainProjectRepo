@@ -9,6 +9,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from sqlalchemy import select, func, text
 
 from shared.request_id import RequestIDMiddleware, install_logging_filter
+from shared.telemetry import install_telemetry
 
 from .config import get_settings
 from .db import init_db, async_session
@@ -73,6 +74,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="DocFlow - Civil Registry Service", version="0.1.0", lifespan=lifespan)
 app.add_middleware(RequestIDMiddleware)
+install_telemetry(service_name="docflow-registry", app=app)
 
 Instrumentator(
     should_group_status_codes=False,

@@ -9,6 +9,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from sqlalchemy import text
 
 from shared.request_id import RequestIDMiddleware, install_logging_filter
+from shared.telemetry import install_telemetry
 
 from .config import get_settings
 from .db import init_db, async_session
@@ -51,6 +52,7 @@ Instrumentator(
 
 settings = get_settings()
 app.add_middleware(RequestIDMiddleware)
+install_telemetry(service_name="docflow-gateway", app=app)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in settings.cors_allowed_origins.split(",") if o.strip()],

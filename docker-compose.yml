@@ -54,6 +54,8 @@ services:
       dockerfile: services/ocr/Dockerfile
     ports:
       - "8001:8001"
+    env_file:
+      - .env.dev
     environment:
       OCR_GOOGLE_CREDENTIALS_PATH: /app/credentials/google-vision.json
       OCR_MIN_CONFIDENCE_THRESHOLD: 0.7
@@ -69,6 +71,8 @@ services:
       dockerfile: services/face/Dockerfile
     ports:
       - "8002:8002"
+    env_file:
+      - .env.dev
     environment:
       FACE_AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
       FACE_AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
@@ -99,6 +103,8 @@ services:
       dockerfile: services/registry/Dockerfile
     ports:
       - "8003:8003"
+    env_file:
+      - .env.dev
     environment:
       REGISTRY_DATABASE_URL: postgresql+asyncpg://registry:registry@registry_db:5432/registry
     depends_on:
@@ -179,9 +185,91 @@ services:
     depends_on:
       - prometheus
 
+  # Distributed tracing collector + UI. Receives OTLP gRPC on 4317
+  # from each FastAPI service, renders traces at http://localhost:16686.
+  # All-in-one image keeps memory tiny (~80MB) — fine for demo and
+  # local dev; production would split collector / query / storage.
+  # Pushgateway — short-lived jobs (continuous eval, daily sweeps)
+  # push metrics here and Prometheus scrapes them. The job stays
+  # visible until it's explicitly deleted, which is what we want for
+  # "the eval ran X hours ago and scored Y" tracking.
+  pushgateway:
+    image: prom/pushgateway:v1.9.0
+    ports:
+      - "9091:9091"
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.76.0
+    ports:
+      - "16686:16686"   # web UI
+      - "4317:4317"     # OTLP gRPC ingest
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+
+  # GlitchTip — open-source Sentry-protocol error tracking. Workers
+  # share the redis instance the gateway already runs; data lives in
+  # its own postgres so a botched migration on either side can't
+  # corrupt the other. Browser UI on http://localhost:8005.
+  glitchtip_db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: glitchtip
+      POSTGRES_PASSWORD: glitchtip
+      POSTGRES_DB: glitchtip
+    volumes:
+      - glitchtip_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U glitchtip"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  glitchtip:
+    image: glitchtip/glitchtip:v4.1
+    depends_on:
+      glitchtip_db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://glitchtip:glitchtip@glitchtip_db:5432/glitchtip
+      SECRET_KEY: change-me-in-prod-please
+      PORT: "8005"
+      EMAIL_URL: consolemail://
+      GLITCHTIP_DOMAIN: http://localhost:8005
+      DEFAULT_FROM_EMAIL: noreply@docflow.lb
+      CELERY_WORKER_AUTOSCALE: "1,2"
+      REDIS_URL: redis://redis:6379/1
+      ENABLE_OPEN_USER_REGISTRATION: "true"
+    ports:
+      - "8005:8005"
+    volumes:
+      - glitchtip_uploads:/code/uploads
+
+  glitchtip_worker:
+    image: glitchtip/glitchtip:v4.1
+    depends_on:
+      glitchtip_db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ./bin/run-celery-with-beat.sh
+    environment:
+      DATABASE_URL: postgres://glitchtip:glitchtip@glitchtip_db:5432/glitchtip
+      SECRET_KEY: change-me-in-prod-please
+      PORT: "8005"
+      EMAIL_URL: consolemail://
+      GLITCHTIP_DOMAIN: http://localhost:8005
+      DEFAULT_FROM_EMAIL: noreply@docflow.lb
+      REDIS_URL: redis://redis:6379/1
+    volumes:
+      - glitchtip_uploads:/code/uploads
+
 volumes:
   postgres_data:
   registry_data:
   uploads:
   prometheus_data:
   grafana_data:
+  glitchtip_db_data:
+  glitchtip_uploads:
