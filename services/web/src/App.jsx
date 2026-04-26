@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { ToastProvider } from './context/ToastContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import RoleRoute from './components/RoleRoute';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -15,6 +16,7 @@ import CaseDetail from './pages/CaseDetail';
 import PaymentSuccess from './pages/PaymentSuccess';
 import PaymentCancelled from './pages/PaymentCancelled';
 import PublicTrack from './pages/PublicTrack';
+import AccountSettings from './pages/AccountSettings';
 
 import NotFound from './pages/NotFound';
 import AdminLayout from './components/AdminLayout';
@@ -30,6 +32,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <BrowserRouter>
+        <ToastProvider>
         <AuthProvider>
           <IdleLogout />
           <Routes>
@@ -58,6 +61,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <CaseDetail />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/account"
+            element={
+              <ProtectedRoute>
+                <AccountSettings />
               </ProtectedRoute>
             }
           />
@@ -112,6 +123,7 @@ export default function App() {
           <Route path="*" element={<NotFound />} />
         </Routes>
       </AuthProvider>
+        </ToastProvider>
     </BrowserRouter>
     </ErrorBoundary>
   );

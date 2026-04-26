@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/useAuth';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { casesApi } from '../api/cases';
+import { useToast } from '../context/useToast';
 import flagImg from '../assets/Figure_1.png';
 import '../styles/dashboard.css';
 
@@ -28,11 +29,15 @@ const STATUS_MAP = {
 export default function Dashboard() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const toast = useToast();
   const [cases, setCases] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showNewCase, setShowNewCase] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [error, setError] = useState('');
+
+  // Errors are surfaced via the global toast stack now; the kept
+  // signature avoids churning every call site.
+  const setError = (msg) => msg && toast.error(msg);
 
   useEffect(() => {
     loadCases();
@@ -88,6 +93,10 @@ export default function Dashboard() {
         </div>
         <div className="dashboard-header__actions">
           <span className="dashboard-header__role">{user?.role}</span>
+          <Link to="/account" className="btn btn--ghost btn--sm" aria-label="Account settings">
+            <span className="ar">الحساب</span>
+            <span className="en"> · Account</span>
+          </Link>
           <button className="btn btn--ghost" onClick={handleLogout}>
             <span className="ar">خروج</span>
             <span className="en">Sign Out</span>
@@ -107,7 +116,7 @@ export default function Dashboard() {
           </p>
         </div>
 
-        {error && <div className="alert alert--error">{error}</div>}
+        {/* Errors surfaced via the global toast stack. */}
 
         {/* Quick Actions */}
         <div className="dashboard-cards">

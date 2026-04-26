@@ -8,6 +8,7 @@ import { checkImageQuality } from '../utils/imageQuality';
 import { useCasePolling } from '../hooks/useCasePolling';
 import flagImg from '../assets/Figure_1.png';
 import { useAuth } from '../context/useAuth';
+import { useToast } from '../context/useToast';
 import '../styles/dashboard.css';
 
 const LIVENESS_DOC_TYPES = ['selfie', 'liveness_capture'];
@@ -58,6 +59,7 @@ export default function CaseDetail() {
   const { caseId } = useParams();
   const navigate = useNavigate();
   const { logout } = useAuth();
+  const toast = useToast();
 
   const [caseData, setCaseData] = useState(null);
   const [requiredDocs, setRequiredDocs] = useState([]);
@@ -70,8 +72,11 @@ export default function CaseDetail() {
   const [submitting, setSubmitting] = useState(false);
   const [showLiveness, setShowLiveness] = useState(false);
   const [paying, setPaying] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  // Errors and successes go through the app-wide toast stack now;
+  // these aliases keep the existing call sites readable while routing
+  // through useToast under the hood.
+  const setError = (msg) => msg && toast.error(msg);
+  const setSuccess = (msg) => msg && toast.success(msg);
 
   // Pre-flight upload state. When a file is picked we run the client-
   // side quality checker, stash the verdict + the file, and render
@@ -306,8 +311,10 @@ export default function CaseDetail() {
           </span>
         </div>
 
-        {error && <div className="alert alert--error">{error}</div>}
-        {success && <div className="alert alert--success">{success}</div>}
+        {/* Per-page success/error banners replaced by the global toast
+             stack — see ToastProvider in App.jsx. The retake banner
+             below is structural (lives on the page until status changes)
+             and stays inline. */}
 
         {/* Retake reasons (quality gate failed — citizen must re-upload) */}
         {isNeedInfo && caseData.retake_reasons?.length > 0 && (
