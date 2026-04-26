@@ -706,6 +706,98 @@ a:focus:not(:focus-visible) {
 }
 .skip-link:focus { top: 0; }
 
+/* ── Mobile breakpoints ────────────────────────────────────────────
+   Lebanon is mobile-first — most citizens will hit this from a
+   phone, not a laptop. The grid + dl layouts above are tuned for
+   desktop. Below 768px, collapse to single-column and shrink
+   chrome that wastes vertical space on small screens.
+*/
+@media (max-width: 768px) {
+  .dashboard-main { padding: 0.75rem; }
+
+  .dashboard-header__inner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .dashboard-header__title { font-size: 1.05rem; }
+  .dashboard-header__subtitle { font-size: 0.8rem; }
+
+  .dashboard-header__actions {
+    width: 100%;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+
+  /* Service-type picker: 2-column on phones (instead of 4 in modal) */
+  .service-grid { grid-template-columns: 1fr; }
+
+  /* Doc cards stack vertically rather than try to fit a row */
+  .doc-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .doc-card {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .doc-card__action { margin-inline-start: auto; }
+
+  /* Forms collapse — labels above inputs (already are), but the
+     two-column field grid in CaseDetail goes single column. */
+  .field-grid { grid-template-columns: 1fr !important; }
+
+  /* Modal reads as a full-screen sheet on phones */
+  .modal-overlay { padding: 0; align-items: stretch; }
+  .modal {
+    max-width: 100% !important;
+    height: 100%;
+    border-radius: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .modal__body, .upload-preview__body { flex: 1; overflow-y: auto; }
+  .upload-preview__actions {
+    position: sticky;
+    bottom: 0;
+    background: var(--white);
+  }
+
+  /* Reconciliation diff: scroll horizontally rather than wrap weirdly */
+  .recon-diff__table { display: block; overflow-x: auto; }
+
+  /* Settings form: fill width */
+  .settings-form input, .settings-form select { font-size: 1rem; }
+
+  /* Toast stack: pin to bottom on mobile so it doesn't cover the
+     citizen's primary action area at the top */
+  .toast-stack {
+    top: auto;
+    bottom: 0.75rem;
+    inset-inline-end: 0.75rem;
+    inset-inline-start: 0.75rem;
+    max-width: none;
+  }
+
+  /* Status badges: keep readable but don't blow up the row */
+  .status-badge--lg { font-size: 0.8rem; padding: 0.25rem 0.6rem; }
+
+  /* Doc-card thumbnails: cap height on mobile so they don't dominate */
+  .doc-card__thumb { max-height: 160px; }
+}
+
+/* Phones < 480px — even tighter */
+@media (max-width: 480px) {
+  .dashboard-header { padding: 0.6rem 0.75rem; }
+  .dashboard-header__brand { gap: 0.5rem; }
+  .dashboard-header__flag { width: 32px; height: auto; }
+
+  .case-header { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+
+  /* Buttons full-width by default on tiny screens */
+  .btn--lg { width: 100%; }
+}
+
 /* ── Buttons ── */
 .btn {
   display: inline-flex;

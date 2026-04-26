@@ -796,10 +796,64 @@
   }
 
   .admin-page {
-    padding: 1.5rem;
+    padding: 1rem;
   }
 
   .stat-cards {
     grid-template-columns: repeat(2, 1fr);
   }
+
+  /* Tables: keep readable by scrolling horizontally rather than
+     wrapping cells */
+  .cases-table-wrapper, .review-queue, .review-detail {
+    overflow-x: auto;
+  }
+  .cases-table { min-width: 720px; }
+
+  /* Filter bar collapses to vertical so dropdowns + search inputs
+     each get full width */
+  .cases-filters, .filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  /* Review queue cards stack */
+  .review-queue__card { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+  .review-queue__card-right { width: 100%; justify-content: space-between; }
+}
+
+@media (max-width: 480px) {
+  .stat-cards { grid-template-columns: 1fr; }
+}
+
+/* Inline link-styled button (used for clickable audit IDs) */
+.btn-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--cedar, #16a34a);
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+}
+.btn-link:hover { opacity: 0.85; }
+
+/* Bulk-action bar (admin cases page) */
+.bulk-bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.85rem;
+  margin-bottom: 0.6rem;
+  background: #ecfdf5;
+  border: 1px solid #86efac;
+  border-radius: var(--radius-sm, 6px);
+  flex-wrap: wrap;
+  font-size: 0.9rem;
 }
