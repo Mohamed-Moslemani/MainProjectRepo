@@ -71,27 +71,41 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
 
 
 class RequestIDLogFilter(logging.Filter):
-    """Stamp every log record with the active request_id."""
+    """Stamp every log record with the active request_id.
+
+    Attached to handlers (not just to a logger) so records that flow
+    through children of the root logger — such as alembic's loggers —
+    still get the attribute before the formatter touches them.
+    """
 
     def filter(self, record: logging.LogRecord) -> bool:
-        record.request_id = get_request_id()
+        if not hasattr(record, "request_id"):
+            record.request_id = get_request_id()
         return True
 
 
 def install_logging_filter(level: int = logging.INFO) -> None:
-    """Attach the filter to the root logger and update the default formatter
-    so request_id appears in every line. Idempotent — safe to call from
-    each service's startup hook."""
+    """Wire the request-ID filter and a request-ID-aware formatter onto
+    every handler attached to the root logger.
+
+    Idempotent — safe to call from each service's startup hook. The
+    filter is attached to handlers (not to the root logger itself)
+    because handler-level filters run for *every* record that reaches
+    a handler, including records emitted by third-party loggers like
+    alembic's, which would otherwise hit a "%(request_id)s — no such
+    attribute" formatting failure.
+    """
     fmt = "%(asctime)s [%(levelname)s] [%(request_id)s] %(name)s: %(message)s"
     formatter = logging.Formatter(fmt)
     root = logging.getLogger()
     root.setLevel(level)
 
-    # Replace formatter on existing handlers (uvicorn installs its own).
+    rid_filter = RequestIDLogFilter()
     for handler in root.handlers:
         handler.setFormatter(formatter)
-    if not any(isinstance(f, RequestIDLogFilter) for f in root.filters):
-        root.addFilter(RequestIDLogFilter())
+        # Don't double-attach if install_logging_filter is called twice.
+        if not any(isinstance(f, RequestIDLogFilter) for f in handler.filters):
+            handler.addFilter(rid_filter)
 
 
 def propagate_headers(extra: dict[str, str] | None = None) -> dict[str, str]:
