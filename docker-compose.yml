@@ -117,6 +117,7 @@ services:
       dockerfile: services/web/Dockerfile
       args:
         VITE_API_URL: ${VITE_API_URL:-https://localhost}
+        VITE_SENTRY_DSN: ${VITE_SENTRY_DSN:-}
     ports:
       - "3000:80"
     depends_on:

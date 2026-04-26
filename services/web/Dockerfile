@@ -15,6 +15,11 @@ COPY services/web/ ./
 # --build-arg VITE_API_URL="" so API calls stay same-origin.
 ARG VITE_API_URL=http://localhost:8000
 ENV VITE_API_URL=${VITE_API_URL}
+# Optional: GlitchTip / Sentry DSN baked at build time. Empty
+# disables error capture (the init in main.jsx is a no-op when DSN
+# is unset).
+ARG VITE_SENTRY_DSN=
+ENV VITE_SENTRY_DSN=${VITE_SENTRY_DSN}
 
 RUN npm run build
 
