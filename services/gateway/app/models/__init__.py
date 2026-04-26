@@ -7,5 +7,12 @@ from .payment import Payment
 from .audit_log import AuditLog
 from .password_reset import PasswordResetToken
 from .email_verification import EmailVerificationToken
+from .stripe_event import StripeEvent
+from .idempotency import IdempotencyKey
+from .refresh_token import RefreshToken
 
-__all__ = ["User", "Case", "Document", "OCRResult", "FaceResult", "Payment", "AuditLog", "PasswordResetToken", "EmailVerificationToken"]
+__all__ = [
+    "User", "Case", "Document", "OCRResult", "FaceResult", "Payment",
+    "AuditLog", "PasswordResetToken", "EmailVerificationToken",
+    "StripeEvent", "IdempotencyKey", "RefreshToken",
+]

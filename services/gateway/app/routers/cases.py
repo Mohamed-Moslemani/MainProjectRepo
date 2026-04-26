@@ -3,7 +3,7 @@ import uuid
 import logging
 import aiofiles
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -22,6 +22,7 @@ from ..services.case_machine import can_transition, get_next_action
 from ..services.policy import get_required_documents, get_policy, check_completeness
 from ..services.orchestrator import process_case
 from ..services.audit import log_action
+from ..services.idempotency import idempotent_response, store_idempotent_response
 from ..metrics import (
     CASES_CREATED, CASES_SUBMITTED, CASE_STATUS_TRANSITIONS,
     DOCUMENTS_UPLOADED, DOCUMENT_UPLOAD_SIZE,
@@ -121,15 +122,40 @@ async def upload_document(
 
     settings = get_settings()
 
-    if file.content_type not in ("image/jpeg", "image/png", "image/webp", "application/pdf"):
+    declared_mime = file.content_type
+    if declared_mime not in ("image/jpeg", "image/png", "image/webp", "application/pdf"):
         raise HTTPException(status_code=400, detail="Unsupported file type")
 
     content = await file.read()
     if len(content) > settings.max_upload_size_mb * 1024 * 1024:
         raise HTTPException(status_code=400, detail="File too large")
 
-    ext = os.path.splitext(file.filename or "upload")[1] or ".jpg"
-    filename = f"{uuid.uuid4().hex}{ext}"
+    # Magic-byte verification: the Content-Type header is whatever
+    # the client says — a malicious upload of "evil.exe" relabelled
+    # as image/jpeg would otherwise sail through. Sniff the first
+    # bytes against known signatures for our allowlist and reject
+    # anything that doesn't match the *declared* mime.
+    from ..services.file_sniff import detect_mime
+    detected_mime = detect_mime(content)
+    if detected_mime != declared_mime:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "File content does not match its declared type. "
+                f"Declared: {declared_mime}, detected: {detected_mime or 'unknown'}."
+            ),
+        )
+
+    # Use a deterministic extension derived from the *detected* mime,
+    # not the filename — caller-supplied filenames can include path
+    # separators or polyglot extensions that bypass simple guards.
+    safe_ext = {
+        "image/jpeg": ".jpg",
+        "image/png": ".png",
+        "image/webp": ".webp",
+        "application/pdf": ".pdf",
+    }.get(detected_mime, ".bin")
+    filename = f"{uuid.uuid4().hex}{safe_ext}"
     dir_path = os.path.join(settings.upload_dir, case_id)
     os.makedirs(dir_path, exist_ok=True)
     file_path = os.path.join(dir_path, filename)
@@ -223,9 +249,18 @@ async def submit_case(
     case_id: str,
     req: CaseSubmit,
     background_tasks: BackgroundTasks,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    # Idempotency: a retried submit (flaky 3G, click "Submit" twice)
+    # would otherwise create two pipeline runs on the same case. If
+    # the client supplied an Idempotency-Key header on the original
+    # request and we already cached a response, replay it verbatim.
+    cached = await idempotent_response(db, user.id, request, route="cases.submit")
+    if cached is not None:
+        return cached
+
     case = await _get_user_case(db, case_id, user)
 
     if not can_transition(case.status, "submitted"):
@@ -264,7 +299,10 @@ async def submit_case(
     # Process in background
     background_tasks.add_task(_process_case_bg, case_id)
 
-    return {"message": "Case submitted for processing", "tracking_id": case.tracking_id}
+    body = {"message": "Case submitted for processing", "tracking_id": case.tracking_id}
+    return await store_idempotent_response(
+        db, user.id, request, route="cases.submit", body=body,
+    )
 
 
 # ---- Clerk/Admin status updates ----
