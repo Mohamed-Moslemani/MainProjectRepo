@@ -1,0 +1,121 @@
+# AI-signal drift alerts.
+#
+# These fire when the *distribution* of an AI signal shifts beyond
+# what's expected from natural traffic noise. Drift detection is
+# how you catch silent degradation: nothing crashed, no error rate
+# moved, but the model is now making different decisions on similar
+# inputs (or being given different inputs).
+#
+# Evaluation strategy: compare a short window (1h) against a long
+# baseline (24h). Sustained shift over 30m → page.
+#
+# Alerts intentionally err on the side of warning rather than
+# critical — drift is rarely a "wake somebody up at 3am" event but
+# it absolutely should be visible in the morning standup.
+
+groups:
+  - name: ai_drift
+    rules:
+      # ───── OCR confidence dropped ─────
+      # If the median OCR confidence drops > 15 points vs the 24h
+      # baseline, something changed: either the OCR provider
+      # regressed or we're being fed worse photos.
+      - alert: OcrConfidenceDrift
+        expr: |
+          (
+            avg_over_time(docflow:ocr_confidence:p50_1h[24h])
+            - docflow:ocr_confidence:p50_1h
+          ) > 0.15
+        for: 30m
+        labels:
+          severity: warning
+          category: ai-drift
+        annotations:
+          summary: "OCR median confidence has dropped > 15% vs 24h baseline"
+          description: |
+            docflow:ocr_confidence:p50_1h is {{ $value | printf "%.2f" }}
+            below the 24h average. Either the upstream OCR provider
+            changed, the citizen photos are systematically worse
+            (camera regression?), or our quality gate moved.
+
+      # ───── Auto-approve rate collapsed ─────
+      # The auto-approve rate is the headline KPI: if it falls a lot
+      # the pipeline is rejecting more than it used to, which means
+      # officers are getting slammed with manual reviews.
+      - alert: AutoApproveRateDrop
+        expr: |
+          docflow:auto_approve_rate_1h
+          < (avg_over_time(docflow:auto_approve_rate_1h[24h]) - 0.20)
+        for: 30m
+        labels:
+          severity: warning
+          category: ai-drift
+        annotations:
+          summary: "Auto-approve rate dropped > 20 points vs 24h baseline"
+          description: |
+            Current auto-approve rate is {{ $value | humanizePercentage }}
+            vs the 24h baseline. Manual-review queue is likely
+            growing — investigate whether risk thresholds, OCR
+            confidence, or registry match rate moved.
+
+      # ───── Reject rate spike ─────
+      # Mirror image: did rejections jump? Same severity but
+      # different action — a rise in rejects with stable OCR
+      # suggests fraud / mismatched declarations rather than data
+      # quality.
+      - alert: RejectRateSpike
+        expr: |
+          docflow:reject_rate_1h
+          > (avg_over_time(docflow:reject_rate_1h[24h]) + 0.15)
+        for: 30m
+        labels:
+          severity: warning
+          category: ai-drift
+        annotations:
+          summary: "Reject rate climbed > 15 points vs 24h baseline"
+          description: |
+            Current reject rate is {{ $value | humanizePercentage }}.
+            Investigate registry match rate, face similarity, and
+            mismatch_count distributions.
+
+      # ───── Retake rate spike ─────
+      # Input quality drift signal. We *want* the quality gate to
+      # bounce bad photos back, but a sudden cliff usually means
+      # something broke (a phone OS update degraded camera output,
+      # a frontend regression in the pre-flight check, etc).
+      - alert: OcrRetakeRateSpike
+        expr: |
+          docflow:ocr_retake_rate_1h
+          > (avg_over_time(docflow:ocr_retake_rate_1h[24h]) + 0.20)
+        for: 30m
+        labels:
+          severity: warning
+          category: ai-drift
+        annotations:
+          summary: "OCR retake rate climbed > 20 points vs 24h baseline"
+          description: |
+            Current retake rate is {{ $value | humanizePercentage }}.
+            Citizen population is being asked to retake materially
+            more photos — check the client-side pre-flight, the
+            quality thresholds, and the OCR provider status.
+
+      # ───── Risk score distribution shift ─────
+      # If p50 risk shifts a lot, the population of cases or the
+      # weights themselves changed.
+      - alert: RiskScoreDrift
+        expr: |
+          abs(
+            docflow:risk_score:p50_1h
+            - avg_over_time(docflow:risk_score:p50_1h[24h])
+          ) > 15
+        for: 30m
+        labels:
+          severity: warning
+          category: ai-drift
+        annotations:
+          summary: "Median risk score shifted > 15 points vs 24h baseline"
+          description: |
+            Median risk is {{ $value | printf "%.1f" }}. Either input
+            quality changed materially or the weights / thresholds
+            were tuned recently — confirm with the latest
+            model_versions snapshot on a fresh case.

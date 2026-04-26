@@ -1,0 +1,80 @@
+# Pre-computed quantiles + rate aggregations for the AI signals.
+#
+# Recording rules let drift queries (which sweep the whole time
+# series) run against a small materialised view rather than the raw
+# histograms. Two practical wins:
+#   1. Drift dashboards stay snappy — querying p50 across 30 days of
+#      raw `_bucket` data is heavy; querying the recording rule is
+#      one row per timestamp.
+#   2. Alert evaluation gets cheaper, so we can sample at 5m without
+#      cooking the Prometheus instance.
+#
+# All rules window over 1 hour (short enough to react, long enough
+# to smooth out demo-traffic noise).
+
+groups:
+  - name: ai_signal_quantiles
+    interval: 1m
+    rules:
+      # ───── OCR confidence ─────
+      - record: docflow:ocr_confidence:p50_1h
+        expr: histogram_quantile(0.50, sum by (le) (rate(docflow_ocr_confidence_bucket[1h])))
+      - record: docflow:ocr_confidence:p95_1h
+        expr: histogram_quantile(0.95, sum by (le) (rate(docflow_ocr_confidence_bucket[1h])))
+
+      # ───── Face similarity ─────
+      - record: docflow:face_similarity:p50_1h
+        expr: histogram_quantile(0.50, sum by (le) (rate(docflow_face_similarity_score_bucket[1h])))
+      - record: docflow:face_similarity:p95_1h
+        expr: histogram_quantile(0.95, sum by (le) (rate(docflow_face_similarity_score_bucket[1h])))
+
+      # ───── Liveness score ─────
+      - record: docflow:liveness_score:p50_1h
+        expr: histogram_quantile(0.50, sum by (le) (rate(docflow_face_liveness_score_bucket[1h])))
+
+      # ───── Registry confidence ─────
+      - record: docflow:registry_confidence:p50_1h
+        expr: histogram_quantile(0.50, sum by (le) (rate(docflow_registry_confidence_bucket[1h])))
+
+      # ───── Risk score ─────
+      - record: docflow:risk_score:p50_1h
+        expr: histogram_quantile(0.50, sum by (le) (rate(docflow_risk_score_bucket[1h])))
+      - record: docflow:risk_score:p95_1h
+        expr: histogram_quantile(0.95, sum by (le) (rate(docflow_risk_score_bucket[1h])))
+
+  - name: ai_decision_rates
+    interval: 1m
+    rules:
+      # Auto-approve / manual / reject mix — the most demo-relevant
+      # business KPI. A sudden swing here is the loudest signal that
+      # something upstream changed.
+      - record: docflow:pipeline_decisions:per_minute
+        expr: sum by (decision) (rate(docflow_pipeline_decisions_total[5m]))
+
+      - record: docflow:auto_approve_rate_1h
+        expr: |
+          sum(rate(docflow_pipeline_decisions_total{decision="auto_approve"}[1h]))
+          /
+          (sum(rate(docflow_pipeline_decisions_total[1h])) > 0)
+
+      - record: docflow:manual_review_rate_1h
+        expr: |
+          sum(rate(docflow_pipeline_decisions_total{decision="manual_review"}[1h]))
+          /
+          (sum(rate(docflow_pipeline_decisions_total[1h])) > 0)
+
+      - record: docflow:reject_rate_1h
+        expr: |
+          sum(rate(docflow_pipeline_decisions_total{decision="reject"}[1h]))
+          /
+          (sum(rate(docflow_pipeline_decisions_total[1h])) > 0)
+
+      # OCR retake rate — proxy for input data quality. If this
+      # spikes the citizen population is uploading worse photos
+      # (worth investigating: did a phone-OS update reduce default
+      # camera quality? did we tighten the threshold by accident?)
+      - record: docflow:ocr_retake_rate_1h
+        expr: |
+          sum(rate(docflow_ocr_retake_required_total[1h]))
+          /
+          (sum(rate(docflow_ocr_requests_total[1h])) > 0)

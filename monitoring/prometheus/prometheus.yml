@@ -4,6 +4,8 @@ global:
 
 rule_files:
   - /etc/prometheus/alerts.yml
+  - /etc/prometheus/recording_rules.yml
+  - /etc/prometheus/drift_alerts.yml
 
 scrape_configs:
   # Application services
