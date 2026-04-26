@@ -1,23 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { mukhtarApi } from '../../api/mukhtar';
-
-function AuthImage({ src, alt, style, onClick }) {
-  const imgRef = useRef(null);
-  useEffect(() => {
-    const token = localStorage.getItem('access_token');
-    if (!src || !token) return;
-    let objectUrl;
-    fetch(src, { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => { if (r.ok) return r.blob(); throw new Error('failed'); })
-      .then((blob) => {
-        objectUrl = URL.createObjectURL(blob);
-        if (imgRef.current) imgRef.current.src = objectUrl;
-      })
-      .catch(() => { if (imgRef.current) imgRef.current.style.display = 'none'; });
-    return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [src]);
-  return <img ref={imgRef} alt={alt} style={style} onClick={onClick} />;
-}
+import AuthImage from '../../components/AuthImage';
 
 const DOC_TYPE_LABELS = {
   selfie: { ar: 'صورة شخصية (سيلفي)', en: 'Selfie' },
