@@ -22,6 +22,11 @@ class CaseStatus(str, Enum):
     PENDING_MUKHTAR = "pending_mukhtar"
     APPROVED = "approved"
     PAYMENT_PENDING = "payment_pending"
+    # Stripe webhook reported a payment failure (card declined,
+    # insufficient funds, expired card). Citizen can retry by
+    # creating a new checkout session — transition back to
+    # PAYMENT_PENDING resets the loop.
+    PAYMENT_FAILED = "payment_failed"
     REJECTED = "rejected"
     IN_PRODUCTION = "in_production"
     READY_FOR_PICKUP = "ready_for_pickup"
@@ -49,6 +54,22 @@ class DocumentType(str, Enum):
     # Supporting
     GUARDIAN_DOCS = "guardian_docs"
     ADDITIONAL_IDENTITY_PROOF = "additional_identity_proof"
+
+    # ── Renewal-reason supporting docs (Lebanese GDGS form) ─────
+    POLICE_REPORT = "police_report"            # for lost / stolen
+    DAMAGED_PASSPORT = "damaged_passport"      # the physical damaged doc
+    COURT_RULING = "court_ruling"              # for legal name change
+
+
+class RenewalReason(str, Enum):
+    """Lebanese GDGS renewal-reason categories. Each maps to specific
+    supporting-document requirements enforced by the policy engine."""
+    EXPIRED = "expired"          # انتهاء الصلاحية
+    LOST = "lost"                # فقدان — needs police_report
+    STOLEN = "stolen"            # سرقة — needs police_report
+    DAMAGED = "damaged"          # تلف — needs damaged_passport upload
+    PAGES_FULL = "pages_full"    # نفاد الصفحات
+    NAME_CHANGE = "name_change"  # تغيير الاسم — needs court_ruling
 
 
 class UserRole(str, Enum):

@@ -86,7 +86,9 @@ async def get_required_docs(
     user: User = Depends(get_current_user),
 ):
     case = await _get_user_case(db, case_id, user)
-    required = get_required_documents(case.service_type)
+    # Pass declared_fields so passport_renewal pulls in reason-specific
+    # docs (police report, court ruling, etc).
+    required = get_required_documents(case.service_type, declared_fields=case.declared_fields)
     policy = get_policy(case.service_type)
     declared_fields = policy.get("declared_fields", [])
     return {"service_type": case.service_type, "required_documents": required, "declared_fields": declared_fields}
@@ -102,7 +104,11 @@ async def check_case_completeness(
     docs_result = await db.execute(select(Document).where(Document.case_id == case.id))
     uploaded_types = [d.document_type for d in docs_result.scalars().all()]
     has_liveness = bool(case.liveness_result and case.liveness_result.get("liveness_passed"))
-    return check_completeness(case.service_type, uploaded_types, has_liveness_session=has_liveness)
+    return check_completeness(
+        case.service_type, uploaded_types,
+        has_liveness_session=has_liveness,
+        declared_fields=case.declared_fields,
+    )
 
 
 # ---- Document upload ----
@@ -269,11 +275,17 @@ async def submit_case(
             detail=f"Cannot submit from status '{case.status}'"
         )
 
-    # Check completeness
+    # Check completeness — declared_fields from this submit request,
+    # since the renewal_reason picked here may add police_report /
+    # court_ruling / damaged_passport to the required-docs list.
     docs_result = await db.execute(select(Document).where(Document.case_id == case.id))
     uploaded_types = [d.document_type for d in docs_result.scalars().all()]
     has_liveness = bool(case.liveness_result and case.liveness_result.get("liveness_passed"))
-    completeness = check_completeness(case.service_type, uploaded_types, has_liveness_session=has_liveness)
+    completeness = check_completeness(
+        case.service_type, uploaded_types,
+        has_liveness_session=has_liveness,
+        declared_fields=req.declared_fields,
+    )
 
     if not completeness["complete"]:
         raise HTTPException(

@@ -8,7 +8,28 @@ Each service type defines:
 - needs_mrz: whether MRZ parsing applies
 """
 
-from shared.schemas import ServiceType, DocumentType
+from shared.schemas import ServiceType, DocumentType, RenewalReason
+
+
+# ── Renewal-reason supporting documents (Lebanese GDGS) ─────────────
+#
+# Every passport renewal carries a reason; some reasons require extra
+# supporting docs per the General Directorate of General Security:
+#   - lost / stolen  → police report (محضر شرطة)
+#   - damaged        → submit the physical damaged passport
+#   - name_change    → court ruling (حكم محكمة)
+#   - expired / pages_full → no extra docs
+#
+# The orchestrator looks up declared_fields["renewal_reason"] against
+# this map and treats the listed docs as required for that case.
+RENEWAL_REASON_EXTRA_DOCS = {
+    RenewalReason.EXPIRED: [],
+    RenewalReason.PAGES_FULL: [],
+    RenewalReason.LOST: [DocumentType.POLICE_REPORT],
+    RenewalReason.STOLEN: [DocumentType.POLICE_REPORT],
+    RenewalReason.DAMAGED: [DocumentType.DAMAGED_PASSPORT],
+    RenewalReason.NAME_CHANGE: [DocumentType.COURT_RULING],
+}
 
 SERVICE_POLICIES = {
     ServiceType.ID_RENEWAL: {
@@ -119,30 +140,66 @@ def get_policy(service_type: str) -> dict:
     return SERVICE_POLICIES.get(st, {})
 
 
-def get_required_documents(service_type: str) -> list[str]:
+def get_required_documents(
+    service_type: str,
+    declared_fields: dict | None = None,
+) -> list[str]:
+    """Required docs for a service type.
+
+    For passport_renewal we additionally consult declared_fields[
+    "renewal_reason"] and append the extra docs that GDGS requires
+    for that specific reason (police report for lost/stolen, court
+    ruling for name change, etc).
+    """
     policy = get_policy(service_type)
-    return [d.value for d in policy.get("required_documents", [])]
+    required = [d.value for d in policy.get("required_documents", [])]
+
+    if service_type == ServiceType.PASSPORT_RENEWAL.value and declared_fields:
+        reason_raw = declared_fields.get("renewal_reason")
+        if reason_raw:
+            try:
+                reason = RenewalReason(reason_raw)
+            except ValueError:
+                reason = None
+            if reason:
+                for d in RENEWAL_REASON_EXTRA_DOCS.get(reason, []):
+                    if d.value not in required:
+                        required.append(d.value)
+    return required
 
 
-def get_missing_documents(service_type: str, uploaded_types: list[str]) -> list[str]:
-    required = get_required_documents(service_type)
+def get_missing_documents(
+    service_type: str,
+    uploaded_types: list[str],
+    declared_fields: dict | None = None,
+) -> list[str]:
+    required = get_required_documents(service_type, declared_fields=declared_fields)
     return [d for d in required if d not in uploaded_types]
 
 
-def check_completeness(service_type: str, uploaded_types: list[str], has_liveness_session: bool = False) -> dict:
+def check_completeness(
+    service_type: str,
+    uploaded_types: list[str],
+    has_liveness_session: bool = False,
+    declared_fields: dict | None = None,
+) -> dict:
     """Check if all required documents are uploaded.
 
     If has_liveness_session is True, selfie and liveness_capture are
     considered satisfied by the Rekognition Liveness session.
+
+    declared_fields lets passport_renewal pull in reason-specific
+    supporting docs (police report for lost/stolen, court ruling
+    for name change, etc).
     """
-    missing = get_missing_documents(service_type, uploaded_types)
+    missing = get_missing_documents(service_type, uploaded_types, declared_fields=declared_fields)
 
     # Liveness session replaces selfie + liveness_capture uploads
     if has_liveness_session:
         liveness_docs = {DocumentType.SELFIE.value, DocumentType.LIVENESS_CAPTURE.value}
         missing = [d for d in missing if d not in liveness_docs]
 
-    required_count = len(get_required_documents(service_type))
+    required_count = len(get_required_documents(service_type, declared_fields=declared_fields))
     uploaded_count = len(uploaded_types) + (2 if has_liveness_session else 0)
 
     return {
