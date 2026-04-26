@@ -90,6 +90,28 @@ export default function MukhtarCases() {
     }
   };
 
+  // In-page preview: fetch the PDF as a blob (so the JWT bearer is on
+  // the request), turn it into an object URL, and embed in an
+  // <iframe>. The mukhtar can read the form before stamping without
+  // leaving the page or downloading a file.
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const handlePreviewForm = async (caseId) => {
+    try {
+      const { data } = await mukhtarApi.downloadForm(caseId);
+      const url = window.URL.createObjectURL(new Blob([data], { type: 'application/pdf' }));
+      setPreviewUrl(url);
+    } catch {
+      setAlert({ type: 'error', msg: 'Failed to load form preview' });
+    }
+  };
+  const closePreview = () => {
+    if (previewUrl) window.URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(null);
+  };
+  useEffect(() => () => {
+    if (previewUrl) window.URL.revokeObjectURL(previewUrl);
+  }, [previewUrl]);
+
   const openTransferModal = async () => {
     try {
       const { data } = await mukhtarApi.getAvailableMukhtars(selected);
@@ -395,10 +417,16 @@ export default function MukhtarCases() {
               {/* Download form + Actions */}
               <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
                 {detail.verification_summary?.has_generated_form && (
-                  <button className="btn btn--primary" onClick={() => handleDownloadForm(selected)}>
-                    <span className="ar">تحميل استمارة الطلب PDF</span>
-                    <span className="en">Download Application Form (PDF)</span>
-                  </button>
+                  <>
+                    <button className="btn btn--primary" onClick={() => handlePreviewForm(selected)}>
+                      <span className="ar">معاينة الاستمارة</span>
+                      <span className="en"> · Preview form</span>
+                    </button>
+                    <button className="btn btn--ghost" onClick={() => handleDownloadForm(selected)}>
+                      <span className="ar">تحميل PDF</span>
+                      <span className="en"> · Download</span>
+                    </button>
+                  </>
                 )}
               </div>
 
@@ -587,6 +615,24 @@ export default function MukhtarCases() {
                   )}
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {previewUrl && (
+        <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Application form preview">
+          <div className="modal modal--lg" style={{ display: 'flex', flexDirection: 'column', height: '90vh', maxWidth: '900px' }}>
+            <header className="modal__header">
+              <h2><span className="en">Application form preview</span></h2>
+              <button type="button" className="modal__close" onClick={closePreview} aria-label="Close">×</button>
+            </header>
+            <div style={{ flex: 1, overflow: 'hidden' }}>
+              <iframe
+                src={previewUrl}
+                title="Application form"
+                style={{ width: '100%', height: '100%', border: 'none' }}
+              />
             </div>
           </div>
         </div>
