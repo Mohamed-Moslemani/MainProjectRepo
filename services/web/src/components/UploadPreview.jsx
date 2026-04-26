@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { QUALITY_THRESHOLDS } from '../utils/imageQuality';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 /**
  * Pre-flight upload review modal.
@@ -39,12 +40,14 @@ export default function UploadPreview({
     return () => window.removeEventListener('keydown', onKey);
   }, [onCancel]);
 
+  const trapRef = useFocusTrap(true);
+
   const isPdf = file.type === 'application/pdf';
   const info = verdict.info || {};
 
   return (
     <div className="modal-overlay" role="dialog" aria-modal="true">
-      <div className="modal modal--lg upload-preview">
+      <div ref={trapRef} className="modal modal--lg upload-preview">
         <header className="modal__header">
           <h2>
             <span className="ar">معاينة قبل الرفع</span>
