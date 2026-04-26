@@ -59,6 +59,68 @@ export default function AdminCases() {
   const [updateRejectionReasons, setUpdateRejectionReasons] = useState('');
   const [updating, setUpdating] = useState(false);
 
+  // Bulk select: lets a clerk advance a queue of cases through a
+  // routine status (e.g. 50 ready_for_pickup → closed) in one go.
+  // Only routine transitions show; approve/reject still go through
+  // the review queue per-case.
+  const [selected, setSelected] = useState(() => new Set());
+  const [bulkRunning, setBulkRunning] = useState(false);
+
+  const toggleSelected = (id) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const allOnPageSelected = cases.length > 0 && cases.every((c) => selected.has(c.id));
+  const togglePageSelection = () => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allOnPageSelected) {
+        cases.forEach((c) => next.delete(c.id));
+      } else {
+        cases.forEach((c) => next.add(c.id));
+      }
+      return next;
+    });
+  };
+
+  // Common valid transition across every currently-selected case.
+  // Returns [] if the selection mixes states that don't share a
+  // routine clerk transition — bulk panel hides itself in that case.
+  const bulkTargets = (() => {
+    if (selected.size === 0) return [];
+    const selectedCases = cases.filter((c) => selected.has(c.id));
+    if (selectedCases.length !== selected.size) return [];
+    const sets = selectedCases.map((c) => new Set(TRANSITIONS[c.status] || []));
+    if (sets.some((s) => s.size === 0)) return [];
+    const intersection = [...sets[0]].filter((t) => sets.every((s) => s.has(t)));
+    return intersection;
+  })();
+
+  const runBulkTransition = async (targetStatus) => {
+    if (selected.size === 0 || bulkRunning) return;
+    if (!confirm(`Transition ${selected.size} case(s) → ${targetStatus}?`)) return;
+    setBulkRunning(true);
+    const ids = [...selected];
+    let okCount = 0;
+    let failCount = 0;
+    for (const id of ids) {
+      try {
+        await adminApi.updateCaseStatus(id, { status: targetStatus });
+        okCount += 1;
+      } catch {
+        failCount += 1;
+      }
+    }
+    setSelected(new Set());
+    setBulkRunning(false);
+    await loadCases();
+    alert(`Bulk transition done: ${okCount} succeeded, ${failCount} failed.`);
+  };
+
   const loadCases = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -189,6 +251,39 @@ export default function AdminCases() {
 
       {error && <div className="alert alert--error">{error}</div>}
 
+      {selected.size > 0 && (
+        <div className="bulk-bar">
+          <span>
+            <strong>{selected.size}</strong> selected
+          </span>
+          {bulkTargets.length > 0 ? (
+            bulkTargets.map((t) => (
+              <button
+                key={t}
+                type="button"
+                className="btn-small btn-small--primary"
+                disabled={bulkRunning}
+                onClick={() => runBulkTransition(t)}
+              >
+                {bulkRunning ? 'Running…' : `Mark all → ${t}`}
+              </button>
+            ))
+          ) : (
+            <span style={{ color: '#6b7280', fontSize: '0.85rem' }}>
+              Selection mixes statuses with no shared transition.
+            </span>
+          )}
+          <button
+            type="button"
+            className="btn-small btn-small--ghost"
+            onClick={() => setSelected(new Set())}
+            disabled={bulkRunning}
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
       {loading ? (
         <div className="admin-loading">
           <div className="spinner spinner--dark" />
@@ -205,6 +300,14 @@ export default function AdminCases() {
             <table className="cases-table">
               <thead>
                 <tr>
+                  <th style={{ width: 36 }}>
+                    <input
+                      type="checkbox"
+                      aria-label="Select all on this page"
+                      checked={allOnPageSelected}
+                      onChange={togglePageSelection}
+                    />
+                  </th>
                   <th><span className="ar">رقم التتبع</span><span className="en">Tracking ID</span></th>
                   <th><span className="ar">الخدمة</span><span className="en">Service</span></th>
                   <th><span className="ar">الحالة</span><span className="en">Status</span></th>
@@ -223,6 +326,14 @@ export default function AdminCases() {
                         className={expanded === c.id ? 'cases-table__row--expanded' : ''}
                         onClick={() => handleExpand(c.id)}
                       >
+                        <td onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            aria-label={`Select ${c.tracking_id}`}
+                            checked={selected.has(c.id)}
+                            onChange={() => toggleSelected(c.id)}
+                          />
+                        </td>
                         <td className="cases-table__tracking">{c.tracking_id}</td>
                         <td>
                           <span className="ar">{svcLabel.ar}</span>
