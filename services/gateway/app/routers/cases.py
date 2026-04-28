@@ -169,10 +169,40 @@ async def upload_document(
     async with aiofiles.open(file_path, "wb") as f:
         await f.write(content)
 
+    # Dual-write to S3 (canonical durable copy). Local file remains
+    # for OCR/Face which share the compose `uploads` volume in
+    # single-node dev. In multi-node K8s the local copy goes away
+    # and S3 is the only source.
+    storage_key: str | None = None
+    try:
+        from ..services.storage import put_upload
+        doc_id_for_key = uuid.uuid4().hex
+        storage_key = await put_upload(
+            case_id=case_id,
+            doc_id=doc_id_for_key,
+            ext=safe_ext,
+            content=content,
+            content_type=detected_mime,
+            metadata={
+                "case_id": case_id,
+                "document_type": document_type,
+                "uploaded_by": user.id,
+            },
+        )
+    except Exception as exc:  # noqa: BLE001
+        # Fail soft: a flaky S3 connection should not block the
+        # upload. The local copy still works for OCR/Face and the
+        # case can proceed; a follow-up sweep can backfill S3.
+        logger.warning(
+            "S3 put_upload failed for case %s (%s); proceeding with local-only copy",
+            case_id, exc,
+        )
+
     doc = Document(
         case_id=case_id,
         document_type=document_type,
         file_path=file_path,
+        storage_key=storage_key,
         original_filename=file.filename or "upload",
         file_size=len(content),
         mime_type=file.content_type or "application/octet-stream",
@@ -220,14 +250,17 @@ async def serve_case_document_image(
 ):
     """Serve an uploaded document image to its owner.
 
-    The citizen needs to see what they uploaded for the inline doc-card
-    thumbnail in CaseDetail. Reuses the same path-on-disk model as the
-    mukhtar endpoint, just scoped to case ownership instead of mukhtar
-    assignment. Admins/clerks aren't covered here — they get the image
-    from /admin endpoints.
+    Read order:
+      1. S3 via storage_key (canonical, multi-node-safe).
+      2. Local file_path (single-node fallback, transitional).
+
+    The S3 path is preferred because it works in any deployment
+    topology; the local fallback covers cases that haven't been
+    backfilled to S3 yet (uploads from before the dual-write
+    landed, or uploads where S3 was unreachable at upload time).
     """
     import os
-    from fastapi.responses import FileResponse
+    from fastapi.responses import FileResponse, StreamingResponse
 
     case = await _get_user_case(db, case_id, user)
     doc_result = await db.execute(
@@ -239,8 +272,16 @@ async def serve_case_document_image(
     doc = doc_result.scalar_one_or_none()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
+
+    if doc.storage_key:
+        from ..services.storage import stream_upload
+        return StreamingResponse(
+            stream_upload(doc.storage_key),
+            media_type=doc.mime_type,
+            headers={"Content-Disposition": f'inline; filename="{doc.original_filename}"'},
+        )
     if not os.path.exists(doc.file_path):
-        raise HTTPException(status_code=404, detail="File not found on disk")
+        raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(
         doc.file_path,
         media_type=doc.mime_type,
