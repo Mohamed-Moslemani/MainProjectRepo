@@ -10,9 +10,10 @@ from .email_verification import EmailVerificationToken
 from .stripe_event import StripeEvent
 from .idempotency import IdempotencyKey
 from .refresh_token import RefreshToken
+from .email_outbox import EmailOutbox
 
 __all__ = [
     "User", "Case", "Document", "OCRResult", "FaceResult", "Payment",
     "AuditLog", "PasswordResetToken", "EmailVerificationToken",
-    "StripeEvent", "IdempotencyKey", "RefreshToken",
+    "StripeEvent", "IdempotencyKey", "RefreshToken", "EmailOutbox",
 ]
