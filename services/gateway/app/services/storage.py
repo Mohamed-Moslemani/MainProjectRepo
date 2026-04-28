@@ -104,10 +104,16 @@ async def put_upload(
     the same key twice overwrites; we never reuse keys (UUIDed doc_id)
     so this is fine."""
     key = build_storage_key(case_id, doc_id, ext)
-    extra_args = {
+    extra_args: dict = {
         "ContentType": content_type,
-        "ServerSideEncryption": "AES256",
     }
+    # AWS S3 supports SSE-S3 (AES256) natively; MinIO requires KMS
+    # configured first and rejects the call otherwise. Make SSE
+    # opt-in via STORAGE_S3_SSE so dev-with-MinIO works out of the
+    # box and prod-with-real-S3 sets STORAGE_S3_SSE=AES256 (or aws:kms).
+    sse = os.environ.get("STORAGE_S3_SSE", "").strip()
+    if sse:
+        extra_args["ServerSideEncryption"] = sse
     if metadata:
         # S3 metadata keys must be ASCII; sanitize defensively.
         extra_args["Metadata"] = {
