@@ -758,6 +758,7 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
                 service_type=case.service_type,
                 new_status=case.status,
                 rejection_reasons=case.rejection_reasons,
+                db=db,
             )
     except Exception:
         logger.exception(f"Failed to send status email for case {case.id}")

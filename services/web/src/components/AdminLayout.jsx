@@ -55,6 +55,13 @@ export default function AdminLayout() {
             <span className="ar">سجل التدقيق</span>
             <span className="en">Audit Logs</span>
           </NavLink>
+          <NavLink to="/admin/stripe-events" className="admin-nav-item">
+            <svg className="admin-nav-item__icon" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4zm14 5H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clipRule="evenodd"/>
+            </svg>
+            <span className="ar">أحداث سترايب</span>
+            <span className="en">Stripe Events</span>
+          </NavLink>
         </nav>
 
         <div className="admin-sidebar__footer">

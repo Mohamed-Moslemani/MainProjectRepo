@@ -1,0 +1,120 @@
+{
+  "id": null,
+  "uid": "docflow-rate-limiting",
+  "title": "DocFlow — Rate Limiting & Abuse",
+  "tags": ["docflow", "rate-limit", "security"],
+  "timezone": "browser",
+  "refresh": "10s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1, "title": "Overview", "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }, "collapsed": false
+    },
+    {
+      "id": 2, "title": "Total 429s (last 1h)", "type": "stat",
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 1 },
+      "targets": [
+        { "expr": "sum(increase(docflow_rate_limit_hits_total[1h]))", "refId": "A", "legendFormat": "rejections" }
+      ],
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "value": null, "color": "green" }, { "value": 10, "color": "yellow" }, { "value": 100, "color": "red" }] } } },
+      "options": { "colorMode": "value", "graphMode": "area" }
+    },
+    {
+      "id": 3, "title": "Top Endpoint", "type": "stat",
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 1 },
+      "targets": [
+        { "expr": "topk(1, sum by (endpoint) (increase(docflow_rate_limit_hits_total[1h])))", "refId": "A", "legendFormat": "{{endpoint}}" }
+      ],
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "orange" } } },
+      "options": { "colorMode": "value" }
+    },
+    {
+      "id": 4, "title": "Login: rate-limited / total", "type": "stat",
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 1 },
+      "targets": [
+        {
+          "expr": "(sum(rate(docflow_auth_logins_total{status=\"rate_limited\"}[5m])) or vector(0)) / clamp_min(sum(rate(docflow_auth_logins_total[5m])), 0.0001)",
+          "refId": "A", "legendFormat": "share"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "thresholds": { "mode": "absolute", "steps": [{ "value": null, "color": "green" }, { "value": 0.05, "color": "yellow" }, { "value": 0.2, "color": "red" }] } } },
+      "options": { "colorMode": "value", "graphMode": "area" }
+    },
+    {
+      "id": 5, "title": "Currently Firing — RateLimitStorm", "type": "stat",
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 1 },
+      "targets": [{ "expr": "ALERTS{alertname=\"RateLimitStorm\", alertstate=\"firing\"} or vector(0)", "refId": "A" }],
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "value": null, "color": "green" }, { "value": 1, "color": "red" }] } } },
+      "options": { "colorMode": "value" }
+    },
+
+    {
+      "id": 10, "title": "By endpoint", "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 6 }, "collapsed": false
+    },
+    {
+      "id": 11, "title": "Rejections / sec by endpoint", "type": "timeseries",
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 7 },
+      "targets": [
+        { "expr": "sum by (endpoint) (rate(docflow_rate_limit_hits_total[5m]))", "legendFormat": "{{endpoint}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "fillOpacity": 20, "stacking": { "mode": "normal" } } } }
+    },
+    {
+      "id": 12, "title": "Total rejections by endpoint (1h)", "type": "bargauge",
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 7 },
+      "targets": [
+        { "expr": "sum by (endpoint) (increase(docflow_rate_limit_hits_total[1h]))", "legendFormat": "{{endpoint}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "thresholds": { "mode": "absolute", "steps": [{ "value": null, "color": "green" }, { "value": 25, "color": "yellow" }, { "value": 100, "color": "red" }] } } },
+      "options": { "orientation": "horizontal", "displayMode": "gradient" }
+    },
+
+    {
+      "id": 20, "title": "Login flow", "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 }, "collapsed": false
+    },
+    {
+      "id": 21, "title": "Login outcomes / sec", "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 },
+      "targets": [
+        { "expr": "sum by (status) (rate(docflow_auth_logins_total[5m]))", "legendFormat": "{{status}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "fillOpacity": 15, "stacking": { "mode": "normal" } } } }
+    },
+    {
+      "id": 22, "title": "Login rate-limit ratio (rolling 5m)", "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 },
+      "targets": [
+        {
+          "expr": "(sum(rate(docflow_auth_logins_total{status=\"rate_limited\"}[5m])) or vector(0)) / clamp_min(sum(rate(docflow_auth_logins_total[5m])), 0.0001)",
+          "legendFormat": "share rate-limited", "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1, "thresholds": { "mode": "absolute", "steps": [{ "value": null, "color": "green" }, { "value": 0.05, "color": "yellow" }, { "value": 0.2, "color": "red" }] } } }
+    },
+
+    {
+      "id": 30, "title": "HTTP-level visibility", "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 26 }, "collapsed": false
+    },
+    {
+      "id": 31, "title": "429s by handler (gateway, 5m)", "type": "timeseries",
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 27 },
+      "targets": [
+        { "expr": "sum by (handler) (rate(http_requests_total{job=\"gateway\", status=\"429\"}[5m]))", "legendFormat": "{{handler}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "fillOpacity": 10 } } }
+    },
+
+    {
+      "id": 40, "type": "text",
+      "gridPos": { "h": 5, "w": 24, "x": 0, "y": 36 },
+      "options": {
+        "mode": "markdown",
+        "content": "**Reading this dashboard.**\n\n- *Top Endpoint* + *Rejections / sec by endpoint* tell you **where** abuse is hitting (login, password reset, email verification, general).\n- *Login rate-limit ratio* climbing past ~5% sustained = either a credential-stuffing attempt or a misbehaving client. Cross-check with *RateLimitStorm* alert and the audit log query in [docs/runbook.md](https://github.com/mohamed-moslemani/docflow/blob/main/docs/runbook.md#ratelimitstorm--warning).\n- *429s by handler* is the HTTP-layer view; if it doesn't agree with the application counter, the limit isn't being enforced at the right layer.\n"
+      }
+    }
+  ]
+}

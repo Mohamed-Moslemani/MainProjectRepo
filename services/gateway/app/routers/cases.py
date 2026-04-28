@@ -467,6 +467,7 @@ async def update_case_status(
                 new_status=case.status,
                 notes=req.notes,
                 rejection_reasons=req.rejection_reasons,
+                db=db,
             )
     except Exception:
         logger.warning(f"Failed to send status email for case {case_id}", exc_info=True)

@@ -192,20 +192,27 @@ _STATUS_LABELS = {
     "submitted": ("تم تقديم طلبك", "Application Submitted"),
     "approved": ("تمت الموافقة على طلبك", "Application Approved"),
     "payment_pending": ("بانتظار الدفع", "Payment Required"),
+    "payment_failed": ("فشل الدفع", "Payment Failed"),
     "rejected": ("تم رفض طلبك", "Application Rejected"),
     "need_info": ("مطلوب معلومات إضافية", "Additional Information Required"),
+    "biometric_appointment_required": (
+        "حجز موعد البصمات", "Book Biometric Appointment"),
     "in_production": ("طلبك قيد الإنتاج", "Document In Production"),
     "ready_for_pickup": ("مستندك جاهز للاستلام", "Ready for Pickup"),
+    "closed": ("تم إغلاق الطلب", "Application Closed"),
 }
 
 _STATUS_COLORS = {
     "submitted": "#2563eb",
     "approved": "#00a651",
     "payment_pending": "#f59e0b",
+    "payment_failed": "#dc2626",
     "rejected": "#dc2626",
     "need_info": "#f59e0b",
+    "biometric_appointment_required": "#f59e0b",
     "in_production": "#2563eb",
     "ready_for_pickup": "#00a651",
+    "closed": "#6b7280",
 }
 
 _SERVICE_LABELS = {
@@ -224,8 +231,18 @@ async def send_case_status_email(
     new_status: str,
     notes: str | None = None,
     rejection_reasons: list[str] | None = None,
+    *,
+    db=None,
 ):
-    """Send an email notification when a case status changes."""
+    """Send an email notification when a case status changes.
+
+    If `db` is supplied, the message is persisted to the durable
+    outbox and delivered by the Arq worker (survives gateway crash,
+    retries on SMTP failure, exponential backoff). Without `db`,
+    falls back to in-process synchronous SMTP — kept for back-compat
+    so older call sites don't have to thread the session in
+    immediately, but new callers should always pass `db`.
+    """
     status_ar, status_en = _STATUS_LABELS.get(new_status, (new_status, new_status))
     service_ar, service_en = _SERVICE_LABELS.get(service_type, (service_type, service_type))
     status_color = _STATUS_COLORS.get(new_status, "#00a651")
@@ -286,6 +303,37 @@ async def send_case_status_email(
           <p style="margin: 6px 0 0; color: #1d4ed8; font-size: 13px;">Payment received. Your document is being prepared.</p>
         </div>
         """
+    elif new_status == "payment_failed":
+        details_html = f"""
+        <div style="background: #fef2f2; border-right: 4px solid #dc2626; padding: 16px 20px;
+                    margin: 20px 0; border-radius: 0 8px 8px 0;">
+          <p style="margin: 0 0 8px; color: #991b1b; font-weight: 600;">لم تكتمل عملية الدفع.</p>
+          <p style="margin: 0 0 8px; color: #b91c1c;">يرجى إعادة المحاولة من لوحة التحكم. لن يتم خصم أي مبلغ حتى نجاح الدفع.</p>
+          <p style="margin: 6px 0 0; color: #7f1d1d; font-size: 13px;">
+            Your payment didn't go through. Retry from your dashboard — nothing is charged until the payment succeeds.
+          </p>
+        </div>
+        """
+    elif new_status == "biometric_appointment_required":
+        details_html = f"""
+        <div style="background: #fffbeb; border-right: 4px solid #f59e0b; padding: 16px 20px;
+                    margin: 20px 0; border-radius: 0 8px 8px 0;">
+          <p style="margin: 0 0 8px; color: #92400e; font-weight: 600;">
+            يرجى حجز موعد لزيارة أحد مراكز الأمن العام لأخذ البصمات والتوقيع.
+          </p>
+          <p style="margin: 6px 0 0; color: #a16207; font-size: 13px;">
+            Please book a slot at a GDGS centre for fingerprint + signature capture. Available 09:00–15:00, Mon–Fri.
+          </p>
+        </div>
+        """
+    elif new_status == "closed":
+        details_html = """
+        <div style="background: #f9fafb; border-right: 4px solid #6b7280; padding: 16px 20px;
+                    margin: 20px 0; border-radius: 0 8px 8px 0;">
+          <p style="margin: 0; color: #374151;">تم إغلاق طلبك. شكراً لاستخدامك DocFlow.</p>
+          <p style="margin: 6px 0 0; color: #6b7280; font-size: 13px;">Your application is closed. Thanks for using DocFlow.</p>
+        </div>
+        """
 
     content = f"""
     <p style="color: #4b5563; margin: 0 0 4px; font-size: 16px; line-height: 1.6;">
@@ -335,4 +383,20 @@ async def send_case_status_email(
 
     html = _wrap_email(content)
     subject = f"{status_ar} - #{tracking_id} | DocFlow Lebanon"
-    await _send_email(to, subject, html, email_type="status_notification")
+
+    if db is not None:
+        from .email_outbox import enqueue
+        await enqueue(
+            db,
+            to_email=to,
+            subject=subject,
+            html_body=html,
+            email_type="status_notification",
+            metadata={
+                "tracking_id": tracking_id,
+                "new_status": new_status,
+                "service_type": service_type,
+            },
+        )
+    else:
+        await _send_email(to, subject, html, email_type="status_notification")

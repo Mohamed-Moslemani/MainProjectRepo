@@ -161,6 +161,7 @@ async def handle_checkout_completed(db: AsyncSession, session: dict) -> str:
                     tracking_id=case.tracking_id,
                     service_type=case.service_type,
                     new_status="in_production",
+                    db=db,
                 )
         except Exception:
             logger.exception(f"Failed to send payment email for case {payment.case_id}")

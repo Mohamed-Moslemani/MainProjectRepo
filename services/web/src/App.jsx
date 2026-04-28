@@ -27,6 +27,7 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminReviewQueue from './pages/admin/AdminReviewQueue';
 import AdminCases from './pages/admin/AdminCases';
 import AdminAuditLogs from './pages/admin/AdminAuditLogs';
+import AdminStripeEvents from './pages/admin/AdminStripeEvents';
 import MukhtarLayout from './components/MukhtarLayout';
 import MukhtarDashboard from './pages/mukhtar/MukhtarDashboard';
 import MukhtarCases from './pages/mukhtar/MukhtarCases';
@@ -120,6 +121,7 @@ export default function App() {
             <Route path="review" element={<AdminReviewQueue />} />
             <Route path="cases" element={<AdminCases />} />
             <Route path="audit-logs" element={<AdminAuditLogs />} />
+            <Route path="stripe-events" element={<AdminStripeEvents />} />
           </Route>
 
           {/* Mukhtar panel */}

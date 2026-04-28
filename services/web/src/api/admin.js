@@ -44,4 +44,17 @@ export const adminApi = {
   getCaseDocuments: (caseId) => api.get(`/cases/${caseId}/documents`),
 
   getCaseTracking: (caseId) => api.get(`/cases/${caseId}/tracking`),
+
+  // Stripe webhook ledger (admin-only). Used by the replay UI for
+  // events whose handler errored after the StripeEvent row was
+  // already persisted — Stripe stops retrying once it sees a 200,
+  // so without manual replay those side-effects never run.
+  listStripeEvents: ({ limit = 50, offset = 0, event_type, case_id } = {}) => {
+    const params = { limit, offset };
+    if (event_type) params.event_type = event_type;
+    if (case_id) params.case_id = case_id;
+    return api.get('/admin/stripe-events', { params });
+  },
+  replayStripeEvent: (eventId) =>
+    api.post(`/admin/stripe-events/${encodeURIComponent(eventId)}/replay`),
 };

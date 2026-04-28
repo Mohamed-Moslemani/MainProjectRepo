@@ -115,7 +115,11 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
                 event_id=event_id,
                 event_type=event_type,
                 case_id=(session.get("metadata") or {}).get("case_id"),
-                payload={"id": event_id, "type": event_type},
+                # Store the full session object so an admin can
+                # safely replay the handler later (e.g. when the
+                # downstream state machine errored after Stripe
+                # already saw a 200 response).
+                payload=session,
             ))
             await db.commit()
         except IntegrityError:

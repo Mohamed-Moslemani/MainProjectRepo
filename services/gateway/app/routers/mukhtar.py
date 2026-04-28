@@ -418,6 +418,7 @@ async def mukhtar_decide(
                 service_type=case.service_type,
                 new_status=case.status,
                 rejection_reasons=case.rejection_reasons,
+                db=db,
             )
     except Exception:
         pass  # email failure shouldn't block the decision

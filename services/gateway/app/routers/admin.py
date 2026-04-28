@@ -8,7 +8,9 @@ from ..models.user import User
 from ..models.case import Case
 from ..models.audit_log import AuditLog
 from ..models.payment import Payment
+from ..models.stripe_event import StripeEvent
 from ..middleware.auth import require_role
+from ..services.audit import log_action
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
@@ -271,3 +273,111 @@ async def dashboard_stats(
         "total_revenue_cents": total_revenue,
         "cases_today": today_count,
     }
+
+
+# ── Stripe webhook replay ─────────────────────────────────────────
+#
+# Stripe retries delivery on any non-2xx, but it stops once it sees
+# a 200. If our handler later errors *after* persisting the
+# StripeEvent row (DB blip, downstream service down, code bug), the
+# event is recorded as "received" but its side-effects never ran —
+# Stripe won't retry. The replay endpoint lets an admin re-invoke
+# the handler against the stored payload, idempotent against the
+# state machine (handlers are no-ops when the case is already in
+# the target state).
+
+@router.get("/stripe-events")
+async def list_stripe_events(
+    limit: int = Query(50, le=500),
+    offset: int = 0,
+    event_type: str | None = None,
+    case_id: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("admin")),
+):
+    """Recent Stripe webhook deliveries, newest first."""
+    q = select(StripeEvent).order_by(StripeEvent.received_at.desc())
+    if event_type:
+        q = q.where(StripeEvent.event_type == event_type)
+    if case_id:
+        q = q.where(StripeEvent.case_id == case_id)
+    rows = (await db.execute(q.limit(limit).offset(offset))).scalars().all()
+    return {
+        "events": [
+            {
+                "event_id": r.event_id,
+                "event_type": r.event_type,
+                "case_id": r.case_id,
+                "received_at": r.received_at.isoformat(),
+                "payload_summary": {
+                    "id": (r.payload or {}).get("id"),
+                    "amount_total": (r.payload or {}).get("amount_total"),
+                    "payment_status": (r.payload or {}).get("payment_status"),
+                    "metadata": (r.payload or {}).get("metadata") or {},
+                },
+            }
+            for r in rows
+        ],
+        "limit": limit,
+        "offset": offset,
+    }
+
+
+@router.post("/stripe-events/{event_id}/replay")
+async def replay_stripe_event(
+    event_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("admin")),
+):
+    """Re-run the webhook handler against a stored event payload.
+
+    Safe to call repeatedly: handlers short-circuit on idempotent
+    state transitions (e.g. a checkout.session.completed against an
+    already-paid case is a no-op). Audit-logged on every invocation.
+    """
+    from ..services.payment import handle_checkout_completed, handle_payment_failed
+
+    row = (await db.execute(
+        select(StripeEvent).where(StripeEvent.event_id == event_id)
+    )).scalar_one_or_none()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Stripe event not found")
+
+    payload = row.payload or {}
+    if not payload:
+        # Older rows (pre-replay-feature) only stored {id, type}.
+        # We can't replay those — Stripe is the only source of the
+        # full session object and we no longer have it.
+        raise HTTPException(
+            status_code=409,
+            detail="This event predates payload retention; replay impossible. "
+                   "Trigger a fresh webhook from the Stripe dashboard instead.",
+        )
+
+    try:
+        if row.event_type == "checkout.session.completed":
+            await handle_checkout_completed(db, payload)
+        elif row.event_type in ("checkout.session.expired",
+                                 "payment_intent.payment_failed"):
+            await handle_payment_failed(db, payload)
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Event type '{row.event_type}' has no replay handler",
+            )
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        await log_action(
+            db, "stripe_event_replay_failed", user_id=user.id,
+            case_id=row.case_id,
+            details={"event_id": event_id, "error": str(exc)[:500]},
+        )
+        raise HTTPException(status_code=500, detail=f"Replay failed: {exc}")
+
+    await log_action(
+        db, "stripe_event_replayed", user_id=user.id,
+        case_id=row.case_id,
+        details={"event_id": event_id, "event_type": row.event_type},
+    )
+    return {"status": "ok", "event_id": event_id, "event_type": row.event_type}
