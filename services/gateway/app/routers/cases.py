@@ -308,8 +308,25 @@ async def submit_case(
     CASE_STATUS_TRANSITIONS.labels(from_status=prev_status, to_status="submitted").inc()
     await log_action(db, "case_submitted", user_id=user.id, case_id=case_id)
 
-    # Process in background
-    background_tasks.add_task(_process_case_bg, case_id)
+    # Push to the durable Arq queue so a gateway crash mid-pipeline
+    # doesn't strand the case. If the queue itself is unreachable
+    # (Redis blip), fall back to the in-process BackgroundTasks path
+    # so submission still works in degraded mode — the orchestrator's
+    # own state-machine guard prevents double-processing if both
+    # eventually run.
+    from ..queue import enqueue_process_case
+    try:
+        job_id = await enqueue_process_case(case_id)
+        logger.info(
+            "process_case enqueued",
+            extra={"case_id": case_id, "arq_job_id": job_id},
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "Arq enqueue failed (%s); falling back to in-process BackgroundTasks",
+            exc,
+        )
+        background_tasks.add_task(_process_case_bg, case_id)
 
     body = {"message": "Case submitted for processing", "tracking_id": case.tracking_id}
     return await store_idempotent_response(

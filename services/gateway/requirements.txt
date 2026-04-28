@@ -26,3 +26,4 @@ opentelemetry-instrumentation-httpx==0.48b0
 opentelemetry-instrumentation-sqlalchemy==0.48b0
 sentry-sdk[fastapi]==2.18.0
 setuptools>=70,<81
+arq==0.26.1

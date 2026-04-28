@@ -48,6 +48,33 @@ services:
       redis:
         condition: service_healthy
 
+  # Arq worker — runs the orchestrator pipeline in a separate
+  # process from the API gateway, so a gateway crash mid-pipeline
+  # doesn't strand cases. Reads from the same image as the gateway,
+  # different command. Scale horizontally by setting
+  # `docker compose up -d --scale gateway_worker=3`.
+  gateway_worker:
+    build:
+      context: .
+      dockerfile: services/gateway/Dockerfile
+    command: ["arq", "app.queue.WorkerSettings"]
+    env_file:
+      - .env.dev
+    environment:
+      GATEWAY_DATABASE_URL: postgresql+asyncpg://docflow:docflow@db:5432/docflow
+      GATEWAY_OCR_SERVICE_URL: http://ocr:8001
+      GATEWAY_FACE_SERVICE_URL: http://face:8002
+      GATEWAY_REDIS_URL: redis://redis:6379/0
+      ARQ_MAX_JOBS: "10"
+    volumes:
+      - uploads:/app/uploads
+      - ./shared:/app/shared
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   ocr:
     build:
       context: .
