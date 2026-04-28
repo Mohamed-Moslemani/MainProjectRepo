@@ -208,7 +208,13 @@ async def update_me(
     """
     payload = req.model_dump(exclude_unset=True)
     changed = []
-    for field in ("phone", "address", "marital_status", "place_of_birth"):
+    # Validate religious_sect against the 18-sect whitelist before
+    # we accept it. None / "" is allowed (declined-to-state).
+    if "religious_sect" in payload:
+        from ..services.lebanese_sects import is_valid_sect
+        if not is_valid_sect(payload["religious_sect"]):
+            raise HTTPException(status_code=400, detail="Invalid religious sect")
+    for field in ("phone", "address", "marital_status", "place_of_birth", "religious_sect"):
         if field in payload and payload[field] != getattr(user, field):
             setattr(user, field, payload[field])
             changed.append(field)

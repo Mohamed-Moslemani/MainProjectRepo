@@ -17,6 +17,7 @@ import PaymentSuccess from './pages/PaymentSuccess';
 import PaymentCancelled from './pages/PaymentCancelled';
 import PublicTrack from './pages/PublicTrack';
 import AccountSettings from './pages/AccountSettings';
+import BookAppointment from './pages/BookAppointment';
 import Help from './pages/Help';
 import Landing from './pages/Landing';
 
@@ -75,6 +76,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <AccountSettings />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/case/:caseId/appointment"
+            element={
+              <ProtectedRoute>
+                <BookAppointment />
               </ProtectedRoute>
             }
           />

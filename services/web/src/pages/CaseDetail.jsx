@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { casesApi } from '../api/cases';
+import { referenceApi } from '../api/reference';
 import LivenessCheck from '../components/LivenessCheck';
 import UploadPreview from '../components/UploadPreview';
 import AuthImage from '../components/AuthImage';
@@ -40,6 +41,11 @@ const FIELD_LABELS = {
   marital_status: { ar: 'الحالة الاجتماعية', en: 'Marital Status' },
   passport_number: { ar: 'رقم جواز السفر', en: 'Passport Number' },
   nationality: { ar: 'الجنسية', en: 'Nationality' },
+  old_passport_number: { ar: 'رقم الجواز القديم', en: 'Old Passport Number' },
+  passport_type: { ar: 'نوع الجواز', en: 'Passport Type' },
+  renewal_reason: { ar: 'سبب التجديد', en: 'Renewal Reason' },
+  passport_validity_years: { ar: 'مدة صلاحية الجواز', en: 'Passport Validity' },
+  reason_for_renewal: { ar: 'سبب التجديد', en: 'Renewal Reason' },
 };
 
 const STATUS_MAP = {
@@ -49,6 +55,8 @@ const STATUS_MAP = {
   risk_evaluated: { ar: 'تم تقييم المخاطر', en: 'Risk Evaluated', color: 'orange' },
   approved: { ar: 'موافق عليه', en: 'Approved', color: 'green' },
   payment_pending: { ar: 'بانتظار الدفع', en: 'Payment Pending', color: 'orange' },
+  payment_failed: { ar: 'فشل الدفع', en: 'Payment Failed', color: 'red' },
+  biometric_appointment_required: { ar: 'بانتظار حجز موعد البصمات', en: 'Book Biometric Appointment', color: 'orange' },
   rejected: { ar: 'مرفوض', en: 'Rejected', color: 'red' },
   need_info: { ar: 'بحاجة لمعلومات', en: 'Needs Info', color: 'orange' },
   in_production: { ar: 'قيد الإنتاج', en: 'In Production', color: 'blue' },
@@ -86,6 +94,25 @@ export default function CaseDetail() {
   const [pendingUpload, setPendingUpload] = useState(null);
   const [checkingFile, setCheckingFile] = useState(false);
   const fileInputsRef = useRef({});
+
+  // Reference dropdowns served by /api/v1/reference. Loaded lazily
+  // on mount so the gateway is the source of truth for both the
+  // policy engine and the UI.
+  const [renewalReasons, setRenewalReasons] = useState([]);
+  const [validityOptions, setValidityOptions] = useState([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      referenceApi.renewalReasons().catch(() => ({ data: { reasons: [] } })),
+      referenceApi.passportValidity().catch(() => ({ data: { options: [] } })),
+    ]).then(([r, v]) => {
+      if (cancelled) return;
+      setRenewalReasons(r.data.reasons || []);
+      setValidityOptions(v.data.options || []);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   const loadCase = useCallback(async () => {
     try {
@@ -518,6 +545,59 @@ export default function CaseDetail() {
                         <option value="male">ذكر / Male</option>
                         <option value="female">أنثى / Female</option>
                       </select>
+                    ) : field === 'renewal_reason' || field === 'reason_for_renewal' ? (
+                      <select
+                        value={declaredFields[field] || ''}
+                        onChange={async (e) => {
+                          const value = e.target.value;
+                          const next = { ...declaredFields, [field]: value };
+                          setDeclaredFields(next);
+                          // Persist server-side so the next required-
+                          // documents fetch picks up the reason-specific
+                          // extra docs (police report, court ruling, etc).
+                          if (!value) return;
+                          try {
+                            await casesApi.patchDeclaredFields(caseId, { [field]: value });
+                            const reqDocsRes = await casesApi.getRequiredDocuments(caseId);
+                            setRequiredDocs(reqDocsRes.data.required_documents || []);
+                            const compRes = await casesApi.getCompleteness(caseId);
+                            setCompleteness(compRes.data);
+                          } catch {
+                            setError('فشل في حفظ سبب التجديد');
+                          }
+                        }}
+                      >
+                        <option value="">-- اختر / Select --</option>
+                        {renewalReasons.map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {r.ar} / {r.en}
+                            {r.extra_docs?.length ? ` — ${r.extra_docs.join(', ')}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    ) : field === 'passport_validity_years' ? (
+                      <select
+                        value={declaredFields[field] ?? ''}
+                        onChange={async (e) => {
+                          const raw = e.target.value;
+                          const value = raw === '' ? '' : Number(raw);
+                          setDeclaredFields({ ...declaredFields, [field]: value });
+                          if (raw === '') return;
+                          try {
+                            await casesApi.patchDeclaredFields(caseId, { [field]: value });
+                          } catch {
+                            setError('فشل في حفظ مدة الصلاحية');
+                          }
+                        }}
+                      >
+                        <option value="">-- اختر / Select --</option>
+                        {validityOptions.map((o) => (
+                          <option key={o.years} value={o.years}>
+                            {o.years === 1 ? 'سنة واحدة' : `${o.years} سنوات`} / {o.years} {o.years === 1 ? 'year' : 'years'}
+                            {' — $'}{(o.fee_cents / 100).toFixed(0)}
+                          </option>
+                        ))}
+                      </select>
                     ) : field === 'marital_status' ? (
                       <select
                         value={declaredFields[field] || ''}
@@ -600,8 +680,33 @@ export default function CaseDetail() {
           </div>
         )}
 
+        {/* Biometric appointment CTA — passport flow gates here. */}
+        {caseData?.status === 'biometric_appointment_required' && (
+          <section className="detail-section">
+            <h2>
+              <span className="ar">حجز موعد البصمات</span>
+              <span className="en">Book your biometric appointment</span>
+            </h2>
+            <p>
+              <span className="ar">
+                مطلوب زيارة أحد مراكز الأمن العام لأخذ البصمات والتوقيع.
+              </span>
+              <span className="en" style={{ display: 'block' }}>
+                A visit to a GDGS centre is required for fingerprint + signature capture.
+              </span>
+            </p>
+            <button
+              className="btn btn--primary btn--lg"
+              onClick={() => navigate(`/case/${caseId}/appointment`)}
+            >
+              <span className="ar">احجز موعدك</span>
+              <span className="en"> · Book a slot</span>
+            </button>
+          </section>
+        )}
+
         {/* Payment Section */}
-        {caseData?.status === 'payment_pending' && (
+        {(caseData?.status === 'payment_pending' || caseData?.status === 'payment_failed') && (
           <section className="detail-section">
             <h2>
               <span className="ar">الدفع</span>

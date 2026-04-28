@@ -96,6 +96,7 @@ class UserResponse(BaseModel):
     phone: str | None
     address: str | None
     marital_status: str | None
+    religious_sect: str | None = None
     role: str
 
     model_config = {"from_attributes": True}
@@ -113,6 +114,9 @@ class ProfileUpdateRequest(BaseModel):
     address: str | None = None
     marital_status: str | None = None
     place_of_birth: str | None = None
+    # Religious sect (مذهب) — Lebanese civil records carry this.
+    # Validated against the 18-sect whitelist server-side.
+    religious_sect: str | None = None
 
 
 class ChangePasswordRequest(BaseModel):

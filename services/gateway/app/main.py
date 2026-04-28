@@ -17,6 +17,7 @@ from .middleware import rate_limit as rate_limit_mod
 from .middleware.rate_limit import init_redis, close_redis
 from .routers import auth, cases, payments, admin, liveness, mukhtar
 from .routers import appointments as appointments_router
+from .routers import reference as reference_router
 
 logging.basicConfig(level=logging.INFO)
 install_logging_filter()
@@ -75,6 +76,9 @@ app.include_router(mukhtar.router)
 app.include_router(appointments_router.router)
 app.include_router(appointments_router.admin_router)
 app.include_router(appointments_router.case_router)
+# Static reference data (sects, centres, validity tiers, renewal
+# reasons) so the React bundle doesn't have to redeclare them.
+app.include_router(reference_router.router)
 
 
 @app.get("/health")

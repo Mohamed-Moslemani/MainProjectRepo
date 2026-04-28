@@ -100,6 +100,8 @@ SERVICE_POLICIES = {
             "full_name", "father_name", "mother_name", "date_of_birth",
             "place_of_birth", "old_passport_number", "passport_type",
             "registry_number", "registry_place",
+            # GDGS form fields the citizen must pick on renewal:
+            "renewal_reason", "passport_validity_years",
         ],
     },
 
@@ -127,6 +129,8 @@ SERVICE_POLICIES = {
         "declared_fields": [
             "full_name", "father_name", "mother_name", "date_of_birth",
             "place_of_birth", "registry_number", "registry_place",
+            # Validity tier drives the fee on passport_new (1y/3y/5y/10y).
+            "passport_validity_years",
         ],
     },
 }

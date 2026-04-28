@@ -77,6 +77,35 @@ async def get_case(
     return case
 
 
+@router.patch("/{case_id}/declared-fields", response_model=CaseDetailResponse)
+async def patch_declared_fields(
+    case_id: str,
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Persist partial declared_fields on a DRAFT or NEED_INFO case.
+
+    The required-documents list depends on a couple of these fields
+    (renewal_reason, passport_validity_years). We need them saved
+    server-side before the next GET /required-documents call so the
+    UI can show the citizen the extra uploads they have to provide
+    *before* they hit submit, not after a 400 from the policy check.
+    """
+    case = await _get_user_case(db, case_id, user)
+    if case.status not in ("draft", "need_info"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot edit declared fields in status '{case.status}'",
+        )
+    declared = dict(case.declared_fields or {})
+    declared.update({k: v for k, v in payload.items() if v is not None})
+    case.declared_fields = declared
+    await db.commit()
+    await db.refresh(case)
+    return case
+
+
 # ---- Required documents ----
 
 @router.get("/{case_id}/required-documents")

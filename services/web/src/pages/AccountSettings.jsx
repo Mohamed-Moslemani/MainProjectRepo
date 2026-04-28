@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { authApi } from '../api/auth';
+import { referenceApi } from '../api/reference';
 import { useToast } from '../context/useToast';
 import { isLebanesePhone, normalizeLebanesePhone } from '../utils/lebanesePhone';
 import flagImg from '../assets/Figure_1.png';
@@ -27,8 +28,15 @@ export default function AccountSettings() {
   const [pwd, setPwd] = useState({ current: '', next: '', confirm: '' });
   const [changingPwd, setChangingPwd] = useState(false);
 
+  // Server-driven sect dropdown options.
+  const [sects, setSects] = useState([]);
+
   useEffect(() => {
     let cancelled = false;
+    referenceApi
+      .sects()
+      .then(({ data }) => { if (!cancelled) setSects(data.sects || []); })
+      .catch(() => {});
     authApi
       .me()
       .then(({ data }) => {
@@ -39,6 +47,7 @@ export default function AccountSettings() {
           address: data.address || '',
           marital_status: data.marital_status || '',
           place_of_birth: data.place_of_birth || '',
+          religious_sect: data.religious_sect || '',
         });
       })
       .catch(() => toast.error('فشل في تحميل بيانات الحساب'))
@@ -61,6 +70,9 @@ export default function AccountSettings() {
     const patch = {
       ...profileDraft,
       phone: profileDraft.phone ? normalizeLebanesePhone(profileDraft.phone) : null,
+      // Empty string from the dropdown means "decline to state" — send
+      // null so the server clears it instead of failing the validator.
+      religious_sect: profileDraft.religious_sect || null,
     };
     setSavingProfile(true);
     try {
@@ -209,6 +221,21 @@ export default function AccountSettings() {
                 <option value="married">Married</option>
                 <option value="divorced">Divorced</option>
                 <option value="widowed">Widowed</option>
+              </select>
+            </label>
+            <label>
+              <span className="ar">المذهب</span>
+              <span className="en"> · Religious sect (optional)</span>
+              <select
+                value={profileDraft.religious_sect || ''}
+                onChange={(e) => setProfileDraft({ ...profileDraft, religious_sect: e.target.value })}
+              >
+                <option value="">— (declined to state)</option>
+                {sects.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.ar} / {s.en}
+                  </option>
+                ))}
               </select>
             </label>
             <button type="submit" className="btn btn--primary" disabled={savingProfile}>

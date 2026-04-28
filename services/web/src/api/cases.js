@@ -31,6 +31,12 @@ export const casesApi = {
   submit: (caseId, declaredFields) =>
     api.post(`/cases/${caseId}/submit`, { declared_fields: declaredFields }),
 
+  // Persist partial declared_fields on a draft case so the
+  // required-documents endpoint sees them on its next call.
+  // Used by the renewal-reason / passport-validity selectors.
+  patchDeclaredFields: (caseId, fields) =>
+    api.patch(`/cases/${caseId}/declared-fields`, fields),
+
   getTracking: (caseId) => api.get(`/cases/${caseId}/tracking`),
 
   trackByTrackingId: (trackingId) => api.get(`/cases/track/${trackingId}`),
