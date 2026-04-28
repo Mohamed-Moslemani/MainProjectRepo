@@ -16,6 +16,13 @@ env:
 permissions:
   contents: read
   packages: write
+  # Cosign keyless signing publishes a signature to the Sigstore
+  # transparency log via Fulcio; that exchange uses the workflow's
+  # OIDC token, hence id-token: write. attestations: write lets
+  # docker/build-push-action attach an SBOM + SLSA provenance
+  # attestation to the pushed image manifest.
+  id-token: write
+  attestations: write
 
 jobs:
   # ── Build and push every image to GHCR, tagged by git SHA + branch ───────
@@ -45,6 +52,7 @@ jobs:
         run: echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
 
       - name: Build and push
+        id: build
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -55,11 +63,76 @@ jobs:
             ${{ env.REGISTRY }}/${{ steps.lcowner.outputs.owner }}/docflow-${{ matrix.service }}:${{ github.ref_name }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          # For the web image, bake in the production API URL so axios
-          # calls go to https://<your-domain>. The prod overlay's
-          # GATEWAY_FRONTEND_BASE_URL needs to match.
+          # SBOM + SLSA provenance attestations are attached to the
+          # image manifest in GHCR. `mode=max` makes the provenance
+          # include build-time materials (frontend lockfiles, base
+          # image digests, etc.), which is what SLSA Level 3 expects.
+          sbom: true
+          provenance: mode=max
           build-args: |
             VITE_API_URL=${{ matrix.service == 'web' && format('https://{0}', vars.DOCFLOW_DOMAIN) || '' }}
+
+      # Sigstore keyless signing — no long-lived keys to rotate. The
+      # workflow's OIDC token identifies *this exact workflow run* to
+      # Fulcio, which mints a short-lived cert; cosign signs the image
+      # digest with it and publishes the signature to Rekor. Verifiers
+      # can prove an image came from this repo's deploy workflow on
+      # the recorded ref by checking the cert subject.
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: 'v2.4.1'
+
+      - name: Sign image with cosign (keyless)
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ steps.lcowner.outputs.owner }}/docflow-${{ matrix.service }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: cosign sign --yes "${IMAGE}@${DIGEST}"
+
+      # Syft generates an SPDX SBOM that we attach as a workflow
+      # artifact and as a cosign attestation on the image. The
+      # attestation lets downstream consumers (e.g. admission
+      # controllers) verify the SBOM's authorship the same way they
+      # verify the signature.
+      - name: Generate SBOM (syft, SPDX)
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.REGISTRY }}/${{ steps.lcowner.outputs.owner }}/docflow-${{ matrix.service }}@${{ steps.build.outputs.digest }}
+          format: spdx-json
+          output-file: sbom-${{ matrix.service }}.spdx.json
+          upload-artifact: true
+          upload-artifact-retention: 30
+
+      - name: Attest SBOM via cosign
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ steps.lcowner.outputs.owner }}/docflow-${{ matrix.service }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          cosign attest --yes \
+            --predicate sbom-${{ matrix.service }}.spdx.json \
+            --type spdxjson \
+            "${IMAGE}@${DIGEST}"
+
+      # Trivy scan against the just-pushed image. Fail the build on
+      # HIGH/CRITICAL vulns with a fix available — `ignore-unfixed`
+      # keeps the gate signal-rich (no point failing on a CVE no
+      # upstream patch exists for yet).
+      - name: Trivy scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ steps.lcowner.outputs.owner }}/docflow-${{ matrix.service }}@${{ steps.build.outputs.digest }}
+          format: sarif
+          output: trivy-${{ matrix.service }}.sarif
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+
+      - name: Upload Trivy SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-${{ matrix.service }}.sarif
+          category: trivy-${{ matrix.service }}
 
   # ── Deploy to the cluster (only on develop / main) ───────────────────────
   deploy:

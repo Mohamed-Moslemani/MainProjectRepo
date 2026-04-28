@@ -1,0 +1,107 @@
+name: Security
+
+# PR-time and weekly security scans. Image-level signing / SBOM /
+# provenance is handled in deploy.yml against the actual pushed
+# image; this workflow runs the cheaper checks (filesystem scan,
+# secret scan, SAST) so a malicious PR fails before deploy.
+
+on:
+  push:
+    branches: ["main", "develop"]
+  pull_request:
+  schedule:
+    # Weekly re-scan picks up newly-disclosed CVEs in pinned deps
+    # without waiting for the next code change.
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  # ── Filesystem dependency scan ─────────────────────────────────
+  trivy-fs:
+    name: Trivy filesystem scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Trivy fs (deps + IaC)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy-fs.sarif
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          # Don't fail PRs on findings here — the deploy.yml image
+          # scan is the hard gate. This run is for SARIF code
+          # scanning so reviewers see annotations inline.
+          exit-code: '0'
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-fs.sarif
+          category: trivy-fs
+
+  # ── Secret leak scan ────────────────────────────────────────────
+  gitleaks:
+    name: Gitleaks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Don't auto-block on findings; we still rotate by hand
+          # if something real shows up. Gitleaks is loud on test
+          # fixtures otherwise.
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: 'true'
+
+  # ── Python SAST ─────────────────────────────────────────────────
+  bandit:
+    name: Bandit (Python SAST)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install bandit[sarif]
+      - name: Bandit scan
+        run: |
+          bandit -r services/gateway/app services/ocr/app services/face/app services/registry/app \
+            -f sarif -o bandit.sarif -ll || true
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: bandit.sarif
+          category: bandit
+
+  # ── Kubernetes manifest hardening check ─────────────────────────
+  kube-linter:
+    name: kube-linter
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Render base
+        run: |
+          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          ./kustomize build k8s/base > /tmp/rendered.yaml
+      - uses: stackrox/kube-linter-action@v1
+        with:
+          directory: /tmp/rendered.yaml
+          format: sarif
+          output-file: kube-linter.sarif
+        continue-on-error: true
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: kube-linter.sarif
+          category: kube-linter
