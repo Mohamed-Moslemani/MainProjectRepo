@@ -1,0 +1,89 @@
+# Alertmanager configuration for DocFlow.
+#
+# Routing strategy:
+#   - severity=critical → PagerDuty (when configured) + dev sink
+#   - severity=warning  → Slack (when configured) + dev sink
+#   - everything else   → dev sink (logged JSON, useful in dev)
+#
+# Inhibition keeps a critical "service down" from drowning the
+# on-call in derived warnings.
+#
+# Secrets: Alertmanager does NOT interpolate $VAR from env. Real
+# routing keys / webhooks live in a sibling file mounted via the
+# `*_file` directives below. To wire production receivers, create:
+#
+#   monitoring/alertmanager/secrets/pagerduty_routing_key
+#   monitoring/alertmanager/secrets/slack_webhook_url
+#
+# (gitignored — see monitoring/alertmanager/secrets/.gitignore)
+# and they'll be picked up on the next reload. Until those files
+# exist, alerts still land in the local dev_sink so nothing is
+# silently dropped.
+
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: dev_sink
+  group_by: ['alertname', 'service']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - matchers:
+        - severity = critical
+      receiver: critical_route
+      continue: true
+    - matchers:
+        - severity = warning
+      receiver: warning_route
+
+receivers:
+  # Always-on local sink. The compose-side socat container logs
+  # every JSON payload it receives, so dev devs can verify routing
+  # without external accounts.
+  - name: dev_sink
+    webhook_configs:
+      - url: 'http://alertmanager_sink:5001'
+        send_resolved: true
+
+  # Critical: page on-call. If pagerduty_routing_key is missing the
+  # send simply errors and Alertmanager falls back to the webhook
+  # entry above, so we never silently drop a critical.
+  - name: critical_route
+    webhook_configs:
+      - url: 'http://alertmanager_sink:5001'
+        send_resolved: true
+    pagerduty_configs:
+      - routing_key_file: /etc/alertmanager/secrets/pagerduty_routing_key
+        send_resolved: true
+        severity: 'critical'
+        details:
+          firing: '{{ .Alerts.Firing | len }}'
+          resolved: '{{ .Alerts.Resolved | len }}'
+          summary: '{{ .CommonAnnotations.summary }}'
+          runbook: '{{ .CommonAnnotations.runbook_url }}'
+
+  # Warning: Slack channel notification. Same fall-through behaviour.
+  - name: warning_route
+    webhook_configs:
+      - url: 'http://alertmanager_sink:5001'
+        send_resolved: true
+    slack_configs:
+      - api_url_file: /etc/alertmanager/secrets/slack_webhook_url
+        channel: '#docflow-alerts'
+        send_resolved: true
+        title: '{{ .CommonAnnotations.summary }}'
+        text: |-
+          *Severity:* `{{ .CommonLabels.severity }}`
+          *Service:* `{{ .CommonLabels.service }}`
+          *Description:* {{ .CommonAnnotations.description }}
+          {{ if .CommonAnnotations.runbook_url }}*Runbook:* <{{ .CommonAnnotations.runbook_url }}>{{ end }}
+
+inhibit_rules:
+  - source_matchers:
+      - severity = critical
+      - alertname = ServiceDown
+    target_matchers:
+      - severity = warning
+    equal: [service]

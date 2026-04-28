@@ -10,6 +10,7 @@ groups:
         annotations:
           summary: "{{ $labels.job }} is DOWN"
           description: "{{ $labels.job }} ({{ $labels.instance }}) has been down for more than 30 seconds."
+          runbook_url: "https://github.com/mohamed-moslemani/docflow/blob/main/docs/runbook.md#servicedown--critical"
 
       # High error rate (>5% of requests are 5xx)
       - alert: HighErrorRate
@@ -25,6 +26,7 @@ groups:
         annotations:
           summary: "High 5xx error rate on {{ $labels.job }}"
           description: "{{ $labels.job }} has {{ $value | humanizePercentage }} 5xx error rate (threshold: 5%)."
+          runbook_url: "https://github.com/mohamed-moslemani/docflow/blob/main/docs/runbook.md#higherrorrate--warning"
 
       # High latency (p95 > 2 seconds)
       - alert: HighLatency
@@ -38,6 +40,7 @@ groups:
         annotations:
           summary: "High p95 latency on {{ $labels.job }}"
           description: "{{ $labels.job }} p95 latency is {{ $value | humanizeDuration }} (threshold: 2s)."
+          runbook_url: "https://github.com/mohamed-moslemani/docflow/blob/main/docs/runbook.md#highlatency--warning"
 
   - name: infrastructure
     rules:
@@ -50,6 +53,7 @@ groups:
         annotations:
           summary: "PostgreSQL is DOWN"
           description: "PostgreSQL exporter cannot connect to the database."
+          runbook_url: "https://github.com/mohamed-moslemani/docflow/blob/main/docs/runbook.md#postgresqldown--critical"
 
       # PostgreSQL too many connections (>80% of max)
       - alert: PostgreSQLHighConnections
@@ -71,6 +75,7 @@ groups:
         annotations:
           summary: "Redis is DOWN"
           description: "Redis exporter cannot connect to Redis."
+          runbook_url: "https://github.com/mohamed-moslemani/docflow/blob/main/docs/runbook.md#redisdown--critical"
 
       # Redis high memory usage (>80% of maxmemory, if set)
       - alert: RedisHighMemory

@@ -2,6 +2,14 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
+# Alertmanager wiring — without this block, fired alerts only show
+# up in /alerts and never reach Slack/PagerDuty. Resolution is the
+# Docker network DNS name of the compose service.
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
 rule_files:
   - /etc/prometheus/alerts.yml
   - /etc/prometheus/recording_rules.yml

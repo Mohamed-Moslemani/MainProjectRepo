@@ -199,6 +199,46 @@ services:
       - gateway
       - ocr
       - face
+      - alertmanager
+
+  # Alertmanager — receives firing alerts from Prometheus, dedups
+  # them, applies routing rules, and forwards to the notification
+  # backend(s). Without this the alert rules in alerts.yml fire into
+  # the void: they show up in /alerts but never page anyone.
+  #
+  # The default config routes everything to a local webhook receiver
+  # (alertmanager_sink) so dev devs can see alerts hit a real HTTP
+  # endpoint. Slack / PagerDuty / email destinations are commented
+  # in the config and switch on by setting the matching env vars.
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      # Optional secret files. Mounted read-only; missing files are
+      # tolerated — see alertmanager.yml for the fallback behaviour.
+      - ./monitoring/alertmanager/secrets:/etc/alertmanager/secrets:ro
+      - alertmanager_data:/alertmanager
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+      - "--web.external-url=http://localhost:9093"
+
+  # Local-only sink so alerts always have *somewhere* to land in dev,
+  # even with no real Slack/PagerDuty configured. mendhak/http-https-echo
+  # echoes the request body to stdout *and* responds 200 OK so
+  # Alertmanager doesn't log "malformed HTTP status" retries.
+  # Tail with `docker compose logs -f alertmanager_sink` to verify
+  # routing works end-to-end.
+  alertmanager_sink:
+    image: mendhak/http-https-echo:34
+    environment:
+      HTTP_PORT: "5001"
+      LOG_WITHOUT_NEWLINE: "true"
+      LOG_IGNORE_PATH: "/__health"
+    expose:
+      - "5001"
 
   grafana:
     image: grafana/grafana:10.4.1
@@ -359,6 +399,7 @@ volumes:
   registry_data:
   uploads:
   prometheus_data:
+  alertmanager_data:
   grafana_data:
   glitchtip_db_data:
   glitchtip_uploads:
