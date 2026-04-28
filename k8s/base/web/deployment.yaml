@@ -5,7 +5,7 @@ metadata:
   namespace: docflow
   labels: { app: web }
 spec:
-  replicas: 1
+  replicas: 2
   strategy:
     type: RollingUpdate
     rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
@@ -15,6 +15,18 @@ spec:
     metadata:
       labels: { app: web }
     spec:
+      # nginx (the static-server image) needs root to bind :80 in
+      # the default config; we run as non-root + bind to a high
+      # port via PORT env in the prod overlay. For now, drop
+      # privileges that the container doesn't need.
+      securityContext:
+        seccompProfile: { type: RuntimeDefault }
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: { app: web }
       containers:
         - name: web
           # VITE_API_URL is baked in at build time per environment. The
@@ -22,6 +34,11 @@ spec:
           # VITE_API_URL= build arg.
           image: ghcr.io/mohamed-moslemani/docflow-web:latest
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+              add: [NET_BIND_SERVICE]   # nginx needs this to bind :80
           ports:
             - name: http
               containerPort: 80

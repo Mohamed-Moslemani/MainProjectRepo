@@ -25,6 +25,7 @@ resources:
 
   # Application services
   - gateway/deployment.yaml
+  - gateway-worker/deployment.yaml
   - ocr/deployment.yaml
   - face/deployment.yaml
   - registry/deployment.yaml
@@ -33,6 +34,15 @@ resources:
   # Ingress + TLS
   - ingress/cluster-issuer.yaml
   - ingress/ingress.yaml
+
+  # Cluster-hardening (Tier 1 #17): PodDisruptionBudgets keep at
+  # least one replica up during voluntary disruptions, HPAs scale
+  # stateless services on CPU/memory, NetworkPolicies default-deny
+  # then allow only the specific intra-namespace + egress flows
+  # the topology actually needs.
+  - disruption/pdb.yaml
+  - autoscale/hpa.yaml
+  - network/network-policies.yaml
 
 # Stable ConfigMap name (no hash suffix) so Deployments can reference
 # `docflow-config` directly.

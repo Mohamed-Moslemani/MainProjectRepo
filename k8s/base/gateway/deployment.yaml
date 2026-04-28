@@ -5,7 +5,9 @@ metadata:
   namespace: docflow
   labels: { app: gateway }
 spec:
-  replicas: 1
+  # Two replicas baseline so a single drain doesn't take traffic
+  # down. HPA (autoscale/hpa.yaml) ramps further on CPU / memory.
+  replicas: 2
   strategy:
     type: RollingUpdate
     rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
@@ -15,10 +17,31 @@ spec:
     metadata:
       labels: { app: gateway }
     spec:
+      # Run as a non-root user with seccomp; combined with the
+      # container-level capabilities drop below this prevents an
+      # exploit from gaining new privileges or writing arbitrary
+      # binaries.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      # Spread replicas across nodes so a single node failure can't
+      # take every pod at once.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: { app: gateway }
       containers:
         - name: gateway
           image: ghcr.io/mohamed-moslemani/docflow-gateway:latest
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [ALL] }
           ports:
             - name: http
               containerPort: 8000

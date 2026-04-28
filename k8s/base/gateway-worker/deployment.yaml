@@ -1,0 +1,65 @@
+# Arq worker — runs the orchestrator pipeline + email outbox in a
+# separate process from the API gateway. A gateway crash mid-
+# pipeline doesn't strand cases because the worker is a separate
+# Deployment with its own pods, scaled independently by an HPA.
+#
+# Reads the same image as the gateway (no separate build), different
+# command. envFrom/secretRef stays identical so config + secrets
+# match the API process exactly.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway-worker
+  namespace: docflow
+  labels: { app: gateway-worker }
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 1 }
+  selector:
+    matchLabels: { app: gateway-worker }
+  template:
+    metadata:
+      labels: { app: gateway-worker }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: { app: gateway-worker }
+      containers:
+        - name: worker
+          image: ghcr.io/mohamed-moslemani/docflow-gateway:latest
+          imagePullPolicy: IfNotPresent
+          command: ["arq", "app.queue.WorkerSettings"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [ALL] }
+          envFrom:
+            - configMapRef: { name: docflow-config }
+            - secretRef:    { name: docflow-secrets }
+          env:
+            - name: ARQ_MAX_JOBS
+              value: "10"
+          volumeMounts:
+            - name: uploads
+              mountPath: /app/uploads
+          # No HTTP probes — arq exposes nothing on a port. We rely on
+          # the readiness of the Redis service the worker connects to;
+          # if Redis is unreachable, arq retries internally.
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "1",    memory: "1Gi"   }
+      volumes:
+        - name: uploads
+          persistentVolumeClaim:
+            claimName: docflow-uploads

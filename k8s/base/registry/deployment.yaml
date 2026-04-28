@@ -5,7 +5,7 @@ metadata:
   namespace: docflow
   labels: { app: registry }
 spec:
-  replicas: 1
+  replicas: 2
   strategy:
     type: RollingUpdate
     rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
@@ -15,10 +15,25 @@ spec:
     metadata:
       labels: { app: registry }
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: { app: registry }
       containers:
         - name: registry
           image: ghcr.io/mohamed-moslemani/docflow-registry:latest
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [ALL] }
           ports:
             - name: http
               containerPort: 8003

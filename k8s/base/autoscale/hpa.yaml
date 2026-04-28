@@ -1,0 +1,147 @@
+# HorizontalPodAutoscalers — scale stateless API services with
+# load. Targets are conservative because this is a Lebanese GDGS
+# system, not a hyperscale consumer app: median traffic is low,
+# but bursts happen around bureaucratic deadlines (fiscal year
+# end, school registration windows) when every household tries
+# to renew at once.
+#
+# Sizing reasoning:
+#   gateway      2 → 8   pods on 70% CPU. Handles auth + uploads;
+#                       upload bursts are the dominant stressor.
+#   gateway_worker
+#                2 → 8   pods on 70% CPU. The pipeline is the
+#                       expensive part — OCR + face + registry +
+#                       risk per case. Scale matches gateway since
+#                       a submit produces exactly one pipeline run.
+#   ocr          2 → 6   pods on 70% CPU. Google Vision is the
+#                       latency dominator; CPU mostly absorbs
+#                       cv2 quality assessment and field
+#                       extraction.
+#   face         2 → 4   pods on 70% CPU. Lighter than OCR; AWS
+#                       Rekognition does the heavy lifting.
+#   registry     2 → 4   pods on 70% CPU. Postgres-bound; scaling
+#                       horizontally above this needs a read
+#                       replica.
+#   web          2 → 4   pods on 70% CPU. Static-served; pod count
+#                       mostly buys availability.
+#
+# Production should add custom metrics-based HPAs once Prometheus
+# Adapter is installed (target on docflow_pipeline_duration_p95
+# rather than CPU for the worker, etc).
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: gateway
+  namespace: docflow
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: gateway
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: 70 }
+    - type: Resource
+      resource:
+        name: memory
+        target: { type: Utilization, averageUtilization: 80 }
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300   # don't yo-yo on brief idleness
+    scaleUp:
+      stabilizationWindowSeconds: 30
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: gateway-worker
+  namespace: docflow
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: gateway-worker
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: 70 }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ocr
+  namespace: docflow
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ocr
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: 70 }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: face
+  namespace: docflow
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: face
+  minReplicas: 2
+  maxReplicas: 4
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: 70 }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: registry
+  namespace: docflow
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: registry
+  minReplicas: 2
+  maxReplicas: 4
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: 70 }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: web
+  namespace: docflow
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: web
+  minReplicas: 2
+  maxReplicas: 4
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: 70 }

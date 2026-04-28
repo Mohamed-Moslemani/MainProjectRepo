@@ -1,0 +1,351 @@
+# NetworkPolicies — default-deny everything, then allow only the
+# specific intra-namespace flows the system actually needs.
+#
+# Without these, every pod in the docflow namespace can talk to
+# every other pod over any port. A compromised OCR pod could read
+# the postgres database directly, or the registry pod could call
+# the gateway and impersonate a clerk. Locking the topology down
+# limits blast radius dramatically.
+#
+# The policy graph mirrors the actual call topology:
+#
+#   ingress-nginx → web, gateway
+#   web           → gateway
+#   gateway       → ocr, face, registry, postgres, redis, minio,
+#                   smtp, jaeger, glitchtip, stripe (egress)
+#   gateway_worker → ocr, face, registry, postgres, redis, minio
+#   ocr           → google vision (egress), jaeger
+#   face          → aws rekognition (egress), jaeger
+#   registry      → registry-postgres
+#
+# The default-deny ingress + egress policy is the floor; per-app
+# allow rules below open up the necessary paths.
+
+# ─────────────────────────────────────────────────────────────────
+#  Default-deny — ingress + egress for every pod in the namespace.
+# ─────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: docflow
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  # No ingress + egress rules listed = deny everything. The named
+  # policies below add the specific allowances back.
+
+# ─────────────────────────────────────────────────────────────────
+#  Cluster-DNS egress — every pod needs DNS resolution. Allow
+#  UDP/TCP 53 to kube-system DNS.
+# ─────────────────────────────────────────────────────────────────
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: docflow
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: kube-system }
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+# ─────────────────────────────────────────────────────────────────
+#  Gateway: ingress from ingress-nginx + web; egress to backend
+#  services + observability + Stripe.
+# ─────────────────────────────────────────────────────────────────
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gateway-policy
+  namespace: docflow
+spec:
+  podSelector:
+    matchLabels: { app: gateway }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: ingress-nginx }
+        - podSelector:
+            matchLabels: { app: web }
+      ports:
+        - protocol: TCP
+          port: 8000
+  egress:
+    - to:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [ocr, face, registry, postgres, redis, minio, jaeger, glitchtip]
+    # External: Stripe, SMTP, OpenTelemetry collector if external,
+    # Sentry/GlitchTip if SaaS. Allow all egress to non-cluster IPs
+    # is overly broad but matches the existing security posture
+    # until a network egress proxy is in place.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8       # cluster pod CIDR (typical)
+              - 172.16.0.0/12    # docker default
+              - 192.168.0.0/16
+
+# ─────────────────────────────────────────────────────────────────
+#  Gateway worker — same egress as gateway, no ingress (workers
+#  only consume from Redis, never accept HTTP).
+# ─────────────────────────────────────────────────────────────────
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gateway-worker-policy
+  namespace: docflow
+spec:
+  podSelector:
+    matchLabels: { app: gateway-worker }
+  policyTypes: [Ingress, Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [ocr, face, registry, postgres, redis, minio, jaeger, glitchtip]
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+
+# ─────────────────────────────────────────────────────────────────
+#  OCR — accepts only from gateway / worker; egress to Google
+#  Vision (external) + Jaeger.
+# ─────────────────────────────────────────────────────────────────
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ocr-policy
+  namespace: docflow
+spec:
+  podSelector:
+    matchLabels: { app: ocr }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [gateway, gateway-worker]
+      ports:
+        - protocol: TCP
+          port: 8001
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: { app: jaeger }
+        - podSelector:
+            matchLabels: { app: minio }
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]
+
+# ─────────────────────────────────────────────────────────────────
+#  Face — accepts only from gateway / worker; egress to AWS
+#  Rekognition + Jaeger.
+# ─────────────────────────────────────────────────────────────────
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: face-policy
+  namespace: docflow
+spec:
+  podSelector:
+    matchLabels: { app: face }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [gateway, gateway-worker]
+      ports:
+        - protocol: TCP
+          port: 8002
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: { app: jaeger }
+        - podSelector:
+            matchLabels: { app: minio }
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]
+
+# ─────────────────────────────────────────────────────────────────
+#  Registry — accepts only from gateway / worker; egress to its
+#  own postgres only.
+# ─────────────────────────────────────────────────────────────────
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: registry-policy
+  namespace: docflow
+spec:
+  podSelector:
+    matchLabels: { app: registry }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [gateway, gateway-worker]
+      ports:
+        - protocol: TCP
+          port: 8003
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: { app: registry-postgres }
+        - podSelector:
+            matchLabels: { app: jaeger }
+
+# ─────────────────────────────────────────────────────────────────
+#  Postgres — accepts only from gateway + gateway-worker.
+# ─────────────────────────────────────────────────────────────────
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres-policy
+  namespace: docflow
+spec:
+  podSelector:
+    matchLabels: { app: postgres }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [gateway, gateway-worker]
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: registry-postgres-policy
+  namespace: docflow
+spec:
+  podSelector:
+    matchLabels: { app: registry-postgres }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: registry }
+      ports:
+        - protocol: TCP
+          port: 5432
+
+# ─────────────────────────────────────────────────────────────────
+#  Redis — accepts from gateway + worker (rate limiting + queue
+#  + email outbox).
+# ─────────────────────────────────────────────────────────────────
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: redis-policy
+  namespace: docflow
+spec:
+  podSelector:
+    matchLabels: { app: redis }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [gateway, gateway-worker]
+      ports:
+        - protocol: TCP
+          port: 6379
+
+# ─────────────────────────────────────────────────────────────────
+#  MinIO — accepts from gateway + worker + ocr + face. (OCR/face
+#  fetch via presigned URL when storage_key is the source of truth.)
+# ─────────────────────────────────────────────────────────────────
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: minio-policy
+  namespace: docflow
+spec:
+  podSelector:
+    matchLabels: { app: minio }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [gateway, gateway-worker, ocr, face]
+      ports:
+        - protocol: TCP
+          port: 9000
+
+# ─────────────────────────────────────────────────────────────────
+#  Web — public ingress only. Egress to gateway only (the SPA
+#  hits /api/v1 through the same hostname → ingress controller).
+# ─────────────────────────────────────────────────────────────────
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: web-policy
+  namespace: docflow
+spec:
+  podSelector:
+    matchLabels: { app: web }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: ingress-nginx }
+      ports:
+        - protocol: TCP
+          port: 80
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: { app: gateway }
+      ports:
+        - protocol: TCP
+          port: 8000

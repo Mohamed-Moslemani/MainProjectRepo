@@ -1,0 +1,78 @@
+# PodDisruptionBudgets — protect availability during voluntary
+# disruptions (node drain, kubectl rollout, cluster autoscaler
+# evictions). Without these, a single drain on a 1-replica
+# Deployment takes the pod down with no replacement; the API
+# vanishes for the duration of the rollout.
+#
+# Pattern we use:
+#   - Stateless API services: minAvailable: 1 — at least one pod
+#     stays up no matter what. Combined with a replica scale of
+#     ≥ 2 (HPA min) this means the cluster can drain one node
+#     without dropping traffic.
+#   - StatefulSets (postgres, redis): not protected by a PDB
+#     because we run single-instance in this overlay; production
+#     should switch to HA with their own PDB once a replica set
+#     is provisioned.
+#   - Worker jobs (gateway_worker, glitchtip_worker): allow up
+#     to 1 unavailable so a rollout doesn't get stuck waiting on
+#     in-flight jobs.
+
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: gateway
+  namespace: docflow
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: gateway }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: gateway-worker
+  namespace: docflow
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels: { app: gateway-worker }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ocr
+  namespace: docflow
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: ocr }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: face
+  namespace: docflow
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: face }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: registry
+  namespace: docflow
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: registry }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: web
+  namespace: docflow
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: web }
