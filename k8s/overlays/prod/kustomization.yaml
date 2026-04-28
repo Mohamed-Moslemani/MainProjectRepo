@@ -11,6 +11,10 @@ namespace: docflow
 
 resources:
   - ../../base
+  # HA Postgres via CloudNativePG. Operator install is one-time
+  # and lives outside this kustomize tree (see k8s/operators/cnpg).
+  - postgres-ha/docflow-cluster.yaml
+  - postgres-ha/registry-cluster.yaml
 
 generatorOptions:
   disableNameSuffixHash: true
@@ -56,3 +60,55 @@ patches:
       - op: replace
         path: /spec/acme/email
         value: moslemanomohamed@gmail.com
+
+  # ── HA Postgres swap-out ────────────────────────────────────────
+  # Delete the single-replica StatefulSets from the base; CNPG
+  # Clusters in postgres-ha/ replace them. The base headless
+  # Services `postgres` + `registry-postgres` are rewritten to
+  # ExternalName so they resolve to the CNPG `-rw` services
+  # (`postgres-rw`, `registry-postgres-rw`) the operator creates.
+  # Gateway/registry DATABASE_URLs stay identical (`postgres:5432`,
+  # `registry-postgres:5432`); behind that name is now a 3-instance
+  # HA cluster with WAL archiving instead of a single pod.
+  - target: { kind: StatefulSet, name: postgres }
+    patch: |-
+      $patch: delete
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: postgres
+  - target: { kind: StatefulSet, name: registry-postgres }
+    patch: |-
+      $patch: delete
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: registry-postgres
+  - target: { kind: Service, name: postgres }
+    patch: |-
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: postgres
+      spec:
+        $patch: replace
+        type: ExternalName
+        externalName: postgres-rw.docflow.svc.cluster.local
+        ports:
+          - name: pg
+            port: 5432
+            targetPort: 5432
+  - target: { kind: Service, name: registry-postgres }
+    patch: |-
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: registry-postgres
+      spec:
+        $patch: replace
+        type: ExternalName
+        externalName: registry-postgres-rw.docflow.svc.cluster.local
+        ports:
+          - name: pg
+            port: 5432
+            targetPort: 5432

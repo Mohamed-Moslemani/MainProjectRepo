@@ -1,0 +1,72 @@
+# Registry database — separate CNPG Cluster.
+#
+# The registry service owns this DB exclusively (citizen lookup
+# data, sect/centre seed). Smaller than the main DB, but still HA
+# because a registry outage blocks every case submission.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: registry-postgres
+  namespace: docflow
+spec:
+  instances: 3
+  imageName: ghcr.io/cloudnative-pg/postgresql:16.6
+
+  inheritedMetadata:
+    labels:
+      app: registry-postgres
+
+  postgresql:
+    parameters:
+      shared_buffers: "256MB"
+      effective_cache_size: "1GB"
+      work_mem: "8MB"
+      max_connections: "100"
+
+  bootstrap:
+    initdb:
+      database: registry
+      owner: registry
+      secret:
+        name: registry-postgres-app-credentials
+
+  storage:
+    size: 5Gi
+
+  resources:
+    requests: { cpu: "100m", memory: "256Mi" }
+    limits:   { cpu: "1",     memory: "1Gi"   }
+
+  minSyncReplicas: 1
+  maxSyncReplicas: 1
+
+  monitoring:
+    enablePodMonitor: true
+
+  backup:
+    barmanObjectStore:
+      destinationPath: s3://docflow-pgbackup/registry
+      endpointURL: http://minio.docflow.svc.cluster.local:9000
+      s3Credentials:
+        accessKeyId:
+          name: postgres-backup-credentials
+          key: ACCESS_KEY_ID
+        secretAccessKey:
+          name: postgres-backup-credentials
+          key: ACCESS_SECRET_KEY
+      wal:
+        compression: gzip
+      data:
+        compression: gzip
+    retentionPolicy: "30d"
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: registry-postgres-nightly
+  namespace: docflow
+spec:
+  schedule: "0 30 3 * * *"  # 03:30 UTC — staggered from main DB
+  backupOwnerReference: self
+  cluster:
+    name: registry-postgres

@@ -1,0 +1,104 @@
+# Main DocFlow database — CNPG Cluster.
+#
+# 3 instances: 1 primary + 2 hot standbys. Synchronous replication
+# with quorum=1 means a write is ack'd once *one* standby has it on
+# disk. That gives us RPO=0 for committed transactions if the
+# primary dies, while still tolerating one standby being slow.
+#
+# WAL archiving + base backups go to MinIO (S3 API). PITR window is
+# 30 days; older base backups are pruned by the retention policy.
+#
+# Connection routing:
+#   postgres-rw  → primary           (writes; what the gateway uses)
+#   postgres-ro  → any hot standby   (reads; for read-heavy queries)
+#   postgres-r   → any instance      (admin probes, never the app)
+#
+# We keep the cluster name `postgres` so the existing base
+# NetworkPolicy (matchLabels: app=postgres) still applies — pods
+# inherit the label via `inheritedMetadata`.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: postgres
+  namespace: docflow
+spec:
+  instances: 3
+  imageName: ghcr.io/cloudnative-pg/postgresql:16.6
+
+  # Propagate the `app: postgres` label to every pod CNPG creates,
+  # so the existing base NetworkPolicy's podSelector continues to
+  # match without edits.
+  inheritedMetadata:
+    labels:
+      app: postgres
+
+  postgresql:
+    parameters:
+      # Tuned for 3 instances on a typical k3s/EKS small node.
+      # Bump these on bigger nodes.
+      shared_buffers: "512MB"
+      effective_cache_size: "2GB"
+      work_mem: "16MB"
+      max_connections: "200"
+      # SSL is enforced by CNPG by default; the gateway already
+      # speaks TLS via asyncpg.
+
+  bootstrap:
+    initdb:
+      database: docflow
+      owner: docflow
+      secret:
+        # Created by `kubectl create secret generic postgres-app-credentials
+        # --from-literal=username=docflow --from-literal=password=<strong>`
+        # before first apply. CNPG reads username + password from this
+        # secret to create the initial role.
+        name: postgres-app-credentials
+
+  storage:
+    size: 20Gi
+    # storageClass omitted = use the cluster default (k3s local-path,
+    # EKS gp3, GKE standard-rwo, etc.). Override per-environment if
+    # you need a specific storage class.
+
+  resources:
+    requests: { cpu: "200m", memory: "512Mi" }
+    limits:   { cpu: "2",     memory: "2Gi"   }
+
+  # Synchronous replication: at least one standby must confirm.
+  # Setting both min and max to 1 keeps the quorum tight without
+  # blocking writes when the second standby lags.
+  minSyncReplicas: 1
+  maxSyncReplicas: 1
+
+  monitoring:
+    enablePodMonitor: true
+
+  backup:
+    barmanObjectStore:
+      destinationPath: s3://docflow-pgbackup/postgres
+      endpointURL: http://minio.docflow.svc.cluster.local:9000
+      s3Credentials:
+        accessKeyId:
+          name: postgres-backup-credentials
+          key: ACCESS_KEY_ID
+        secretAccessKey:
+          name: postgres-backup-credentials
+          key: ACCESS_SECRET_KEY
+      wal:
+        compression: gzip
+      data:
+        compression: gzip
+    retentionPolicy: "30d"
+---
+# Nightly base backup. WAL is streamed continuously between bases,
+# so PITR works to any second within the retention window.
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: postgres-nightly
+  namespace: docflow
+spec:
+  schedule: "0 0 3 * * *"  # 03:00 UTC daily (CNPG uses 6-field cron)
+  backupOwnerReference: self
+  cluster:
+    name: postgres
