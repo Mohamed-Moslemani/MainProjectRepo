@@ -110,16 +110,33 @@ async def handle_checkout_completed(db: AsyncSession, session: dict) -> str:
     payment.stripe_payment_intent_id = payment_intent_id
     PAYMENTS_COMPLETED.inc()
 
-    # Transition case: payment_pending → in_production
+    # Transition case after payment.
+    #
+    # passport_new applicants must visit a GDGS centre in person for
+    # fingerprint capture before production starts — biometric data
+    # isn't on file for first-time applicants. Renewals (passport
+    # and ID) skip the kiosk because the citizen's biometrics are
+    # already in the GDGS database.
     case_result = await db.execute(select(Case).where(Case.id == payment.case_id))
     case = case_result.scalar_one_or_none()
-    if case and can_transition(case.status, "in_production"):
-        case.status = "in_production"
-        case.status_history = case.status_history + [{
-            "status": "in_production",
-            "message": "Payment received. Document is being produced.",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }]
+    if case:
+        next_status = (
+            "biometric_appointment_required"
+            if case.service_type == "passport_new"
+            else "in_production"
+        )
+        if can_transition(case.status, next_status):
+            case.status = next_status
+            case.status_history = case.status_history + [{
+                "status": next_status,
+                "message": (
+                    "Payment received. Book a GDGS appointment for "
+                    "fingerprint capture before production."
+                    if next_status == "biometric_appointment_required"
+                    else "Payment received. Document is being produced."
+                ),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }]
 
     await db.commit()
 

@@ -27,6 +27,12 @@ class CaseStatus(str, Enum):
     # creating a new checkout session — transition back to
     # PAYMENT_PENDING resets the loop.
     PAYMENT_FAILED = "payment_failed"
+    # First-time passport applicants must visit a GDGS centre in
+    # person for fingerprint capture before the document can be
+    # produced. After APPROVED + PAYMENT_PENDING the case enters
+    # this state and stays until a clerk confirms biometric capture
+    # was completed at the kiosk.
+    BIOMETRIC_APPOINTMENT_REQUIRED = "biometric_appointment_required"
     REJECTED = "rejected"
     IN_PRODUCTION = "in_production"
     READY_FOR_PICKUP = "ready_for_pickup"

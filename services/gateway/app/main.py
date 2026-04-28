@@ -16,6 +16,7 @@ from .db import init_db, async_session
 from .middleware import rate_limit as rate_limit_mod
 from .middleware.rate_limit import init_redis, close_redis
 from .routers import auth, cases, payments, admin, liveness, mukhtar
+from .routers import appointments as appointments_router
 
 logging.basicConfig(level=logging.INFO)
 install_logging_filter()
@@ -68,6 +69,12 @@ app.include_router(payments.router)
 app.include_router(admin.router)
 app.include_router(liveness.router)
 app.include_router(mukhtar.router)
+# Biometric-appointment booking + officer confirmation. Three
+# routers since they live under three URL prefixes
+# (/appointments, /admin/appointments, /cases/{id}/appointment).
+app.include_router(appointments_router.router)
+app.include_router(appointments_router.admin_router)
+app.include_router(appointments_router.case_router)
 
 
 @app.get("/health")

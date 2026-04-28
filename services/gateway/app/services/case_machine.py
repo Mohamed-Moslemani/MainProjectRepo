@@ -28,12 +28,26 @@ TRANSITIONS: dict[CaseStatus, set[CaseStatus]] = {
     CaseStatus.PENDING_MUKHTAR: {CaseStatus.APPROVED, CaseStatus.REJECTED, CaseStatus.NEED_INFO},
     CaseStatus.NEED_INFO: {CaseStatus.SUBMITTED},
     CaseStatus.APPROVED: {CaseStatus.PAYMENT_PENDING},
-    CaseStatus.PAYMENT_PENDING: {CaseStatus.IN_PRODUCTION, CaseStatus.PAYMENT_FAILED},
+    # passport_new pays first, then must do in-person biometrics
+    # before production. id_renewal / passport_renewal go straight to
+    # IN_PRODUCTION since their biometrics are already on file.
+    CaseStatus.PAYMENT_PENDING: {
+        CaseStatus.IN_PRODUCTION,
+        CaseStatus.BIOMETRIC_APPOINTMENT_REQUIRED,
+        CaseStatus.PAYMENT_FAILED,
+    },
     # Stripe webhook said the charge failed; citizen retries by
     # creating a new checkout session, which moves them back to
     # PAYMENT_PENDING. Allow REJECTED too so a clerk can give up on
     # a case after N failures.
     CaseStatus.PAYMENT_FAILED: {CaseStatus.PAYMENT_PENDING, CaseStatus.REJECTED},
+    # Officer confirms biometric capture done at the kiosk →
+    # IN_PRODUCTION. NEED_INFO if the citizen no-showed and the
+    # appointment needs rebooking.
+    CaseStatus.BIOMETRIC_APPOINTMENT_REQUIRED: {
+        CaseStatus.IN_PRODUCTION,
+        CaseStatus.NEED_INFO,
+    },
     CaseStatus.REJECTED: set(),
     CaseStatus.IN_PRODUCTION: {CaseStatus.READY_FOR_PICKUP},
     CaseStatus.READY_FOR_PICKUP: {CaseStatus.CLOSED},
@@ -50,6 +64,10 @@ NEXT_ACTIONS: dict[CaseStatus, str] = {
     CaseStatus.APPROVED: "Application approved. Please proceed to payment.",
     CaseStatus.PAYMENT_PENDING: "Payment required. Complete payment to proceed.",
     CaseStatus.PAYMENT_FAILED: "Payment failed. Please retry — your application is held until payment clears.",
+    CaseStatus.BIOMETRIC_APPOINTMENT_REQUIRED: (
+        "Book and attend a GDGS centre appointment for fingerprint capture. "
+        "Bring your national ID and the printed payment receipt."
+    ),
     CaseStatus.REJECTED: "Application rejected. See notes for reason.",
     CaseStatus.IN_PRODUCTION: "Payment received. Your document is being manufactured.",
     CaseStatus.READY_FOR_PICKUP: "Visit the assigned office to collect your document.",
