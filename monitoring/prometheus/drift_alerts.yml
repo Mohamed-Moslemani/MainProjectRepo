@@ -147,9 +147,12 @@ groups:
 
       # ───── Eval freshness ─────
       # If the daily eval hasn't pushed in 36h, the cron is broken.
+      # push_time_seconds is the standard pushgateway-exposed unix
+      # timestamp of the last push for a job — much more reliable
+      # than trying to use the metric's own creation time.
       - alert: ContinuousEvalStale
         expr: |
-          time() - docflow_eval_field_accuracy{harness="real_docs"}_created > 36 * 3600
+          time() - push_time_seconds{job="docflow-real-doc-eval"} > 36 * 3600
         for: 30m
         labels:
           severity: warning
