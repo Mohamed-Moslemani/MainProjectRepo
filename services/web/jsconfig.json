@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "baseUrl": "src",
+    "paths": {
+      "@shared/*": ["shared/*"],
+      "@citizen/*": ["apps/citizen/*"],
+      "@clerk/*": ["apps/clerk/*"],
+      "@mukhtar/*": ["apps/mukhtar/*"]
+    }
+  },
+  "include": ["src"]
+}

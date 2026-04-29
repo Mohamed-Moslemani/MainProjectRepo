@@ -1,36 +1,36 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
-import { ToastProvider } from './context/ToastContext';
-import ProtectedRoute from './components/ProtectedRoute';
-import RoleRoute from './components/RoleRoute';
-import ErrorBoundary from './components/ErrorBoundary';
-import IdleLogout from './components/IdleLogout';
+import { AuthProvider } from '@shared/context/AuthContext';
+import { ToastProvider } from '@shared/context/ToastContext';
+import ProtectedRoute from '@shared/components/ProtectedRoute';
+import RoleRoute from '@shared/components/RoleRoute';
+import ErrorBoundary from '@shared/components/ErrorBoundary';
+import IdleLogout from '@shared/components/IdleLogout';
 
-import Login from './pages/Login';
-import Register from './pages/Register';
-import VerifyEmail from './pages/VerifyEmail';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
-import Dashboard from './pages/Dashboard';
-import CaseDetail from './pages/CaseDetail';
-import PaymentSuccess from './pages/PaymentSuccess';
-import PaymentCancelled from './pages/PaymentCancelled';
-import PublicTrack from './pages/PublicTrack';
-import AccountSettings from './pages/AccountSettings';
-import BookAppointment from './pages/BookAppointment';
-import Help from './pages/Help';
-import Landing from './pages/Landing';
+import Login from '@shared/pages/auth/Login';
+import Register from '@shared/pages/auth/Register';
+import VerifyEmail from '@shared/pages/auth/VerifyEmail';
+import ForgotPassword from '@shared/pages/auth/ForgotPassword';
+import ResetPassword from '@shared/pages/auth/ResetPassword';
+import Dashboard from '@citizen/pages/Dashboard';
+import CaseDetail from '@citizen/pages/CaseDetail';
+import PaymentSuccess from '@citizen/pages/PaymentSuccess';
+import PaymentCancelled from '@citizen/pages/PaymentCancelled';
+import PublicTrack from '@citizen/pages/PublicTrack';
+import AccountSettings from '@citizen/pages/AccountSettings';
+import BookAppointment from '@citizen/pages/BookAppointment';
+import Help from '@citizen/pages/Help';
+import Landing from '@citizen/pages/Landing';
 
-import NotFound from './pages/NotFound';
-import AdminLayout from './components/AdminLayout';
-import AdminDashboard from './pages/admin/AdminDashboard';
-import AdminReviewQueue from './pages/admin/AdminReviewQueue';
-import AdminCases from './pages/admin/AdminCases';
-import AdminAuditLogs from './pages/admin/AdminAuditLogs';
-import AdminStripeEvents from './pages/admin/AdminStripeEvents';
-import MukhtarLayout from './components/MukhtarLayout';
-import MukhtarDashboard from './pages/mukhtar/MukhtarDashboard';
-import MukhtarCases from './pages/mukhtar/MukhtarCases';
+import NotFound from '@shared/pages/NotFound';
+import AdminLayout from '@clerk/components/AdminLayout';
+import AdminDashboard from '@clerk/pages/AdminDashboard';
+import AdminReviewQueue from '@clerk/pages/AdminReviewQueue';
+import AdminCases from '@clerk/pages/AdminCases';
+import AdminAuditLogs from '@clerk/pages/AdminAuditLogs';
+import AdminStripeEvents from '@clerk/pages/AdminStripeEvents';
+import MukhtarLayout from '@mukhtar/components/MukhtarLayout';
+import MukhtarDashboard from '@mukhtar/pages/MukhtarDashboard';
+import MukhtarCases from '@mukhtar/pages/MukhtarCases';
 
 export default function App() {
   return (

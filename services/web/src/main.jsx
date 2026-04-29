@@ -1,7 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import * as Sentry from '@sentry/react';
-import './styles/index.css';
+import '@shared/styles/index.css';
 import App from './App.jsx';
 
 // Sentry / GlitchTip — initialised only when a DSN is provided. The
