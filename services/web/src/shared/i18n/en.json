@@ -1,0 +1,170 @@
+{
+  "common": {
+    "appName": "DocFlow Lebanon",
+    "appNameShort": "DocFlow",
+    "loading": "Loading…",
+    "save": "Save",
+    "cancel": "Cancel",
+    "submit": "Submit",
+    "confirm": "Confirm",
+    "back": "Back",
+    "retry": "Retry",
+    "signIn": "Sign In",
+    "signOut": "Sign Out",
+    "signUp": "Sign Up",
+    "email": "Email",
+    "password": "Password",
+    "newPassword": "New password",
+    "confirmPassword": "Confirm password",
+    "currentPassword": "Current password",
+    "fullName": "Full name",
+    "fatherName": "Father's name",
+    "motherName": "Mother's name",
+    "dateOfBirth": "Date of birth",
+    "placeOfBirth": "Place of birth",
+    "gender": "Gender",
+    "registryNumber": "Registry number",
+    "registryPlace": "Registry place",
+    "phone": "Phone",
+    "address": "Address",
+    "maritalStatus": "Marital status",
+    "religiousSect": "Religious sect",
+    "optional": "(optional)",
+    "select": "Select",
+    "yes": "Yes",
+    "no": "No",
+    "or": "or",
+    "language": "Language",
+    "english": "English",
+    "arabic": "العربية",
+    "help": "Help",
+    "account": "Account"
+  },
+
+  "auth": {
+    "login": {
+      "title": "Sign in to your account",
+      "subtitle": "Manage your ID and passport applications",
+      "submit": "Sign In",
+      "forgotPassword": "Forgot password?",
+      "noAccount": "Don't have an account?",
+      "createOne": "Create one",
+      "errorInvalid": "Invalid email or password",
+      "errorGeneric": "Sign-in failed. Try again."
+    },
+    "register": {
+      "title": "Create your account",
+      "subtitle": "One account for all GDGS services",
+      "haveAccount": "Already have an account?",
+      "signInHere": "Sign in"
+    },
+    "verify": {
+      "title": "Verify your email",
+      "checkInbox": "We sent a verification link to {{email}}. Open it to activate your account.",
+      "resend": "Resend verification email"
+    },
+    "forgot": {
+      "title": "Reset your password",
+      "subtitle": "Enter your email and we'll send you a reset link.",
+      "submit": "Send reset link",
+      "success": "If an account exists for that email, a reset link has been sent."
+    },
+    "reset": {
+      "title": "Set a new password",
+      "submit": "Update password"
+    }
+  },
+
+  "landing": {
+    "tagline": "Lebanese ID & Passport — apply, validate, pay, track.",
+    "ctaStart": "Start an application",
+    "ctaTrack": "Track an application",
+    "stepUpload": "Upload your documents",
+    "stepValidate": "Auto-validation in seconds",
+    "stepPay": "Pay online",
+    "stepPickup": "One visit for pickup"
+  },
+
+  "dashboard": {
+    "welcome": "Welcome to DocFlow",
+    "subtitle": "Manage your ID and passport applications",
+    "newApplication": "New Application",
+    "trackApplications": "Track Applications",
+    "history": "History",
+    "selectService": "Select Service Type",
+    "active": "Active applications",
+    "past": "Past applications",
+    "noActive": "You have no active applications.",
+    "noPast": "No past applications yet.",
+    "viewCase": "Open"
+  },
+
+  "case": {
+    "trackingId": "Tracking ID",
+    "service": "Service",
+    "status": "Status",
+    "personalInfo": "Personal Information",
+    "submittedInfo": "Submitted Information",
+    "documents": "Documents",
+    "uploadHere": "Upload here",
+    "submit": "Submit application",
+    "submitting": "Submitting…",
+    "missingDocs": "Missing required documents",
+    "biometricCta": "Book your biometric appointment",
+    "biometricBody": "A visit to a GDGS centre is required for fingerprint + signature capture.",
+    "bookSlot": "Book a slot",
+    "payNow": "Pay Now",
+    "paying": "Redirecting…"
+  },
+
+  "appointment": {
+    "title": "Book biometric appointment",
+    "current": "Current appointment",
+    "rescheduleNote": "You can reschedule by picking another slot below.",
+    "stepCentre": "1. Choose a GDGS centre",
+    "stepSlot": "2. Choose a time slot",
+    "centrePlaceholder": "Select a centre",
+    "noSlots": "No open slots in the next two weeks.",
+    "hours": "GDGS hours: 09:00–15:00, Mon–Fri. No same-hour bookings.",
+    "errSlotTaken": "This slot is taken — pick another",
+    "errBookFailed": "Failed to book appointment",
+    "successBooked": "Appointment confirmed",
+    "wrongStatus": "Your case is not currently awaiting a biometric appointment (status: {{status}})."
+  },
+
+  "account": {
+    "title": "Account settings",
+    "identityRO": "Identity (read-only)",
+    "identityNote": "These fields can't be edited here — they're matched against the civil registry.",
+    "profile": "Profile",
+    "changePassword": "Change password",
+    "saveChanges": "Save",
+    "savedToast": "Saved",
+    "sessionLogoutNotice": "All other sessions will be signed out when you change your password.",
+    "sectDeclined": "— (declined to state)"
+  },
+
+  "status": {
+    "draft": "Draft",
+    "submitted": "Submitted",
+    "validated": "Validated",
+    "risk_evaluated": "Risk evaluated",
+    "approved": "Approved",
+    "payment_pending": "Payment required",
+    "payment_failed": "Payment failed",
+    "biometric_appointment_required": "Book biometric appointment",
+    "rejected": "Rejected",
+    "need_info": "Needs info",
+    "in_production": "In production",
+    "ready_for_pickup": "Ready for pickup",
+    "closed": "Closed",
+    "pending_mukhtar": "Pending mukhtar"
+  },
+
+  "service": {
+    "id_new": "New National ID",
+    "id_renewal": "ID Renewal",
+    "passport_new": "New Passport",
+    "passport_renewal": "Passport Renewal"
+  }
+}

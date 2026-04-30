@@ -1,33 +1,37 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '@shared/context/useAuth';
 import { useNavigate, Link } from 'react-router-dom';
 import { casesApi } from '@shared/api/cases';
 import { useToast } from '@shared/context/useToast';
 import { SkeletonCard } from '@shared/components/Skeleton';
+import LanguageSwitcher from '@shared/components/LanguageSwitcher';
 import flagImg from '@shared/assets/Figure_1.png';
 import '@shared/styles/dashboard.css';
 
-const SERVICE_TYPES = [
-  { value: 'id_new', ar: 'بطاقة هوية جديدة', en: 'New ID Card' },
-  { value: 'id_renewal', ar: 'تجديد بطاقة الهوية', en: 'ID Card Renewal' },
-  { value: 'passport_new', ar: 'جواز سفر جديد', en: 'New Passport' },
-  { value: 'passport_renewal', ar: 'تجديد جواز السفر', en: 'Passport Renewal' },
-];
-
-const STATUS_MAP = {
-  draft: { ar: 'مسودة', en: 'Draft', color: 'gray' },
-  submitted: { ar: 'قيد المراجعة', en: 'Submitted', color: 'blue' },
-  validated: { ar: 'تم التحقق', en: 'Validated', color: 'blue' },
-  risk_evaluated: { ar: 'تم تقييم المخاطر', en: 'Risk Evaluated', color: 'orange' },
-  approved: { ar: 'موافق عليه', en: 'Approved', color: 'green' },
-  rejected: { ar: 'مرفوض', en: 'Rejected', color: 'red' },
-  need_info: { ar: 'بحاجة لمعلومات', en: 'Needs Info', color: 'orange' },
-  in_production: { ar: 'قيد الإنتاج', en: 'In Production', color: 'blue' },
-  ready_for_pickup: { ar: 'جاهز للاستلام', en: 'Ready for Pickup', color: 'green' },
-  closed: { ar: 'مغلق', en: 'Closed', color: 'gray' },
+// Status enum the backend speaks. Both "color" (visual class) and
+// the i18n key live here so the dashboard never invents copy.
+const STATUS_COLOR = {
+  draft: 'gray',
+  submitted: 'blue',
+  validated: 'blue',
+  risk_evaluated: 'orange',
+  approved: 'green',
+  rejected: 'red',
+  need_info: 'orange',
+  in_production: 'blue',
+  ready_for_pickup: 'green',
+  closed: 'gray',
+  payment_pending: 'orange',
+  payment_failed: 'red',
+  biometric_appointment_required: 'orange',
+  pending_mukhtar: 'orange',
 };
 
+const SERVICE_TYPES = ['id_new', 'id_renewal', 'passport_new', 'passport_renewal'];
+
 export default function Dashboard() {
+  const { t, i18n } = useTranslation();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
@@ -42,6 +46,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     loadCases();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadCases = async () => {
@@ -49,7 +54,7 @@ export default function Dashboard() {
       const { data } = await casesApi.list();
       setCases(data.cases || []);
     } catch {
-      setError('فشل في تحميل الطلبات');
+      setError(t('common.loading'));
     } finally {
       setLoading(false);
     }
@@ -57,12 +62,11 @@ export default function Dashboard() {
 
   const handleCreateCase = async (serviceType) => {
     setCreating(true);
-    setError('');
     try {
       const { data } = await casesApi.create(serviceType);
       navigate(`/case/${data.id}`);
     } catch (err) {
-      setError(err.response?.data?.detail || 'فشل في إنشاء الطلب');
+      setError(err.response?.data?.detail || t('common.retry'));
     } finally {
       setCreating(false);
     }
@@ -73,100 +77,73 @@ export default function Dashboard() {
     navigate('/login');
   };
 
-  const getServiceLabel = (type) => {
-    const svc = SERVICE_TYPES.find((s) => s.value === type);
-    return svc || { ar: type, en: type };
-  };
-
-  const getStatus = (status) => {
-    return STATUS_MAP[status] || { ar: status, en: status, color: 'gray' };
-  };
-
+  const dateLocale = i18n.resolvedLanguage === 'ar' ? 'ar-LB' : 'en-GB';
   const activeCases = cases.filter((c) => !['closed', 'rejected'].includes(c.status));
   const pastCases = cases.filter((c) => ['closed', 'rejected'].includes(c.status));
 
   return (
-    <div className="dashboard" dir="rtl">
+    <div className="dashboard">
       <header className="dashboard-header">
         <div className="dashboard-header__brand">
           <img src={flagImg} alt="" className="dashboard-header__flag" />
-          <span className="dashboard-header__title">DocFlow <span>Lebanon</span></span>
+          <span className="dashboard-header__title">{t('common.appName')}</span>
         </div>
         <div className="dashboard-header__actions">
           <span className="dashboard-header__role">{user?.role}</span>
-          <Link to="/help" className="btn btn--ghost btn--sm" aria-label="Help">
-            <span className="ar">مساعدة</span>
-            <span className="en"> · Help</span>
+          <LanguageSwitcher />
+          <Link to="/help" className="btn btn--ghost btn--sm">
+            {t('common.help')}
           </Link>
-          <Link to="/account" className="btn btn--ghost btn--sm" aria-label="Account settings">
-            <span className="ar">الحساب</span>
-            <span className="en"> · Account</span>
+          <Link to="/account" className="btn btn--ghost btn--sm">
+            {t('common.account')}
           </Link>
           <button className="btn btn--ghost" onClick={handleLogout}>
-            <span className="ar">خروج</span>
-            <span className="en">Sign Out</span>
+            {t('common.signOut')}
           </button>
         </div>
       </header>
 
       <main className="dashboard-main">
         <div className="dashboard-welcome">
-          <h1>
-            <span className="ar">مرحباً بك في دوك فلو</span>
-            <span className="en">Welcome to DocFlow</span>
-          </h1>
-          <p className="dashboard-subtitle">
-            <span className="ar">إدارة طلبات الهوية وجواز السفر الخاصة بك</span>
-            <span className="en">Manage your ID and passport applications</span>
-          </p>
+          <h1>{t('dashboard.welcome')}</h1>
+          <p className="dashboard-subtitle">{t('dashboard.subtitle')}</p>
         </div>
 
-        {/* Errors surfaced via the global toast stack. */}
-
-        {/* Quick Actions */}
         <div className="dashboard-cards">
           <div className="dashboard-card" onClick={() => setShowNewCase(true)}>
             <div className="dashboard-card__icon dashboard-card__icon--green">+</div>
-            <h3 className="ar">طلب جديد</h3>
-            <p className="en">New Application</p>
+            <h3>{t('dashboard.newApplication')}</h3>
           </div>
           <div className="dashboard-card" onClick={() => document.getElementById('active-section')?.scrollIntoView({ behavior: 'smooth' })}>
             <div className="dashboard-card__icon dashboard-card__icon--red">&#8635;</div>
-            <h3 className="ar">تتبع الطلبات</h3>
-            <p className="en">Track Applications</p>
+            <h3>{t('dashboard.trackApplications')}</h3>
           </div>
           <div className="dashboard-card" onClick={() => document.getElementById('past-section')?.scrollIntoView({ behavior: 'smooth' })}>
             <div className="dashboard-card__icon dashboard-card__icon--gray">&#9776;</div>
-            <h3 className="ar">السجل</h3>
-            <p className="en">History</p>
+            <h3>{t('dashboard.history')}</h3>
           </div>
         </div>
 
-        {/* New Case Modal */}
         {showNewCase && (
           <div className="modal-overlay" onClick={() => setShowNewCase(false)}>
             <div className="modal" onClick={(e) => e.stopPropagation()}>
               <div className="modal__header">
-                <h2>
-                  <span className="ar">اختر نوع الخدمة</span>
-                  <span className="en">Select Service Type</span>
-                </h2>
+                <h2>{t('dashboard.selectService')}</h2>
                 <button className="modal__close" onClick={() => setShowNewCase(false)}>&times;</button>
               </div>
               <div className="modal__body">
                 <div className="service-grid">
-                  {SERVICE_TYPES.map((svc) => (
+                  {SERVICE_TYPES.map((sv) => (
                     <button
-                      key={svc.value}
+                      key={sv}
                       className="service-option"
                       disabled={creating}
-                      onClick={() => handleCreateCase(svc.value)}
+                      onClick={() => handleCreateCase(sv)}
                     >
                       <span className="service-option__icon">
-                        {svc.value.includes('passport') ? '📘' : '🪪'}
+                        {sv.includes('passport') ? '📘' : '🪪'}
                       </span>
-                      <span className="service-option__label ar">{svc.ar}</span>
-                      <span className="service-option__label en">{svc.en}</span>
+                      <span className="service-option__label">{t(`service.${sv}`)}</span>
                     </button>
                   ))}
                 </div>
@@ -175,90 +152,58 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Active Cases */}
         <section id="active-section" className="dashboard-section">
-          <h2>
-            <span className="ar">الطلبات النشطة</span>
-            <span className="en">Active Applications</span>
-          </h2>
+          <h2>{t('dashboard.active')}</h2>
           {loading ? (
             <SkeletonCard rows={3} />
           ) : activeCases.length === 0 ? (
-            <div className="empty-state">
-              <p className="ar">لا توجد طلبات نشطة</p>
-              <p className="en">No active applications</p>
-            </div>
+            <div className="empty-state"><p>{t('dashboard.noActive')}</p></div>
           ) : (
             <div className="case-list">
-              {activeCases.map((c) => {
-                const svc = getServiceLabel(c.service_type);
-                const st = getStatus(c.status);
-                return (
-                  <div key={c.id} className="case-card" onClick={() => navigate(`/case/${c.id}`)}>
-                    <div className="case-card__top">
-                      <div className="case-card__type">
-                        <span className="ar">{svc.ar}</span>
-                        <span className="en">{svc.en}</span>
-                      </div>
-                      <span className={`status-badge status-badge--${st.color}`}>
-                        <span className="ar">{st.ar}</span>
-                        <span className="en">{st.en}</span>
-                      </span>
-                    </div>
-                    <div className="case-card__bottom">
-                      <span className="case-card__tracking">
-                        #{c.tracking_id}
-                      </span>
-                      <span className="case-card__date">
-                        {new Date(c.created_at).toLocaleDateString('ar-LB')}
-                      </span>
-                    </div>
+              {activeCases.map((c) => (
+                <div key={c.id} className="case-card" onClick={() => navigate(`/case/${c.id}`)}>
+                  <div className="case-card__top">
+                    <div className="case-card__type">{t(`service.${c.service_type}`, c.service_type)}</div>
+                    <span className={`status-badge status-badge--${STATUS_COLOR[c.status] || 'gray'}`}>
+                      {t(`status.${c.status}`, c.status)}
+                    </span>
                   </div>
-                );
-              })}
+                  <div className="case-card__bottom">
+                    <span className="case-card__tracking">#{c.tracking_id}</span>
+                    <span className="case-card__date">
+                      {new Date(c.created_at).toLocaleDateString(dateLocale)}
+                    </span>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </section>
 
-        {/* Past Cases */}
         <section id="past-section" className="dashboard-section">
-          <h2>
-            <span className="ar">الطلبات السابقة</span>
-            <span className="en">Past Applications</span>
-          </h2>
+          <h2>{t('dashboard.past')}</h2>
           {loading ? (
             <SkeletonCard rows={3} />
           ) : pastCases.length === 0 ? (
-            <div className="empty-state">
-              <p className="ar">لا توجد طلبات سابقة</p>
-              <p className="en">No past applications</p>
-            </div>
+            <div className="empty-state"><p>{t('dashboard.noPast')}</p></div>
           ) : (
             <div className="case-list">
-              {pastCases.map((c) => {
-                const svc = getServiceLabel(c.service_type);
-                const st = getStatus(c.status);
-                return (
-                  <div key={c.id} className="case-card case-card--past" onClick={() => navigate(`/case/${c.id}`)}>
-                    <div className="case-card__top">
-                      <div className="case-card__type">
-                        <span className="ar">{svc.ar}</span>
-                        <span className="en">{svc.en}</span>
-                      </div>
-                      <span className={`status-badge status-badge--${st.color}`}>
-                        <span className="ar">{st.ar}</span>
-                        <span className="en">{st.en}</span>
-                      </span>
-                    </div>
-                    <div className="case-card__bottom">
-                      <span className="case-card__tracking">#{c.tracking_id}</span>
-                      <span className="case-card__date">
-                        {new Date(c.created_at).toLocaleDateString('ar-LB')}
-                      </span>
-                    </div>
+              {pastCases.map((c) => (
+                <div key={c.id} className="case-card case-card--past" onClick={() => navigate(`/case/${c.id}`)}>
+                  <div className="case-card__top">
+                    <div className="case-card__type">{t(`service.${c.service_type}`, c.service_type)}</div>
+                    <span className={`status-badge status-badge--${STATUS_COLOR[c.status] || 'gray'}`}>
+                      {t(`status.${c.status}`, c.status)}
+                    </span>
                   </div>
-                );
-              })}
+                  <div className="case-card__bottom">
+                    <span className="case-card__tracking">#{c.tracking_id}</span>
+                    <span className="case-card__date">
+                      {new Date(c.created_at).toLocaleDateString(dateLocale)}
+                    </span>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </section>

@@ -1,10 +1,13 @@
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import AuthLayout from '@shared/components/AuthLayout';
 import PasswordInput from '@shared/components/PasswordInput';
+import LanguageSwitcher from '@shared/components/LanguageSwitcher';
 import { useAuth } from '@shared/context/useAuth';
 
 export default function Login() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { login } = useAuth();
   const [searchParams] = useSearchParams();
@@ -32,12 +35,10 @@ export default function Login() {
       navigate('/dashboard');
     } catch (err) {
       const detail = err.response?.data?.detail;
-      if (err.response?.status === 403) {
-        setError(detail || 'البريد الإلكتروني غير مُفعّل. تحقق من بريدك.');
-      } else if (err.response?.status === 429) {
-        setError(detail || 'محاولات كثيرة. يرجى الانتظار.');
+      if (err.response?.status === 429) {
+        setError(detail || t('auth.login.errorGeneric'));
       } else {
-        setError(detail || 'بريد إلكتروني أو كلمة مرور غير صحيحة.');
+        setError(detail || t('auth.login.errorInvalid'));
       }
     } finally {
       setLoading(false);
@@ -46,31 +47,22 @@ export default function Login() {
 
   return (
     <AuthLayout>
-      <h2 className="auth-card__heading">
-        <span className="ar">مرحباً بعودتك</span>
-        <span className="en">Welcome back</span>
-      </h2>
-      <p className="auth-card__subheading">
-        <span className="ar">سجّل الدخول إلى حسابك في دوك فلو</span>
-        <span className="en">Sign in to your DocFlow account</span>
-      </p>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
+        <LanguageSwitcher />
+      </div>
+      <h2 className="auth-card__heading">{t('auth.login.title')}</h2>
+      <p className="auth-card__subheading">{t('auth.login.subtitle')}</p>
 
       {idleReason && !error && (
         <div className="alert alert--info">
-          <span className="ar">تم تسجيل خروجك تلقائياً بسبب عدم النشاط. الرجاء تسجيل الدخول من جديد.</span>
-          <span className="en" style={{ display: 'block', fontSize: '0.85rem' }}>
-            You were logged out automatically due to inactivity. Please sign in again.
-          </span>
+          {t('auth.login.errorGeneric')}
         </div>
       )}
       {error && <div className="alert alert--error">{error}</div>}
 
       <form onSubmit={handleSubmit}>
         <div className="form-group">
-          <label className="form-label" htmlFor="email">
-            <span className="ar">البريد الإلكتروني</span>
-            <span className="en">Email</span>
-          </label>
+          <label className="form-label" htmlFor="email">{t('common.email')}</label>
           <input
             id="email"
             name="email"
@@ -86,14 +78,10 @@ export default function Login() {
         </div>
 
         <div className="form-group">
-          <label className="form-label" htmlFor="password">
-            <span className="ar">كلمة المرور</span>
-            <span className="en">Password</span>
-          </label>
+          <label className="form-label" htmlFor="password">{t('common.password')}</label>
           <PasswordInput
             id="password"
             name="password"
-            placeholder="أدخل كلمة المرور"
             value={form.password}
             onChange={handleChange}
             required
@@ -103,24 +91,18 @@ export default function Login() {
         <div className="auth-extras">
           <span />
           <Link to="/forgot-password" className="btn btn--ghost">
-            <span className="ar">نسيت كلمة المرور؟</span>
-            <span className="en">Forgot password?</span>
+            {t('auth.login.forgotPassword')}
           </Link>
         </div>
 
         <button type="submit" className="btn btn--primary" disabled={loading}>
-          {loading ? <span className="spinner" /> : (
-            <>
-              <span className="ar">تسجيل الدخول</span>
-              <span className="en">Sign In</span>
-            </>
-          )}
+          {loading ? <span className="spinner" /> : t('auth.login.submit')}
         </button>
       </form>
 
       <p className="auth-footer">
-        <span className="ar">ليس لديك حساب؟ <Link to="/register">أنشئ حساباً</Link></span>
-        <span className="en">Don&apos;t have an account? <Link to="/register">Create one</Link></span>
+        {t('auth.login.noAccount')}{' '}
+        <Link to="/register">{t('auth.login.createOne')}</Link>
       </p>
     </AuthLayout>
   );

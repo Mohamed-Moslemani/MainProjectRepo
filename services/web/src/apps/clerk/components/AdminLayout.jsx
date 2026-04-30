@@ -1,9 +1,12 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '@shared/context/useAuth';
+import LanguageSwitcher from '@shared/components/LanguageSwitcher';
 import flagImg from '@shared/assets/Figure_1.png';
 import '@shared/styles/admin.css';
 
 export default function AdminLayout() {
+  const { t } = useTranslation();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -73,9 +76,9 @@ export default function AdminLayout() {
               <span className="admin-sidebar__role">{user?.role}</span>
             </div>
           </div>
+          <LanguageSwitcher />
           <button className="admin-sidebar__logout" onClick={handleLogout}>
-            <span className="ar">خروج</span>
-            <span className="en">Sign Out</span>
+            {t('common.signOut')}
           </button>
         </div>
       </aside>
