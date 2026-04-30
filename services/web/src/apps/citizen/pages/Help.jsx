@@ -83,12 +83,7 @@ export default function Help() {
           <div className="dashboard-header__brand">
             <img src={flagImg} alt="" className="dashboard-header__flag" />
             <div>
-              <h1 className="dashboard-header__title">
-                <span className="ar">المساعدة</span>
-              </h1>
-              <p className="dashboard-header__subtitle">
-                <span className="en">Help &amp; FAQ</span>
-              </p>
+              <h1 className="dashboard-header__title"><L ar="المساعدة" en="Help &amp; FAQ" /></h1>
             </div>
           </div>
           <div className="dashboard-header__actions">

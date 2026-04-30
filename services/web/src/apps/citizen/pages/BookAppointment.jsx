@@ -113,12 +113,7 @@ export default function BookAppointment() {
           <div className="dashboard-header__brand">
             <img src={flagImg} alt="" className="dashboard-header__flag" />
             <div>
-              <h1 className="dashboard-header__title">
-                <span className="ar">حجز موعد البصمات</span>
-              </h1>
-              <p className="dashboard-header__subtitle">
-                <span className="en">Book biometric appointment</span>
-              </p>
+              <h1 className="dashboard-header__title"><L ar="حجز موعد البصمات" en="Book biometric appointment" /></h1>
             </div>
           </div>
           <div className="dashboard-header__actions">

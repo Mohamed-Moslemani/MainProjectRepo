@@ -5,7 +5,6 @@ import { useNavigate, Link } from 'react-router-dom';
 import { casesApi } from '@shared/api/cases';
 import { useToast } from '@shared/context/useToast';
 import { SkeletonCard } from '@shared/components/Skeleton';
-import LanguageSwitcher from '@shared/components/LanguageSwitcher';
 import flagImg from '@shared/assets/Figure_1.png';
 import '@shared/styles/dashboard.css';
 
@@ -90,7 +89,6 @@ export default function Dashboard() {
         </div>
         <div className="dashboard-header__actions">
           <span className="dashboard-header__role">{user?.role}</span>
-          <LanguageSwitcher />
           <Link to="/help" className="btn btn--ghost btn--sm">
             {t('common.help')}
           </Link>

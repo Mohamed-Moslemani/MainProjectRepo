@@ -1,7 +1,6 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@shared/context/useAuth';
-import LanguageSwitcher from '@shared/components/LanguageSwitcher';
 import flagImg from '@shared/assets/Figure_1.png';
 import '@shared/styles/admin.css';
 import L from '@shared/components/L';
@@ -71,7 +70,6 @@ export default function AdminLayout() {
               <span className="admin-sidebar__role">{user?.role}</span>
             </div>
           </div>
-          <LanguageSwitcher />
           <button className="admin-sidebar__logout" onClick={handleLogout}>
             {t('common.signOut')}
           </button>

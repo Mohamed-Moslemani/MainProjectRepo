@@ -25,18 +25,14 @@ export default function NotFound() {
           </div>
 
           <h1 style={{ margin: '0 0 8px', fontSize: '1.5rem', color: '#1f2937' }}>
-            <span className="ar">الصفحة غير موجودة</span>
+            <L ar="الصفحة غير موجودة" en="Page Not Found" />
           </h1>
-          <p style={{ margin: '0 0 4px', fontSize: '1rem', color: '#9ca3af' }}>
-            <span className="en">Page Not Found</span>
-          </p>
 
           <p style={{ margin: '24px 0', color: '#6b7280', lineHeight: 1.6 }}>
-            <span className="ar">عذراً، الصفحة التي تبحث عنها غير موجودة أو تم نقلها.</span>
-            <br />
-            <span className="en" style={{ fontSize: '0.85rem', color: '#9ca3af' }}>
-              Sorry, the page you're looking for doesn't exist or has been moved.
-            </span>
+            <L
+              ar="عذراً، الصفحة التي تبحث عنها غير موجودة أو تم نقلها."
+              en="Sorry, the page you're looking for doesn't exist or has been moved."
+            />
           </p>
 
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginTop: 32 }}>

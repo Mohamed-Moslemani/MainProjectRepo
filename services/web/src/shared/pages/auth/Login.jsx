@@ -3,7 +3,6 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import AuthLayout from '@shared/components/AuthLayout';
 import PasswordInput from '@shared/components/PasswordInput';
-import LanguageSwitcher from '@shared/components/LanguageSwitcher';
 import { useAuth } from '@shared/context/useAuth';
 
 export default function Login() {
@@ -47,9 +46,6 @@ export default function Login() {
 
   return (
     <AuthLayout>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
-        <LanguageSwitcher />
-      </div>
       <h2 className="auth-card__heading">{t('auth.login.title')}</h2>
       <p className="auth-card__subheading">{t('auth.login.subtitle')}</p>
 
