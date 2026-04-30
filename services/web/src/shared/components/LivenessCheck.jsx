@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { FaceLivenessDetectorCore } from '@aws-amplify/ui-react-liveness';
 import '@aws-amplify/ui-react/styles.css';
 import { livenessApi } from '@shared/api/liveness';
+import L from '@shared/components/L';
 
 /**
  * LivenessCheck component — runs AWS Rekognition Face Liveness challenge.
@@ -75,8 +76,7 @@ export default function LivenessCheck({ caseId, onComplete, onError, onCancel })
       <div className="liveness-container">
         <div className="liveness-loading">
           <div className="loading-spinner" />
-          <p className="ar">جارٍ تحضير التحقق من الهوية...</p>
-          <p className="en">Preparing identity verification...</p>
+          <L>{{ ar: <>جارٍ تحضير التحقق من الهوية...</>, en: <>Preparing identity verification...</> }}</L>
         </div>
       </div>
     );
@@ -86,12 +86,10 @@ export default function LivenessCheck({ caseId, onComplete, onError, onCancel })
     return (
       <div className="liveness-container">
         <div className="alert alert--error">
-          <p className="ar">خطأ في التحقق من الهوية</p>
-          <p className="en">Liveness verification error</p>
+          <L>{{ ar: <>خطأ في التحقق من الهوية</>, en: <>Liveness verification error</> }}</L>
           <p style={{ marginTop: '0.5rem', fontSize: '0.875rem' }}>{error}</p>
           <button className="btn btn--sm btn--outline" style={{ marginTop: '1rem' }} onClick={onCancel}>
-            <span className="ar">رجوع</span>
-            <span className="en">Go Back</span>
+            <L ar="رجوع" en="Go Back" />
           </button>
         </div>
       </div>
@@ -104,12 +102,10 @@ export default function LivenessCheck({ caseId, onComplete, onError, onCancel })
     <div className="liveness-container">
       <div className="liveness-header">
         <h3>
-          <span className="ar">التحقق من الهوية</span>
-          <span className="en">Identity Verification</span>
+          <L ar="التحقق من الهوية" en="Identity Verification" />
         </h3>
         <p className="liveness-instructions">
-          <span className="ar">يرجى اتباع التعليمات على الشاشة. حرّك وجهك داخل الإطار البيضاوي.</span>
-          <span className="en">Follow the on-screen instructions. Move your face into the oval frame.</span>
+          <L ar="يرجى اتباع التعليمات على الشاشة. حرّك وجهك داخل الإطار البيضاوي." en="Follow the on-screen instructions. Move your face into the oval frame." />
         </p>
       </div>
       <FaceLivenessDetectorCore

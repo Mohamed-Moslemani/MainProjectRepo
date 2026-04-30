@@ -71,7 +71,7 @@ export default class ErrorBoundary extends Component {
           }}
         >
           <h1 style={{ fontSize: '1.4rem', marginTop: 0 }}>
-            <span lang="ar" dir="rtl" style={{ display: 'block' }}>
+            <span lang="ar" style={{ display: 'block' }}>
               حدث خطأ غير متوقع
             </span>
             <span lang="en" style={{ fontSize: '1rem', color: '#6b7280' }}>
@@ -79,7 +79,7 @@ export default class ErrorBoundary extends Component {
             </span>
           </h1>
           <p style={{ color: '#374151', lineHeight: 1.6 }}>
-            <span lang="ar" dir="rtl" style={{ display: 'block' }}>
+            <span lang="ar" style={{ display: 'block' }}>
               يمكنك إعادة تحميل الصفحة أو العودة للرئيسية. لم يتم فقدان بياناتك.
             </span>
             <span lang="en">

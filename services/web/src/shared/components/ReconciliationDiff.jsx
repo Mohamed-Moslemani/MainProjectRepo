@@ -1,3 +1,4 @@
+import L from '@shared/components/L';
 /**
  * Side-by-side declared-vs-OCR diff for the admin review panel.
  *
@@ -59,8 +60,7 @@ export default function ReconciliationDiff({ reconciliation }) {
     <div className="recon-diff">
       <div className="recon-diff__summary">
         <span className="recon-diff__title">
-          <span className="ar">مقارنة المُدخل مع OCR</span>
-          <span className="en"> · Declared vs OCR</span>
+          <L ar="مقارنة المُدخل مع OCR" en="· Declared vs OCR" />
         </span>
         {integrityPct != null && (
           <span
@@ -78,19 +78,16 @@ export default function ReconciliationDiff({ reconciliation }) {
         <thead>
           <tr>
             <th>
-              <span className="ar">الحقل</span>
-              <span className="en"> · Field</span>
+              <L ar="الحقل" en="· Field" />
             </th>
             <th>
-              <span className="ar">المُدخل</span>
-              <span className="en"> · Declared</span>
+              <L ar="المُدخل" en="· Declared" />
             </th>
             <th>
               <span className="ar">OCR</span>
             </th>
             <th>
-              <span className="ar">الحالة</span>
-              <span className="en"> · Status</span>
+              <L ar="الحالة" en="· Status" />
             </th>
           </tr>
         </thead>
@@ -107,10 +104,7 @@ export default function ReconciliationDiff({ reconciliation }) {
                 style={{ background: rowBackground(result.status) }}
               >
                 <td className="recon-diff__field">
-                  <span className="ar">{FIELD_LABELS_AR[key] || key}</span>
-                  <span className="en" style={{ display: 'block', fontSize: '0.75rem', color: '#6b7280' }}>
-                    {key}
-                  </span>
+                  <L>{{ ar: <>{FIELD_LABELS_AR[key] || key}</>, en: <>{key}</> }}</L>
                 </td>
                 <td className="recon-diff__value">
                   {result.declared != null ? String(result.declared) : <em>—</em>}

@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import AuthLayout from '@shared/components/AuthLayout';
 import PasswordInput from '@shared/components/PasswordInput';
 import { authApi } from '@shared/api/auth';
+import L from '@shared/components/L';
 
 function getPasswordStrength(pw) {
   let score = 0;
@@ -55,16 +56,13 @@ export default function ResetPassword() {
         <div className="verify-container">
           <div className="verify-icon" style={{ color: 'var(--error)' }}>&#10007;</div>
           <h2 className="auth-card__heading">
-            <span className="ar">رابط غير صالح</span>
-            <span className="en">Invalid Link</span>
+            <L ar="رابط غير صالح" en="Invalid Link" />
           </h2>
           <p>
-            <span className="ar">هذا الرابط غير صالح. يرجى طلب رابط جديد.</span>
-            <span className="en">This reset link is invalid. Please request a new one.</span>
+            <L ar="هذا الرابط غير صالح. يرجى طلب رابط جديد." en="This reset link is invalid. Please request a new one." />
           </p>
           <Link to="/forgot-password" className="btn btn--primary" style={{ maxWidth: 280, margin: '1rem auto 0' }}>
-            <span className="ar">طلب رابط جديد</span>
-            <span className="en">Request New Link</span>
+            <L ar="طلب رابط جديد" en="Request New Link" />
           </Link>
         </div>
       </AuthLayout>
@@ -76,12 +74,10 @@ export default function ResetPassword() {
       {!success ? (
         <>
           <h2 className="auth-card__heading">
-            <span className="ar">تعيين كلمة مرور جديدة</span>
-            <span className="en">Set new password</span>
+            <L ar="تعيين كلمة مرور جديدة" en="Set new password" />
           </h2>
           <p className="auth-card__subheading">
-            <span className="ar">اختر كلمة مرور قوية لحسابك</span>
-            <span className="en">Choose a strong password for your account</span>
+            <L ar="اختر كلمة مرور قوية لحسابك" en="Choose a strong password for your account" />
           </p>
 
           {error && <div className="alert alert--error">{error}</div>}
@@ -89,8 +85,7 @@ export default function ResetPassword() {
           <form onSubmit={handleSubmit}>
             <div className="form-group">
               <label className="form-label" htmlFor="password">
-                <span className="ar">كلمة المرور الجديدة</span>
-                <span className="en">New Password</span>
+                <L ar="كلمة المرور الجديدة" en="New Password" />
               </label>
               <PasswordInput
                 id="password"
@@ -101,15 +96,13 @@ export default function ResetPassword() {
                 autoFocus
               />
               <p className="password-hint">
-                <span className="ar">٨ أحرف على الأقل، حرف كبير وصغير، رقم، ورمز خاص</span>
-                <span className="en">Min 8 chars, uppercase, lowercase, number, and special character</span>
+                <L ar="٨ أحرف على الأقل، حرف كبير وصغير، رقم، ورمز خاص" en="Min 8 chars, uppercase, lowercase, number, and special character" />
               </p>
             </div>
 
             <div className="form-group">
               <label className="form-label" htmlFor="confirm">
-                <span className="ar">تأكيد كلمة المرور</span>
-                <span className="en">Confirm Password</span>
+                <L ar="تأكيد كلمة المرور" en="Confirm Password" />
               </label>
               <PasswordInput
                 id="confirm"
@@ -123,8 +116,7 @@ export default function ResetPassword() {
             <button type="submit" className="btn btn--primary" disabled={loading}>
               {loading ? <span className="spinner" /> : (
                 <>
-                  <span className="ar">إعادة تعيين كلمة المرور</span>
-                  <span className="en">Reset Password</span>
+                  <L ar="إعادة تعيين كلمة المرور" en="Reset Password" />
                 </>
               )}
             </button>
@@ -134,16 +126,13 @@ export default function ResetPassword() {
         <div className="verify-container">
           <div className="verify-icon" style={{ color: 'var(--success)' }}>&#10003;</div>
           <h2 className="auth-card__heading">
-            <span className="ar">تم إعادة تعيين كلمة المرور!</span>
-            <span className="en">Password Reset!</span>
+            <L ar="تم إعادة تعيين كلمة المرور!" en="Password Reset!" />
           </h2>
           <div className="alert alert--success">
-            <span className="ar">تم تغيير كلمة المرور بنجاح.</span>
-            <span className="en">Your password has been changed successfully.</span>
+            <L ar="تم تغيير كلمة المرور بنجاح." en="Your password has been changed successfully." />
           </div>
           <Link to="/login" className="btn btn--primary" style={{ maxWidth: 280, margin: '0 auto' }}>
-            <span className="ar">المتابعة لتسجيل الدخول</span>
-            <span className="en">Continue to Sign In</span>
+            <L ar="المتابعة لتسجيل الدخول" en="Continue to Sign In" />
           </Link>
         </div>
       )}

@@ -105,7 +105,7 @@ export default function IdleLogout() {
         }}
       >
         <h2 id="idle-warning-title" style={{ marginTop: 0, fontSize: '1.2rem' }}>
-          <span lang="ar" dir="rtl" style={{ display: 'block' }}>
+          <span lang="ar" style={{ display: 'block' }}>
             هل ما زلت معنا؟
           </span>
           <span lang="en" style={{ fontSize: '0.95rem', color: '#6b7280' }}>
@@ -113,7 +113,7 @@ export default function IdleLogout() {
           </span>
         </h2>
         <p style={{ color: '#374151', lineHeight: 1.55 }}>
-          <span lang="ar" dir="rtl" style={{ display: 'block' }}>
+          <span lang="ar" style={{ display: 'block' }}>
             سيتم تسجيل خروجك تلقائياً بعد دقيقتين بسبب عدم النشاط.
           </span>
           <span lang="en">

@@ -4,6 +4,7 @@ import { useAuth } from '@shared/context/useAuth';
 import flagImg from '@shared/assets/Figure_1.png';
 import '@shared/styles/dashboard.css';
 import '@shared/styles/landing.css';
+import L from '@shared/components/L';
 
 /**
  * Public landing page at "/".
@@ -52,7 +53,7 @@ export default function Landing() {
   };
 
   return (
-    <div className="landing" dir="rtl">
+    <div className="landing">
       <a className="skip-link" href="#main">Skip to main content</a>
 
       <header className="landing__nav">
@@ -65,20 +66,16 @@ export default function Landing() {
         </div>
         <nav className="landing__nav-actions">
           <Link to="/track" className="btn btn--ghost btn--sm">
-            <span className="ar">تتبع</span>
-            <span className="en"> · Track</span>
+            <L ar="تتبع" en="· Track" />
           </Link>
           <Link to="/help" className="btn btn--ghost btn--sm">
-            <span className="ar">مساعدة</span>
-            <span className="en"> · Help</span>
+            <L ar="مساعدة" en="· Help" />
           </Link>
           <Link to="/login" className="btn btn--outline btn--sm">
-            <span className="ar">تسجيل الدخول</span>
-            <span className="en"> · Login</span>
+            <L ar="تسجيل الدخول" en="· Login" />
           </Link>
           <Link to="/register" className="btn btn--primary btn--sm">
-            <span className="ar">حساب جديد</span>
-            <span className="en"> · Sign up</span>
+            <L ar="حساب جديد" en="· Sign up" />
           </Link>
         </nav>
       </header>
@@ -87,37 +84,24 @@ export default function Landing() {
         <section className="landing__hero">
           <div className="landing__hero-text">
             <h1>
-              <span className="ar">جدّد جواز السفر أو الهوية اللبنانية أونلاين</span>
-              <span className="en" style={{ display: 'block', fontSize: '1.05rem', color: '#6b7280', marginTop: '0.4rem' }}>
-                Renew your Lebanese ID or passport online — one visit, no queue.
-              </span>
+              <L ar="جدّد جواز السفر أو الهوية اللبنانية أونلاين" en="Renew your Lebanese ID or passport online — one visit, no queue." />
             </h1>
             <p className="landing__hero-sub">
-              <span className="ar">
-                ارفع مستنداتك، يتحقق منها النظام، ادفع الرسوم، ثم استلم وثيقتك. زيارة واحدة فقط للمركز.
-              </span>
-              <span className="en" style={{ display: 'block', marginTop: '0.4rem' }}>
-                Upload your documents, the platform validates them automatically, you pay online, then collect from the issuing centre. One visit instead of standing in line.
-              </span>
+              <L ar="ارفع مستنداتك، يتحقق منها النظام، ادفع الرسوم، ثم استلم وثيقتك. زيارة واحدة فقط للمركز." en="Upload your documents, the platform validates them automatically, you pay online, then collect from the issuing centre. One visit instead of standing in line." />
             </p>
             <div className="landing__cta">
               <Link to="/register" className="btn btn--primary btn--lg">
-                <span className="ar">ابدأ طلباً جديداً</span>
-                <span className="en"> · Start a new application</span>
+                <L ar="ابدأ طلباً جديداً" en="· Start a new application" />
               </Link>
               <Link to="/login" className="btn btn--outline btn--lg">
-                <span className="ar">عندي حساب</span>
-                <span className="en"> · I have an account</span>
+                <L ar="عندي حساب" en="· I have an account" />
               </Link>
             </div>
           </div>
 
           <aside className="landing__track-card">
             <h2>
-              <span className="ar">تتبع طلباً موجوداً</span>
-              <span className="en" style={{ display: 'block', fontSize: '0.85rem', color: '#6b7280' }}>
-                Track an existing application
-              </span>
+              <L ar="تتبع طلباً موجوداً" en="Track an existing application" />
             </h2>
             <form onSubmit={goTrack} className="landing__track-form">
               <input
@@ -129,33 +113,25 @@ export default function Landing() {
                 aria-label="Tracking ID"
               />
               <button type="submit" className="btn btn--primary" disabled={!trackId.trim()}>
-                <span className="ar">تتبع</span>
-                <span className="en"> · Track</span>
+                <L ar="تتبع" en="· Track" />
               </button>
             </form>
             <p className="landing__track-hint">
-              <span className="ar">رقم التتبع يظهر بعد تقديم الطلب ويبدأ بـ DFL-.</span>
-              <span className="en" style={{ display: 'block' }}>
-                The reference ID is shown after you submit and starts with DFL-.
-              </span>
+              <L ar="رقم التتبع يظهر بعد تقديم الطلب ويبدأ بـ DFL-." en="The reference ID is shown after you submit and starts with DFL-." />
             </p>
           </aside>
         </section>
 
         <section className="landing__how" aria-labelledby="how-h">
           <h2 id="how-h">
-            <span className="ar">كيف يعمل النظام</span>
-            <span className="en" style={{ display: 'block', fontSize: '0.95rem', color: '#6b7280' }}>
-              How it works
-            </span>
+            <L ar="كيف يعمل النظام" en="How it works" />
           </h2>
           <div className="landing__how-grid">
             {HOW.map((h, i) => (
               <div key={i} className="landing__how-card">
                 <span className="landing__how-icon" aria-hidden="true">{h.icon}</span>
                 <h3>
-                  <span className="ar">{h.ar}</span>
-                  <span className="en" style={{ display: 'block', fontSize: '0.8rem', color: '#6b7280' }}>{h.en}</span>
+                  <L>{{ ar: <>{h.ar}</>, en: <>{h.en}</> }}</L>
                 </h3>
                 <p>{h.body_en}</p>
               </div>
@@ -165,18 +141,12 @@ export default function Landing() {
 
         <section className="landing__features">
           <h2>
-            <span className="ar">مميزات</span>
-            <span className="en" style={{ display: 'block', fontSize: '0.95rem', color: '#6b7280' }}>
-              What's included
-            </span>
+            <L ar="مميزات" en="What's included" />
           </h2>
           <ul>
             {FEATURES.map((f, i) => (
               <li key={i}>
-                <span className="ar">✓ {f.ar}</span>
-                <span className="en" style={{ display: 'block', color: '#6b7280', fontSize: '0.85rem' }}>
-                  {f.en}
-                </span>
+                <L>{{ ar: <>✓ {f.ar}</>, en: <>{f.en}</> }}</L>
               </li>
             ))}
           </ul>

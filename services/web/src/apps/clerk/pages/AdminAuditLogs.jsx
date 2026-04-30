@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { adminApi } from '@shared/api/admin';
+import L from '@shared/components/L';
 
 const PAGE_SIZE = 30;
 
@@ -91,12 +92,10 @@ export default function AdminAuditLogs() {
     <div className="admin-page">
       <div className="admin-page__header">
         <h1 className="admin-page__title">
-          <span className="ar">سجل التدقيق</span>
-          <span className="en">Audit Logs</span>
+          <L ar="سجل التدقيق" en="Audit Logs" />
         </h1>
         <p className="admin-page__subtitle">
-          <span className="ar">سجل غير قابل للتعديل لجميع إجراءات النظام</span>
-          <span className="en">Immutable record of all system actions</span>
+          <L ar="سجل غير قابل للتعديل لجميع إجراءات النظام" en="Immutable record of all system actions" />
         </p>
       </div>
 
@@ -155,13 +154,11 @@ export default function AdminAuditLogs() {
           title="Until (inclusive)"
         />
         <button type="submit" className="btn-small btn-small--primary">
-          <span className="ar">تطبيق</span>
-          <span className="en"> · Apply</span>
+          <L ar="تطبيق" en="· Apply" />
         </button>
         {hasActiveFilters && (
           <button type="button" className="btn-small btn-small--ghost" onClick={clearFilters}>
-            <span className="ar">مسح</span>
-            <span className="en"> · Clear</span>
+            <L ar="مسح" en="· Clear" />
           </button>
         )}
       </form>
@@ -175,8 +172,7 @@ export default function AdminAuditLogs() {
         </div>
       ) : logs.length === 0 ? (
         <div className="admin-empty">
-          <span className="ar">لا توجد سجلات</span>
-          <span className="en">No audit logs found</span>
+          <L ar="لا توجد سجلات" en="No audit logs found" />
         </div>
       ) : (
         <>
@@ -184,12 +180,12 @@ export default function AdminAuditLogs() {
             <table className="cases-table">
               <thead>
                 <tr>
-                  <th><span className="ar">الوقت</span><span className="en">Timestamp</span></th>
-                  <th><span className="ar">الإجراء</span><span className="en">Action</span></th>
-                  <th><span className="ar">المستخدم</span><span className="en">User ID</span></th>
-                  <th><span className="ar">الطلب</span><span className="en">Case ID</span></th>
-                  <th><span className="ar">طلب HTTP</span><span className="en">Request ID</span></th>
-                  <th><span className="ar">التفاصيل</span><span className="en">Details</span></th>
+                  <th><L ar="الوقت" en="Timestamp" /></th>
+                  <th><L ar="الإجراء" en="Action" /></th>
+                  <th><L ar="المستخدم" en="User ID" /></th>
+                  <th><L ar="الطلب" en="Case ID" /></th>
+                  <th><L ar="طلب HTTP" en="Request ID" /></th>
+                  <th><L ar="التفاصيل" en="Details" /></th>
                 </tr>
               </thead>
               <tbody>
@@ -202,8 +198,7 @@ export default function AdminAuditLogs() {
                       </td>
                       <td>
                         <span className="action-badge">
-                          <span className="ar">{actionLabel.ar}</span>
-                          <span className="en">{actionLabel.en}</span>
+                          <L>{{ ar: <>{actionLabel.ar}</>, en: <>{actionLabel.en}</> }}</L>
                         </span>
                       </td>
                       <td className="audit-id">
@@ -260,16 +255,13 @@ export default function AdminAuditLogs() {
 
           <div className="pagination">
             <button className="pagination__btn" disabled={page === 0} onClick={() => setPage(page - 1)}>
-              <span className="ar">السابق</span>
-              <span className="en">Previous</span>
+              <L ar="السابق" en="Previous" />
             </button>
             <span className="pagination__info">
-              <span className="ar">صفحة {page + 1}</span>
-              <span className="en">Page {page + 1}</span>
+              <L>{{ ar: <>صفحة {page + 1}</>, en: <>Page {page + 1}</> }}</L>
             </span>
             <button className="pagination__btn" disabled={!hasMore} onClick={() => setPage(page + 1)}>
-              <span className="ar">التالي</span>
-              <span className="en">Next</span>
+              <L ar="التالي" en="Next" />
             </button>
           </div>
         </>

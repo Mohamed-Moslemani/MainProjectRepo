@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import AuthLayout from '@shared/components/AuthLayout';
 import { authApi } from '@shared/api/auth';
+import L from '@shared/components/L';
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('');
@@ -33,12 +34,10 @@ export default function ForgotPassword() {
       {!sent ? (
         <>
           <h2 className="auth-card__heading">
-            <span className="ar">نسيت كلمة المرور؟</span>
-            <span className="en">Forgot password?</span>
+            <L ar="نسيت كلمة المرور؟" en="Forgot password?" />
           </h2>
           <p className="auth-card__subheading">
-            <span className="ar">أدخل بريدك الإلكتروني وسنرسل لك رابط إعادة تعيين كلمة المرور</span>
-            <span className="en">Enter your email and we&apos;ll send you a reset link</span>
+            <L ar="أدخل بريدك الإلكتروني وسنرسل لك رابط إعادة تعيين كلمة المرور" en="Enter your email and we&apos;ll send you a reset link" />
           </p>
 
           {error && <div className="alert alert--error">{error}</div>}
@@ -46,8 +45,7 @@ export default function ForgotPassword() {
           <form onSubmit={handleSubmit}>
             <div className="form-group">
               <label className="form-label" htmlFor="email">
-                <span className="ar">البريد الإلكتروني</span>
-                <span className="en">Email</span>
+                <L ar="البريد الإلكتروني" en="Email" />
               </label>
               <input
                 id="email"
@@ -65,8 +63,7 @@ export default function ForgotPassword() {
             <button type="submit" className="btn btn--primary" disabled={loading}>
               {loading ? <span className="spinner" /> : (
                 <>
-                  <span className="ar">إرسال رابط إعادة التعيين</span>
-                  <span className="en">Send Reset Link</span>
+                  <L ar="إرسال رابط إعادة التعيين" en="Send Reset Link" />
                 </>
               )}
             </button>
@@ -76,23 +73,16 @@ export default function ForgotPassword() {
         <div className="verify-container">
           <div className="verify-icon">&#9993;</div>
           <h2 className="auth-card__heading">
-            <span className="ar">تحقق من بريدك الإلكتروني</span>
-            <span className="en">Check your email</span>
+            <L ar="تحقق من بريدك الإلكتروني" en="Check your email" />
           </h2>
           <p>
-            <span className="ar">
-              إذا كان هناك حساب مسجّل بـ <strong>{email}</strong>، فقد أرسلنا رابط إعادة تعيين كلمة المرور. ينتهي خلال ١٥ دقيقة.
-            </span>
-            <span className="en" style={{ fontSize: '0.8rem', color: 'var(--gray-400)' }}>
-              If an account exists for <strong>{email}</strong>, we&apos;ve sent a reset link. It expires in 15 minutes.
-            </span>
+            <L>{{ ar: <>إذا كان هناك حساب مسجّل بـ <strong>{email}</strong>، فقد أرسلنا رابط إعادة تعيين كلمة المرور. ينتهي خلال ١٥ دقيقة.</>, en: <>If an account exists for <strong>{email}</strong>, we&apos;ve sent a reset link. It expires in 15 minutes.</> }}</L>
           </p>
         </div>
       )}
 
       <p className="auth-footer">
-        <span className="ar"><Link to="/login">العودة لتسجيل الدخول</Link></span>
-        <span className="en"><Link to="/login">Back to Sign In</Link></span>
+        <L>{{ ar: <><Link to="/login">العودة لتسجيل الدخول</Link></>, en: <><Link to="/login">Back to Sign In</Link></> }}</L>
       </p>
     </AuthLayout>
   );

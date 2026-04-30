@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { QUALITY_THRESHOLDS } from '@shared/utils/imageQuality';
 import { useFocusTrap } from '@shared/hooks/useFocusTrap';
+import L from '@shared/components/L';
 
 /**
  * Pre-flight upload review modal.
@@ -50,8 +51,7 @@ export default function UploadPreview({
       <div ref={trapRef} className="modal modal--lg upload-preview">
         <header className="modal__header">
           <h2>
-            <span className="ar">معاينة قبل الرفع</span>
-            <span className="en"> · Preview before upload</span>
+            <L ar="معاينة قبل الرفع" en="· Preview before upload" />
           </h2>
           <button
             type="button"
@@ -65,8 +65,7 @@ export default function UploadPreview({
 
         <div className="upload-preview__body">
           <div className="upload-preview__doc-label">
-            <span className="ar">{docLabel.ar}</span>
-            <span className="en"> · {docLabel.en}</span>
+            <L>{{ ar: <>{docLabel.ar}</>, en: <>· {docLabel.en}</> }}</L>
           </div>
 
           <div className="upload-preview__media">
@@ -77,12 +76,7 @@ export default function UploadPreview({
                   <strong>{file.name}</strong>
                 </p>
                 <p className="upload-preview__hint">
-                  <span className="ar">
-                    معاينة PDF غير متاحة. سيتم التحقق من المحتوى بعد الرفع.
-                  </span>
-                  <span className="en" style={{ display: 'block' }}>
-                    PDF preview not available. Content is verified after upload.
-                  </span>
+                  <L>{{ ar: <>معاينة PDF غير متاحة. سيتم التحقق من المحتوى بعد الرفع.</>, en: <>PDF preview not available. Content is verified after upload.</> }}</L>
                 </p>
               </div>
             ) : verdict.previewUrl ? (
@@ -97,16 +91,14 @@ export default function UploadPreview({
           <dl className="upload-preview__stats">
             <div>
               <dt>
-                <span className="ar">الحجم</span>
-                <span className="en"> · Size</span>
+                <L ar="الحجم" en="· Size" />
               </dt>
               <dd>{info.sizeMB} MB</dd>
             </div>
             {info.width ? (
               <div>
                 <dt>
-                  <span className="ar">الدقة</span>
-                  <span className="en"> · Resolution</span>
+                  <L ar="الدقة" en="· Resolution" />
                 </dt>
                 <dd>
                   {info.width} × {info.height}
@@ -121,8 +113,7 @@ export default function UploadPreview({
             {info.blurScore != null ? (
               <div>
                 <dt>
-                  <span className="ar">حدّة الصورة</span>
-                  <span className="en"> · Sharpness</span>
+                  <L ar="حدّة الصورة" en="· Sharpness" />
                 </dt>
                 <dd>
                   {info.blurScore}
@@ -136,8 +127,7 @@ export default function UploadPreview({
             {info.glareRatio != null ? (
               <div>
                 <dt>
-                  <span className="ar">الانعكاس</span>
-                  <span className="en"> · Glare</span>
+                  <L ar="الانعكاس" en="· Glare" />
                 </dt>
                 <dd>{info.glareRatio}%</dd>
               </div>
@@ -147,28 +137,19 @@ export default function UploadPreview({
           {verdict.ok ? (
             <div className="alert alert--success" style={{ marginTop: '1rem' }}>
               <strong>
-                <span className="ar">الصورة جاهزة للرفع</span>
-                <span className="en" style={{ display: 'block', fontSize: '0.75rem' }}>
-                  Image looks good — ready to upload
-                </span>
+                <L>{{ ar: <>الصورة جاهزة للرفع</>, en: <>Image looks good — ready to upload</> }}</L>
               </strong>
             </div>
           ) : (
             <div className="alert alert--warning" style={{ marginTop: '1rem' }}>
               <strong>
-                <span className="ar">يُنصح بإعادة الالتقاط:</span>
-                <span className="en" style={{ display: 'block', fontSize: '0.75rem' }}>
-                  We recommend retaking this photo:
-                </span>
+                <L>{{ ar: <>يُنصح بإعادة الالتقاط:</>, en: <>We recommend retaking this photo:</> }}</L>
               </strong>
               <ul style={{ marginTop: '0.5rem', paddingInlineStart: '1.25rem' }}>
                 {verdict.issues.map((issue) => (
                   <li key={issue.code} style={{ marginBottom: '0.4rem' }}>
-                    <span className="ar">{issue.ar}</span>
-                    <span className="en" style={{ display: 'block', fontSize: '0.85rem', opacity: 0.85 }}>
-                      {issue.en}
-                      {issue.hint ? ` (${issue.hint})` : ''}
-                    </span>
+                    <L>{{ ar: <>{issue.ar}</>, en: <>{issue.en}
+                      {issue.hint ? ` (${issue.hint})` : ''}</> }}</L>
                   </li>
                 ))}
               </ul>
@@ -182,16 +163,14 @@ export default function UploadPreview({
             className="btn btn--outline"
             onClick={onCancel}
           >
-            <span className="ar">إلغاء</span>
-            <span className="en"> · Cancel</span>
+            <L ar="إلغاء" en="· Cancel" />
           </button>
           <button
             type="button"
             className="btn btn--outline"
             onClick={onRetake}
           >
-            <span className="ar">اختيار صورة أخرى</span>
-            <span className="en"> · Choose different photo</span>
+            <L ar="اختيار صورة أخرى" en="· Choose different photo" />
           </button>
           <button
             type="button"
@@ -204,8 +183,7 @@ export default function UploadPreview({
                 : 'Fix the quality issues above or retake the photo'
             }
           >
-            <span className="ar">رفع الصورة</span>
-            <span className="en"> · Upload</span>
+            <L ar="رفع الصورة" en="· Upload" />
           </button>
         </footer>
       </div>

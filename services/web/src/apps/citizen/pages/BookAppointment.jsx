@@ -5,6 +5,7 @@ import { casesApi } from '@shared/api/cases';
 import { useToast } from '@shared/context/useToast';
 import flagImg from '@shared/assets/Figure_1.png';
 import '@shared/styles/dashboard.css';
+import L from '@shared/components/L';
 
 // Biometric appointment booking. Lebanese passport flow gates on a
 // physical visit to a GDGS centre for fingerprint + signature
@@ -106,7 +107,7 @@ export default function BookAppointment() {
   const wrongStatus = caseStatus && caseStatus !== 'biometric_appointment_required';
 
   return (
-    <div className="dashboard" dir="rtl">
+    <div className="dashboard">
       <header className="dashboard-header">
         <div className="dashboard-header__inner">
           <div className="dashboard-header__brand">
@@ -122,8 +123,7 @@ export default function BookAppointment() {
           </div>
           <div className="dashboard-header__actions">
             <Link to={`/case/${caseId}`} className="btn btn--outline btn--sm">
-              <span className="ar">العودة للطلب</span>
-              <span className="en"> · Back to case</span>
+              <L ar="العودة للطلب" en="· Back to case" />
             </Link>
           </div>
         </div>
@@ -133,8 +133,7 @@ export default function BookAppointment() {
         {existing && (
           <section className="detail-section">
             <h2>
-              <span className="ar">الموعد الحالي</span>
-              <span className="en">Current appointment</span>
+              <L ar="الموعد الحالي" en="Current appointment" />
             </h2>
             <p>
               <strong>{existing.centre_name_ar} / {existing.centre_name_en}</strong>
@@ -148,10 +147,7 @@ export default function BookAppointment() {
               <span style={{ color: '#6b7280' }}>{existing.status}</span>
             </p>
             <p style={{ fontSize: '0.85rem', color: '#6b7280' }}>
-              <span className="ar">يمكنك تعديل الموعد بحجز موعد جديد أدناه.</span>
-              <span className="en" style={{ display: 'block' }}>
-                You can reschedule by picking another slot below.
-              </span>
+              <L>{{ ar: <>يمكنك تعديل الموعد بحجز موعد جديد أدناه.</>, en: <>You can reschedule by picking another slot below.</> }}</L>
             </p>
           </section>
         )}
@@ -159,18 +155,14 @@ export default function BookAppointment() {
         {wrongStatus && (
           <section className="detail-section" style={{ borderColor: '#fbbf24' }}>
             <p>
-              <span className="ar">طلبك ليس بانتظار حجز موعد بصمات حالياً (الحالة: {caseStatus}).</span>
-              <span className="en" style={{ display: 'block' }}>
-                Your case is not currently awaiting a biometric appointment (status: {caseStatus}).
-              </span>
+              <L>{{ ar: <>طلبك ليس بانتظار حجز موعد بصمات حالياً (الحالة: {caseStatus}).</>, en: <>Your case is not currently awaiting a biometric appointment (status: {caseStatus}).</> }}</L>
             </p>
           </section>
         )}
 
         <section className="detail-section">
           <h2>
-            <span className="ar">١. اختر مركز الأمن العام</span>
-            <span className="en">1. Choose a GDGS centre</span>
+            <L ar="١. اختر مركز الأمن العام" en="1. Choose a GDGS centre" />
           </h2>
           <select
             value={centreId}
@@ -189,17 +181,13 @@ export default function BookAppointment() {
         {centreId && (
           <section className="detail-section">
             <h2>
-              <span className="ar">٢. اختر الموعد</span>
-              <span className="en">2. Choose a time slot</span>
+              <L ar="٢. اختر الموعد" en="2. Choose a time slot" />
             </h2>
             {loadingSlots ? (
               <p>Loading slots…</p>
             ) : slots.length === 0 ? (
               <p>
-                <span className="ar">لا توجد مواعيد متاحة في الأسبوعين القادمين.</span>
-                <span className="en" style={{ display: 'block' }}>
-                  No open slots in the next two weeks.
-                </span>
+                <L>{{ ar: <>لا توجد مواعيد متاحة في الأسبوعين القادمين.</>, en: <>No open slots in the next two weeks.</> }}</L>
               </p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -226,12 +214,7 @@ export default function BookAppointment() {
         )}
 
         <p style={{ fontSize: '0.85rem', color: '#6b7280' }}>
-          <span className="ar">
-            ساعات العمل في مراكز الأمن العام: ٩:٠٠ – ١٥:٠٠ من الإثنين إلى الجمعة. لا يمكن الحجز قبل أقل من ساعة من الموعد.
-          </span>
-          <span className="en" style={{ display: 'block' }}>
-            GDGS hours: 09:00–15:00, Mon–Fri. No same-hour bookings.
-          </span>
+          <L>{{ ar: <>ساعات العمل في مراكز الأمن العام: ٩:٠٠ – ١٥:٠٠ من الإثنين إلى الجمعة. لا يمكن الحجز قبل أقل من ساعة من الموعد.</>, en: <>GDGS hours: 09:00–15:00, Mon–Fri. No same-hour bookings.</> }}</L>
         </p>
       </main>
     </div>

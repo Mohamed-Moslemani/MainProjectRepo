@@ -1,10 +1,11 @@
 import { Link } from 'react-router-dom';
 import flagImg from '@shared/assets/Figure_1.png';
 import '@shared/styles/dashboard.css';
+import L from '@shared/components/L';
 
 export default function NotFound() {
   return (
-    <div className="dashboard" dir="rtl" style={{ minHeight: '100vh', background: '#fafbfc' }}>
+    <div className="dashboard" style={{ minHeight: '100vh', background: '#fafbfc' }}>
       <header className="dashboard-header">
         <div className="dashboard-header__brand">
           <img src={flagImg} alt="" className="dashboard-header__flag" />
@@ -40,12 +41,10 @@ export default function NotFound() {
 
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginTop: 32 }}>
             <Link to="/dashboard" className="btn btn--primary">
-              <span className="ar">لوحة التحكم</span>
-              <span className="en">Dashboard</span>
+              <L ar="لوحة التحكم" en="Dashboard" />
             </Link>
             <Link to="/login" className="btn btn--outline">
-              <span className="ar">تسجيل الدخول</span>
-              <span className="en">Sign In</span>
+              <L ar="تسجيل الدخول" en="Sign In" />
             </Link>
           </div>
         </div>

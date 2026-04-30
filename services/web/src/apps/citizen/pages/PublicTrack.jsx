@@ -3,6 +3,7 @@ import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { casesApi } from '@shared/api/cases';
 import flagImg from '@shared/assets/Figure_1.png';
 import '@shared/styles/dashboard.css';
+import L from '@shared/components/L';
 
 const STATUS_MAP = {
   draft: { ar: 'مسودة', en: 'Draft', color: 'gray' },
@@ -87,7 +88,7 @@ export default function PublicTrack() {
   const st = tracking ? STATUS_MAP[tracking.current_status] || { ar: '', en: '', color: 'gray' } : null;
 
   return (
-    <div className="dashboard" dir="rtl">
+    <div className="dashboard">
       <header className="dashboard-header">
         <div className="dashboard-header__inner">
           <div className="dashboard-header__brand">
@@ -103,8 +104,7 @@ export default function PublicTrack() {
           </div>
           <div className="dashboard-header__actions">
             <Link to="/login" className="btn btn--outline btn--sm">
-              <span className="ar">تسجيل الدخول</span>
-              <span className="en"> · Login</span>
+              <L ar="تسجيل الدخول" en="· Login" />
             </Link>
           </div>
         </div>
@@ -113,8 +113,7 @@ export default function PublicTrack() {
       <main className="dashboard-main" style={{ maxWidth: 720 }}>
         <section className="detail-section">
           <h2>
-            <span className="ar">أدخل رقم التتبع</span>
-            <span className="en">Enter tracking ID</span>
+            <L ar="أدخل رقم التتبع" en="Enter tracking ID" />
           </h2>
           <form onSubmit={onSubmit} style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
             <input
@@ -135,17 +134,11 @@ export default function PublicTrack() {
               autoFocus
             />
             <button type="submit" className="btn btn--primary" disabled={!input.trim()}>
-              <span className="ar">تتبع</span>
-              <span className="en"> · Track</span>
+              <L ar="تتبع" en="· Track" />
             </button>
           </form>
           <p style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: '0.5rem' }}>
-            <span className="ar">
-              رقم التتبع يبدأ بـ DFL- ويظهر عند تقديم طلبك.
-            </span>
-            <span className="en" style={{ display: 'block' }}>
-              The tracking ID starts with DFL- and is shown when you submit an application.
-            </span>
+            <L ar="رقم التتبع يبدأ بـ DFL- ويظهر عند تقديم طلبك." en="The tracking ID starts with DFL- and is shown when you submit an application." />
           </p>
         </section>
 
@@ -165,27 +158,23 @@ export default function PublicTrack() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
                 <div>
                   <p style={{ fontSize: '0.8rem', color: '#6b7280', margin: 0 }}>
-                    <span className="ar">رقم التتبع</span>
-                    <span className="en"> · Tracking ID</span>
+                    <L ar="رقم التتبع" en="· Tracking ID" />
                   </p>
                   <p style={{ fontFamily: 'monospace', fontSize: '1.1rem', margin: '0.25rem 0 0', letterSpacing: '0.04em' }}>
                     {tracking.tracking_id}
                   </p>
                   <p style={{ fontSize: '0.85rem', color: '#6b7280', margin: '0.5rem 0 0' }}>
-                    <span className="ar">نوع الخدمة:</span>
-                    <span className="en"> · Service: </span>
+                    <L ar="نوع الخدمة:" en="· Service:" />
                     <strong>{tracking.service_type.replace('_', ' ')}</strong>
                   </p>
                 </div>
                 <span className={`status-badge status-badge--${st.color} status-badge--lg`}>
-                  <span className="ar">{st.ar}</span>
-                  <span className="en">{st.en}</span>
+                  <L>{{ ar: <>{st.ar}</>, en: <>{st.en}</> }}</L>
                 </span>
               </div>
               {tracking.next_action && (
                 <div className="alert alert--info" style={{ marginTop: '1rem' }}>
-                  <span className="ar">الخطوة التالية:</span>
-                  <span className="en"> · Next action: </span>
+                  <L ar="الخطوة التالية:" en="· Next action:" />
                   {tracking.next_action}
                 </div>
               )}
@@ -193,8 +182,7 @@ export default function PublicTrack() {
 
             <section className="detail-section">
               <h2>
-                <span className="ar">مسار الطلب</span>
-                <span className="en">Application Timeline</span>
+                <L ar="مسار الطلب" en="Application Timeline" />
               </h2>
               <div className="timeline">
                 {tracking.events.map((ev, i) => {
@@ -205,8 +193,7 @@ export default function PublicTrack() {
                       <div className="timeline__content">
                         <div className="timeline__header">
                           <strong>
-                            <span className="ar">{evSt.ar}</span>
-                            <span className="en"> · {evSt.en}</span>
+                            <L>{{ ar: <>{evSt.ar}</>, en: <>· {evSt.en}</> }}</L>
                           </strong>
                           <span className="timeline__time">
                             {new Date(ev.timestamp).toLocaleString('ar-LB')}

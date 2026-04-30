@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { adminApi } from '@shared/api/admin';
 import AgeBadge from '@shared/components/AgeBadge';
 import ReconciliationDiff from '@shared/components/ReconciliationDiff';
+import L from '@shared/components/L';
 
 const SERVICE_LABELS = {
   id_new: { ar: 'هوية جديدة', en: 'New ID' },
@@ -144,22 +145,19 @@ export default function AdminReviewQueue() {
     return (
       <div className="admin-page">
         <button className="btn-back" onClick={() => { setSelectedCase(null); setCaseDetail(null); }}>
-          <span className="ar">← العودة للقائمة</span>
-          <span className="en">← Back to Queue</span>
+          <L ar="← العودة للقائمة" en="← Back to Queue" />
         </button>
 
         <div className="review-header">
           <div className="review-header__left">
             <h1 className="review-header__tracking">#{c.tracking_id}</h1>
             <span className="review-header__service">
-              <span className="ar">{svcLabel.ar}</span>
-              <span className="en">{svcLabel.en}</span>
+              <L>{{ ar: <>{svcLabel.ar}</>, en: <>{svcLabel.en}</> }}</L>
             </span>
           </div>
           <div className="review-header__right">
             <span className="review-header__status">
-              <span className="ar">مراجعة يدوية</span>
-              <span className="en">Manual Review</span>
+              <L ar="مراجعة يدوية" en="Manual Review" />
             </span>
             <AgeBadge createdAt={c.created_at} />
             <span className="review-header__date">
@@ -175,12 +173,10 @@ export default function AdminReviewQueue() {
           </div>
           <div className="risk-banner__details">
             <strong>
-              <span className="ar">درجة المخاطر</span>
-              <span className="en">Risk Score</span>
+              <L ar="درجة المخاطر" en="Risk Score" />
             </strong>
             <p>
-              <span className="ar">القرار الآلي: {risk.routing === 'manual_review' ? 'مراجعة يدوية' : risk.routing || '—'}</span>
-              <span className="en">AI Decision: {risk.routing || '—'}</span>
+              <L>{{ ar: <>القرار الآلي: {risk.routing === 'manual_review' ? 'مراجعة يدوية' : risk.routing || '—'}</>, en: <>AI Decision: {risk.routing || '—'}</> }}</L>
             </p>
             {risk.breakdown && (
               <div className="risk-breakdown">
@@ -198,8 +194,7 @@ export default function AdminReviewQueue() {
           {/* Applicant Info */}
           <div className="review-section">
             <h3>
-              <span className="ar">معلومات مقدم الطلب</span>
-              <span className="en">Applicant Information</span>
+              <L ar="معلومات مقدم الطلب" en="Applicant Information" />
             </h3>
             {owner ? (
               <dl className="review-dl">
@@ -208,15 +203,15 @@ export default function AdminReviewQueue() {
                   const fl = FIELD_LABELS[field] || { ar: field, en: field };
                   return (
                     <div key={field} className="review-dl__row">
-                      <dt><span className="ar">{fl.ar}</span><span className="en">{fl.en}</span></dt>
+                      <dt><L>{{ ar: <>{fl.ar}</>, en: <>{fl.en}</> }}</L></dt>
                       <dd>{String(owner[field])}</dd>
                     </div>
                   );
                 })}
                 {gov && (
                   <div className="review-dl__row">
-                    <dt><span className="ar">المحافظة</span><span className="en">Governorate</span></dt>
-                    <dd><span className="ar">{gov.ar}</span> <span className="en">({gov.en})</span></dd>
+                    <dt><L ar="المحافظة" en="Governorate" /></dt>
+                    <dd><L>{{ ar: <>{gov.ar}</>, en: <>({gov.en})</> }}</L></dd>
                   </div>
                 )}
               </dl>
@@ -226,8 +221,7 @@ export default function AdminReviewQueue() {
           {/* Declared Fields vs OCR */}
           <div className="review-section">
             <h3>
-              <span className="ar">البيانات المصرّحة</span>
-              <span className="en">Declared Fields</span>
+              <L ar="البيانات المصرّحة" en="Declared Fields" />
             </h3>
             {c.declared_fields && Object.keys(c.declared_fields).length > 0 ? (
               <dl className="review-dl">
@@ -236,7 +230,7 @@ export default function AdminReviewQueue() {
                   const mismatch = recon.mismatch_flags?.includes(key);
                   return (
                     <div key={key} className={`review-dl__row ${mismatch ? 'review-dl__row--mismatch' : ''}`}>
-                      <dt><span className="ar">{fl.ar}</span><span className="en">{fl.en}</span></dt>
+                      <dt><L>{{ ar: <>{fl.ar}</>, en: <>{fl.en}</> }}</L></dt>
                       <dd>
                         {String(val)}
                         {mismatch && <span className="mismatch-badge">⚠ mismatch</span>}
@@ -251,23 +245,22 @@ export default function AdminReviewQueue() {
           {/* Reconciliation */}
           <div className="review-section">
             <h3>
-              <span className="ar">نتيجة المطابقة</span>
-              <span className="en">Reconciliation</span>
+              <L ar="نتيجة المطابقة" en="Reconciliation" />
             </h3>
             <dl className="review-dl">
               <div className="review-dl__row">
-                <dt><span className="ar">نسبة التكامل</span><span className="en">Integrity Score</span></dt>
+                <dt><L ar="نسبة التكامل" en="Integrity Score" /></dt>
                 <dd style={{ fontWeight: 700 }}>
                   {recon.integrity_score != null ? `${Math.round(recon.integrity_score * 100)}%` : '—'}
                 </dd>
               </div>
               <div className="review-dl__row">
-                <dt><span className="ar">النتيجة</span><span className="en">Validation</span></dt>
+                <dt><L ar="النتيجة" en="Validation" /></dt>
                 <dd>{recon.validation_result || '—'}</dd>
               </div>
               {recon.mismatch_flags?.length > 0 && (
                 <div className="review-dl__row">
-                  <dt><span className="ar">حقول غير متطابقة</span><span className="en">Mismatches</span></dt>
+                  <dt><L ar="حقول غير متطابقة" en="Mismatches" /></dt>
                   <dd>
                     {recon.mismatch_flags.map((f, i) => (
                       <span key={i} className="mismatch-tag">{f}</span>
@@ -281,12 +274,11 @@ export default function AdminReviewQueue() {
           {/* Liveness / Face */}
           <div className="review-section">
             <h3>
-              <span className="ar">التحقق من الوجه</span>
-              <span className="en">Face Verification</span>
+              <L ar="التحقق من الوجه" en="Face Verification" />
             </h3>
             <dl className="review-dl">
               <div className="review-dl__row">
-                <dt><span className="ar">حالة الحيوية</span><span className="en">Liveness</span></dt>
+                <dt><L ar="حالة الحيوية" en="Liveness" /></dt>
                 <dd>
                   {liveness.liveness_passed
                     ? <span style={{ color: '#22c55e', fontWeight: 700 }}>✓ Passed</span>
@@ -296,16 +288,16 @@ export default function AdminReviewQueue() {
                 </dd>
               </div>
               <div className="review-dl__row">
-                <dt><span className="ar">الثقة</span><span className="en">Confidence</span></dt>
+                <dt><L ar="الثقة" en="Confidence" /></dt>
                 <dd>{liveness.confidence != null ? `${liveness.confidence.toFixed(1)}%` : '—'}</dd>
               </div>
               <div className="review-dl__row">
-                <dt><span className="ar">تشابه الوجه</span><span className="en">Similarity</span></dt>
+                <dt><L ar="تشابه الوجه" en="Similarity" /></dt>
                 <dd>{liveness.similarity_score != null ? `${liveness.similarity_score.toFixed(1)}%` : '—'}</dd>
               </div>
               {liveness.reasons?.length > 0 && (
                 <div className="review-dl__row">
-                  <dt><span className="ar">ملاحظات</span><span className="en">Reasons</span></dt>
+                  <dt><L ar="ملاحظات" en="Reasons" /></dt>
                   <dd>
                     {liveness.reasons.map((r, i) => <div key={i} style={{ color: '#f59e0b', fontSize: '0.85rem' }}>{r}</div>)}
                   </dd>
@@ -324,8 +316,7 @@ export default function AdminReviewQueue() {
           {/* Documents */}
           <div className="review-section">
             <h3>
-              <span className="ar">المستندات ({d.documents?.length || 0})</span>
-              <span className="en">Documents</span>
+              <L>{{ ar: <>المستندات ({d.documents?.length || 0})</>, en: <>Documents</> }}</L>
             </h3>
             <div className="review-docs">
               {(d.documents || []).map(doc => (
@@ -342,7 +333,7 @@ export default function AdminReviewQueue() {
           {/* Payments */}
           {d.payments?.length > 0 && (
             <div className="review-section">
-              <h3><span className="ar">المدفوعات</span><span className="en">Payments</span></h3>
+              <h3><L ar="المدفوعات" en="Payments" /></h3>
               {d.payments.map(p => (
                 <div key={p.id} className="review-payment">
                   <span>${(p.amount / 100).toFixed(2)}</span>
@@ -357,16 +348,13 @@ export default function AdminReviewQueue() {
         {/* Action Buttons */}
         <div className="review-actions">
           <button className="review-action-btn review-action-btn--approve" onClick={() => { setActionModal('approve'); setNotes(''); }}>
-            <span className="ar">✓ موافقة</span>
-            <span className="en">✓ Approve</span>
+            <L ar="✓ موافقة" en="✓ Approve" />
           </button>
           <button className="review-action-btn review-action-btn--need-info" onClick={() => { setActionModal('need_info'); setNotes(''); }}>
-            <span className="ar">? طلب معلومات</span>
-            <span className="en">? Request Info</span>
+            <L ar="? طلب معلومات" en="? Request Info" />
           </button>
           <button className="review-action-btn review-action-btn--reject" onClick={() => { setActionModal('reject'); setNotes(''); setRejectionReasons(''); }}>
-            <span className="ar">✗ رفض</span>
-            <span className="en">✗ Reject</span>
+            <L ar="✗ رفض" en="✗ Reject" />
           </button>
         </div>
 
@@ -375,17 +363,16 @@ export default function AdminReviewQueue() {
           <div className="modal-overlay" onClick={() => setActionModal(null)}>
             <div className="modal" onClick={e => e.stopPropagation()}>
               <h3 className="modal__title">
-                {actionModal === 'approve' && <><span className="ar">تأكيد الموافقة</span><span className="en">Confirm Approval</span></>}
-                {actionModal === 'reject' && <><span className="ar">تأكيد الرفض</span><span className="en">Confirm Rejection</span></>}
-                {actionModal === 'need_info' && <><span className="ar">طلب معلومات إضافية</span><span className="en">Request More Info</span></>}
+                {actionModal === 'approve' && <><L ar="تأكيد الموافقة" en="Confirm Approval" /></>}
+                {actionModal === 'reject' && <><L ar="تأكيد الرفض" en="Confirm Rejection" /></>}
+                {actionModal === 'need_info' && <><L ar="طلب معلومات إضافية" en="Request More Info" /></>}
               </h3>
               <p className="modal__subtitle">{selectedCase.tracking_id}</p>
               <form onSubmit={handleAction}>
                 {actionModal === 'reject' && (
                   <div className="form-group">
                     <label className="form-label">
-                      <span className="ar">أسباب الرفض (سبب في كل سطر)</span>
-                      <span className="en">Rejection Reasons (one per line)</span>
+                      <L ar="أسباب الرفض (سبب في كل سطر)" en="Rejection Reasons (one per line)" />
                     </label>
                     <textarea className="form-input" rows={3} value={rejectionReasons}
                       onChange={e => setRejectionReasons(e.target.value)}
@@ -394,8 +381,7 @@ export default function AdminReviewQueue() {
                 )}
                 <div className="form-group">
                   <label className="form-label">
-                    <span className="ar">ملاحظات {actionModal !== 'reject' ? '(مطلوب)' : '(اختياري)'}</span>
-                    <span className="en">Notes {actionModal !== 'reject' ? '(required)' : '(optional)'}</span>
+                    <L>{{ ar: <>ملاحظات {actionModal !== 'reject' ? '(مطلوب)' : '(اختياري)'}</>, en: <>Notes {actionModal !== 'reject' ? '(required)' : '(optional)'}</> }}</L>
                   </label>
                   <textarea className="form-input" rows={2} value={notes}
                     onChange={e => setNotes(e.target.value)}
@@ -404,10 +390,10 @@ export default function AdminReviewQueue() {
                 </div>
                 <div className="modal__actions">
                   <button type="button" className="btn-small btn-small--ghost" onClick={() => setActionModal(null)}>
-                    <span className="ar">إلغاء</span><span className="en">Cancel</span>
+                    <L ar="إلغاء" en="Cancel" />
                   </button>
                   <button type="submit" className={`btn-small btn-small--${actionModal === 'reject' ? 'danger' : 'primary'}`} disabled={submitting}>
-                    {submitting ? '...' : <><span className="ar">تأكيد</span><span className="en">Confirm</span></>}
+                    {submitting ? '...' : <><L ar="تأكيد" en="Confirm" /></>}
                   </button>
                 </div>
               </form>
@@ -423,7 +409,7 @@ export default function AdminReviewQueue() {
     return (
       <div className="admin-page">
         <button className="btn-back" onClick={() => setSelectedCase(null)}>
-          <span className="ar">← العودة</span><span className="en">← Back</span>
+          <L ar="← العودة" en="← Back" />
         </button>
         <div className="admin-loading"><div className="spinner spinner--dark" /></div>
       </div>
@@ -435,12 +421,10 @@ export default function AdminReviewQueue() {
     <div className="admin-page">
       <div className="admin-page__header">
         <h1 className="admin-page__title">
-          <span className="ar">طابور المراجعة اليدوية</span>
-          <span className="en">Manual Review Queue</span>
+          <L ar="طابور المراجعة اليدوية" en="Manual Review Queue" />
         </h1>
         <p className="admin-page__subtitle">
-          <span className="ar">الطلبات التي لم تحصل على ثقة كافية من الذكاء الاصطناعي — تحتاج قرار الموظف</span>
-          <span className="en">Cases with low AI confidence — require clerk decision</span>
+          <L ar="الطلبات التي لم تحصل على ثقة كافية من الذكاء الاصطناعي — تحتاج قرار الموظف" en="Cases with low AI confidence — require clerk decision" />
         </p>
       </div>
 
@@ -451,7 +435,7 @@ export default function AdminReviewQueue() {
       ) : cases.length === 0 ? (
         <div className="admin-empty" style={{ textAlign: 'center', padding: '4rem 2rem' }}>
           <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>✓</div>
-          <h3><span className="ar">لا توجد طلبات بحاجة لمراجعة</span><span className="en">No cases need review</span></h3>
+          <h3><L ar="لا توجد طلبات بحاجة لمراجعة" en="No cases need review" /></h3>
           <p style={{ color: '#9ca3af' }}><span className="en">All caught up!</span></p>
         </div>
       ) : (
@@ -464,8 +448,7 @@ export default function AdminReviewQueue() {
                 <div className="review-queue__card-left">
                   <span className="review-queue__tracking">#{c.tracking_id}</span>
                   <span className="review-queue__service">
-                    <span className="ar">{svcLabel.ar}</span>
-                    <span className="en">{svcLabel.en}</span>
+                    <L>{{ ar: <>{svcLabel.ar}</>, en: <>{svcLabel.en}</> }}</L>
                   </span>
                   <span className="review-queue__date">
                     {new Date(c.created_at).toLocaleDateString('ar-LB')}

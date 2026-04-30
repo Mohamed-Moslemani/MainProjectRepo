@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { adminApi } from '@shared/api/admin';
+import L from '@shared/components/L';
 
 const STATUS_LABELS = {
   draft: { ar: 'مسودة', en: 'Draft', color: '#9ca3af' },
@@ -50,12 +51,10 @@ export default function AdminDashboard() {
     <div className="admin-page">
       <div className="admin-page__header">
         <h1 className="admin-page__title">
-          <span className="ar">لوحة التحكم</span>
-          <span className="en">Dashboard</span>
+          <L ar="لوحة التحكم" en="Dashboard" />
         </h1>
         <p className="admin-page__subtitle">
-          <span className="ar">مركز إدارة الطلبات — نظرة عامة</span>
-          <span className="en">Case management center — overview</span>
+          <L ar="مركز إدارة الطلبات — نظرة عامة" en="Case management center — overview" />
         </p>
       </div>
 
@@ -63,27 +62,27 @@ export default function AdminDashboard() {
       <div className="kpi-row">
         <div className="kpi-card kpi-card--primary" onClick={() => navigate('/admin/cases')}>
           <span className="kpi-card__value">{stats.total_cases}</span>
-          <span className="kpi-card__label"><span className="ar">إجمالي الطلبات</span><span className="en">Total Cases</span></span>
+          <span className="kpi-card__label"><L ar="إجمالي الطلبات" en="Total Cases" /></span>
         </div>
         <div className="kpi-card kpi-card--warning" onClick={() => navigate('/admin/review')}>
           <span className="kpi-card__value">{stats.review_queue}</span>
-          <span className="kpi-card__label"><span className="ar">بانتظار المراجعة</span><span className="en">Review Queue</span></span>
+          <span className="kpi-card__label"><L ar="بانتظار المراجعة" en="Review Queue" /></span>
         </div>
         <div className="kpi-card kpi-card--info">
           <span className="kpi-card__value">{stats.cases_today}</span>
-          <span className="kpi-card__label"><span className="ar">طلبات اليوم</span><span className="en">Today's Cases</span></span>
+          <span className="kpi-card__label"><L ar="طلبات اليوم" en="Today's Cases" /></span>
         </div>
         <div className="kpi-card kpi-card--success">
           <span className="kpi-card__value">${((stats.total_revenue_cents || 0) / 100).toLocaleString()}</span>
-          <span className="kpi-card__label"><span className="ar">إجمالي الإيرادات</span><span className="en">Total Revenue</span></span>
+          <span className="kpi-card__label"><L ar="إجمالي الإيرادات" en="Total Revenue" /></span>
         </div>
         <div className="kpi-card">
           <span className="kpi-card__value">{stats.total_users}</span>
-          <span className="kpi-card__label"><span className="ar">المستخدمين</span><span className="en">Users</span></span>
+          <span className="kpi-card__label"><L ar="المستخدمين" en="Users" /></span>
         </div>
         <div className="kpi-card kpi-card--info">
           <span className="kpi-card__value">{totalActive}</span>
-          <span className="kpi-card__label"><span className="ar">طلبات نشطة</span><span className="en">Active Cases</span></span>
+          <span className="kpi-card__label"><L ar="طلبات نشطة" en="Active Cases" /></span>
         </div>
       </div>
 
@@ -93,17 +92,14 @@ export default function AdminDashboard() {
           <div className="review-alert__icon">⚠️</div>
           <div className="review-alert__content">
             <strong>
-              <span className="ar">{stats.review_queue} طلبات تحتاج مراجعة يدوية</span>
-              <span className="en">{stats.review_queue} cases need manual review</span>
+              <L>{{ ar: <>{stats.review_queue} طلبات تحتاج مراجعة يدوية</>, en: <>{stats.review_queue} cases need manual review</> }}</L>
             </strong>
             <p>
-              <span className="ar">هذه الطلبات لم تحصل على ثقة كافية من الذكاء الاصطناعي وتحتاج قرار الموظف.</span>
-              <span className="en">These cases had low AI confidence and need a clerk decision.</span>
+              <L ar="هذه الطلبات لم تحصل على ثقة كافية من الذكاء الاصطناعي وتحتاج قرار الموظف." en="These cases had low AI confidence and need a clerk decision." />
             </p>
           </div>
           <span className="review-alert__action">
-            <span className="ar">مراجعة الآن ←</span>
-            <span className="en">Review Now →</span>
+            <L ar="مراجعة الآن ←" en="Review Now →" />
           </span>
         </div>
       )}
@@ -111,8 +107,7 @@ export default function AdminDashboard() {
       {/* Status Breakdown */}
       <div className="admin-section">
         <h2 className="admin-section__title">
-          <span className="ar">توزيع الحالات</span>
-          <span className="en">Status Distribution</span>
+          <L ar="توزيع الحالات" en="Status Distribution" />
         </h2>
         <div className="status-grid">
           {Object.entries(STATUS_LABELS).map(([status, label]) => {
@@ -127,8 +122,7 @@ export default function AdminDashboard() {
               >
                 <span className="status-card__count" style={{ color: label.color }}>{count}</span>
                 <span className="status-card__label">
-                  <span className="ar">{label.ar}</span>
-                  <span className="en">{label.en}</span>
+                  <L>{{ ar: <>{label.ar}</>, en: <>{label.en}</> }}</L>
                 </span>
               </div>
             );
@@ -139,8 +133,7 @@ export default function AdminDashboard() {
       {/* Service Type Breakdown */}
       <div className="admin-section">
         <h2 className="admin-section__title">
-          <span className="ar">حسب نوع الخدمة</span>
-          <span className="en">By Service Type</span>
+          <L ar="حسب نوع الخدمة" en="By Service Type" />
         </h2>
         <div className="service-grid">
           {Object.entries(SERVICE_LABELS).map(([svc, label]) => {
@@ -154,8 +147,7 @@ export default function AdminDashboard() {
                 <span className="service-card__icon">{label.icon}</span>
                 <span className="service-card__count">{count}</span>
                 <span className="service-card__label">
-                  <span className="ar">{label.ar}</span>
-                  <span className="en">{label.en}</span>
+                  <L>{{ ar: <>{label.ar}</>, en: <>{label.en}</> }}</L>
                 </span>
               </div>
             );
@@ -167,8 +159,7 @@ export default function AdminDashboard() {
       {stats.total_cases > 0 && (
         <div className="admin-section">
           <h2 className="admin-section__title">
-            <span className="ar">حالة خط الأنابيب</span>
-            <span className="en">Pipeline Status</span>
+            <L ar="حالة خط الأنابيب" en="Pipeline Status" />
           </h2>
           <div className="pipeline-bar">
             {Object.entries(byStatus).map(([status, count]) => {
@@ -202,29 +193,28 @@ export default function AdminDashboard() {
       {/* Quick Actions */}
       <div className="admin-section">
         <h2 className="admin-section__title">
-          <span className="ar">إجراءات سريعة</span>
-          <span className="en">Quick Actions</span>
+          <L ar="إجراءات سريعة" en="Quick Actions" />
         </h2>
         <div className="quick-actions">
           <button className="quick-action" onClick={() => navigate('/admin/review')}>
             <span className="quick-action__icon quick-action__icon--yellow">⚖</span>
             <div>
-              <strong><span className="ar">مراجعة الطلبات</span><span className="en">Review Cases</span></strong>
-              <p><span className="ar">{stats.review_queue} طلبات بانتظار قرارك</span><span className="en">{stats.review_queue} cases awaiting your decision</span></p>
+              <strong><L ar="مراجعة الطلبات" en="Review Cases" /></strong>
+              <p><L>{{ ar: <>{stats.review_queue} طلبات بانتظار قرارك</>, en: <>{stats.review_queue} cases awaiting your decision</> }}</L></p>
             </div>
           </button>
           <button className="quick-action" onClick={() => navigate('/admin/cases?status=need_info')}>
             <span className="quick-action__icon quick-action__icon--orange">?</span>
             <div>
-              <strong><span className="ar">بحاجة لمعلومات</span><span className="en">Needs Information</span></strong>
-              <p><span className="ar">{byStatus.need_info || 0} طلبات تنتظر رد المواطن</span><span className="en">{byStatus.need_info || 0} awaiting citizen response</span></p>
+              <strong><L ar="بحاجة لمعلومات" en="Needs Information" /></strong>
+              <p><L>{{ ar: <>{byStatus.need_info || 0} طلبات تنتظر رد المواطن</>, en: <>{byStatus.need_info || 0} awaiting citizen response</> }}</L></p>
             </div>
           </button>
           <button className="quick-action" onClick={() => navigate('/admin/cases?status=ready_for_pickup')}>
             <span className="quick-action__icon quick-action__icon--green">📦</span>
             <div>
-              <strong><span className="ar">جاهز للاستلام</span><span className="en">Ready for Pickup</span></strong>
-              <p><span className="ar">{byStatus.ready_for_pickup || 0} مستندات جاهزة</span><span className="en">{byStatus.ready_for_pickup || 0} documents ready</span></p>
+              <strong><L ar="جاهز للاستلام" en="Ready for Pickup" /></strong>
+              <p><L>{{ ar: <>{byStatus.ready_for_pickup || 0} مستندات جاهزة</>, en: <>{byStatus.ready_for_pickup || 0} documents ready</> }}</L></p>
             </div>
           </button>
         </div>

@@ -1,9 +1,10 @@
 import '@shared/styles/auth.css';
 import flagImg from '@shared/assets/Figure_1.png';
+import L from '@shared/components/L';
 
 export default function AuthLayout({ children }) {
   return (
-    <div className="auth-layout" dir="rtl">
+    <div className="auth-layout">
       <div className="auth-panel">
         <div className="auth-panel__bg-circle auth-panel__bg-circle--1" />
         <div className="auth-panel__bg-circle auth-panel__bg-circle--2" />
@@ -12,16 +13,10 @@ export default function AuthLayout({ children }) {
         <h1 className="auth-panel__title">DocFlow Lebanon</h1>
         <div className="auth-panel__divider" />
         <p className="auth-panel__subtitle">
-          <span className="ar">بوابتك للخدمات الحكومية الإلكترونية</span>
-          <span className="en" style={{ fontSize: '0.85rem', marginTop: '0.5rem' }}>
-            Your gateway to hassle-free government document services
-          </span>
+          <L>{{ ar: <>بوابتك للخدمات الحكومية الإلكترونية</>, en: <>Your gateway to hassle-free government document services</> }}</L>
         </p>
         <p className="auth-panel__tagline">
-          <span className="ar">قدّم إلكترونياً، تابع طلبك، استلم بزيارة واحدة</span>
-          <span className="en" style={{ fontSize: '0.75rem' }}>
-            Apply online, track progress, pick up once
-          </span>
+          <L>{{ ar: <>قدّم إلكترونياً، تابع طلبك، استلم بزيارة واحدة</>, en: <>Apply online, track progress, pick up once</> }}</L>
         </p>
       </div>
       <div className="auth-content">

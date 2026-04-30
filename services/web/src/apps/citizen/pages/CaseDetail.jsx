@@ -12,6 +12,7 @@ import flagImg from '@shared/assets/Figure_1.png';
 import { useAuth } from '@shared/context/useAuth';
 import { useToast } from '@shared/context/useToast';
 import '@shared/styles/dashboard.css';
+import L from '@shared/components/L';
 
 const LIVENESS_DOC_TYPES = ['selfie', 'liveness_capture'];
 
@@ -257,7 +258,7 @@ export default function CaseDetail() {
 
   if (loading) {
     return (
-      <div className="dashboard" dir="rtl">
+      <div className="dashboard">
         <div className="dashboard-main">
           <SkeletonCard rows={2} />
           <SkeletonCard rows={4} />
@@ -269,11 +270,10 @@ export default function CaseDetail() {
 
   if (!caseData) {
     return (
-      <div className="dashboard" dir="rtl">
+      <div className="dashboard">
         <div className="dashboard-main">
           <div className="empty-state">
-            <p className="ar">الطلب غير موجود</p>
-            <p className="en">Case not found</p>
+            <L>{{ ar: <>الطلب غير موجود</>, en: <>Case not found</> }}</L>
           </div>
         </div>
       </div>
@@ -283,7 +283,7 @@ export default function CaseDetail() {
   // Full-screen liveness check mode
   if (showLiveness) {
     return (
-      <div className="dashboard" dir="rtl">
+      <div className="dashboard">
         <header className="dashboard-header">
           <div className="dashboard-header__brand">
             <img src={flagImg} alt="" className="dashboard-header__flag" />
@@ -291,8 +291,7 @@ export default function CaseDetail() {
           </div>
           <div className="dashboard-header__actions">
             <button className="btn btn--ghost" onClick={() => setShowLiveness(false)}>
-              <span className="ar">إلغاء</span>
-              <span className="en">Cancel</span>
+              <L ar="إلغاء" en="Cancel" />
             </button>
           </div>
         </header>
@@ -309,7 +308,7 @@ export default function CaseDetail() {
   }
 
   return (
-    <div className="dashboard" dir="rtl">
+    <div className="dashboard">
       <header className="dashboard-header">
         <div className="dashboard-header__brand">
           <img src={flagImg} alt="" className="dashboard-header__flag" />
@@ -317,12 +316,10 @@ export default function CaseDetail() {
         </div>
         <div className="dashboard-header__actions">
           <button className="btn btn--ghost" onClick={() => navigate('/dashboard')}>
-            <span className="ar">العودة</span>
-            <span className="en">Back</span>
+            <L ar="العودة" en="Back" />
           </button>
           <button className="btn btn--ghost" onClick={() => { logout(); navigate('/login'); }}>
-            <span className="ar">خروج</span>
-            <span className="en">Sign Out</span>
+            <L ar="خروج" en="Sign Out" />
           </button>
         </div>
       </header>
@@ -332,14 +329,12 @@ export default function CaseDetail() {
         <div className="case-header">
           <div>
             <h1>
-              <span className="ar">تفاصيل الطلب</span>
-              <span className="en">Application Details</span>
+              <L ar="تفاصيل الطلب" en="Application Details" />
             </h1>
             <p className="case-header__tracking">#{caseData.tracking_id}</p>
           </div>
           <span className={`status-badge status-badge--${st.color} status-badge--lg`}>
-            <span className="ar">{st.ar}</span>
-            <span className="en">{st.en}</span>
+            <L>{{ ar: <>{st.ar}</>, en: <>{st.en}</> }}</L>
           </span>
         </div>
 
@@ -351,10 +346,7 @@ export default function CaseDetail() {
         {/* Retake reasons (quality gate failed — citizen must re-upload) */}
         {isNeedInfo && caseData.retake_reasons?.length > 0 && (
           <div className="alert alert--warning">
-            <strong className="ar">صور غير واضحة — يرجى إعادة الرفع:</strong>
-            <strong className="en" style={{ display: 'block', fontSize: '0.75rem' }}>
-              Some uploads couldn't be read. Please retake and re-submit:
-            </strong>
+            <L>{{ ar: <>صور غير واضحة — يرجى إعادة الرفع:</>, en: <>Some uploads couldn't be read. Please retake and re-submit:</> }}</L>
             <ul style={{ marginTop: '0.5rem', paddingRight: '1.25rem' }}>
               {caseData.retake_reasons.map((finding, i) => {
                 const docLabel = DOC_LABELS[finding.document_type];
@@ -363,8 +355,7 @@ export default function CaseDetail() {
                     <strong>
                       {docLabel ? (
                         <>
-                          <span className="ar">{docLabel.ar}</span>
-                          <span className="en"> · {docLabel.en}</span>
+                          <L>{{ ar: <>{docLabel.ar}</>, en: <>· {docLabel.en}</> }}</L>
                         </>
                       ) : (
                         finding.document_type
@@ -380,12 +371,7 @@ export default function CaseDetail() {
               })}
             </ul>
             <p style={{ marginTop: '0.5rem', fontSize: '0.8rem', opacity: 0.85 }}>
-              <span className="ar">
-                نصائح: استخدم إضاءة جيدة، ضع المستند على سطح داكن، تجنب الانعكاسات والظل.
-              </span>
-              <span className="en" style={{ display: 'block' }}>
-                Tip: bright even lighting, dark flat surface, avoid glare and shadows.
-              </span>
+              <L ar="نصائح: استخدم إضاءة جيدة، ضع المستند على سطح داكن، تجنب الانعكاسات والظل." en="Tip: bright even lighting, dark flat surface, avoid glare and shadows." />
             </p>
           </div>
         )}
@@ -393,8 +379,7 @@ export default function CaseDetail() {
         {/* Rejection reasons */}
         {caseData.rejection_reasons?.length > 0 && (
           <div className="alert alert--error">
-            <strong className="ar">أسباب الرفض:</strong>
-            <strong className="en" style={{ display: 'block', fontSize: '0.75rem' }}>Rejection Reasons:</strong>
+            <L>{{ ar: <>أسباب الرفض:</>, en: <>Rejection Reasons:</> }}</L>
             <ul style={{ marginTop: '0.5rem', paddingRight: '1.25rem' }}>
               {caseData.rejection_reasons.map((r, i) => <li key={i}>{r}</li>)}
             </ul>
@@ -404,8 +389,7 @@ export default function CaseDetail() {
         {/* Notes */}
         {caseData.notes && (
           <div className="alert alert--info">
-            <strong className="ar">ملاحظات:</strong>
-            <strong className="en" style={{ display: 'block', fontSize: '0.75rem' }}>Notes:</strong>
+            <L>{{ ar: <>ملاحظات:</>, en: <>Notes:</> }}</L>
             <p style={{ marginTop: '0.25rem' }}>{caseData.notes}</p>
           </div>
         )}
@@ -413,8 +397,7 @@ export default function CaseDetail() {
         {/* Documents Section */}
         <section className="detail-section">
           <h2>
-            <span className="ar">المستندات المطلوبة</span>
-            <span className="en">Required Documents</span>
+            <L ar="المستندات المطلوبة" en="Required Documents" />
           </h2>
           {completeness && (
             <div className="completeness-bar">
@@ -462,8 +445,7 @@ export default function CaseDetail() {
                           <span className="ar">جاري الفحص...</span>
                         ) : (
                           <>
-                            <span className="ar">رفع</span>
-                            <span className="en">Upload</span>
+                            <L ar="رفع" en="Upload" />
                           </>
                         )}
                         <input
@@ -495,8 +477,7 @@ export default function CaseDetail() {
                   <span className="doc-card__label en">Identity Verification (Camera)</span>
                   {livenessCompleted && (
                     <span className="doc-card__filename" style={{ color: '#16a34a' }}>
-                      <span className="ar">تم التحقق بنجاح</span>
-                      <span className="en">Verified successfully</span>
+                      <L ar="تم التحقق بنجاح" en="Verified successfully" />
                     </span>
                   )}
                 </div>
@@ -508,8 +489,7 @@ export default function CaseDetail() {
                       className="btn btn--sm btn--primary"
                       onClick={() => setShowLiveness(true)}
                     >
-                      <span className="ar">ابدأ التحقق</span>
-                      <span className="en">Start Verification</span>
+                      <L ar="ابدأ التحقق" en="Start Verification" />
                     </button>
                   ) : (
                     <span className="doc-card__missing">&#10007;</span>
@@ -524,8 +504,7 @@ export default function CaseDetail() {
         {canEdit && requiredFields.length > 0 && (
           <section className="detail-section">
             <h2>
-              <span className="ar">البيانات الشخصية</span>
-              <span className="en">Personal Information</span>
+              <L ar="البيانات الشخصية" en="Personal Information" />
             </h2>
             <div className="fields-grid">
               {requiredFields.map((field) => {
@@ -533,8 +512,7 @@ export default function CaseDetail() {
                 return (
                   <div key={field} className="field-group">
                     <label>
-                      <span className="ar">{label.ar}</span>
-                      <span className="en">{label.en}</span>
+                      <L>{{ ar: <>{label.ar}</>, en: <>{label.en}</> }}</L>
                     </label>
                     {field === 'gender' ? (
                       <select
@@ -634,8 +612,7 @@ export default function CaseDetail() {
         {!canEdit && Object.keys(caseData.declared_fields || {}).length > 0 && (
           <section className="detail-section">
             <h2>
-              <span className="ar">البيانات المقدمة</span>
-              <span className="en">Submitted Information</span>
+              <L ar="البيانات المقدمة" en="Submitted Information" />
             </h2>
             <div className="fields-display">
               {Object.entries(caseData.declared_fields).map(([key, val]) => {
@@ -643,8 +620,7 @@ export default function CaseDetail() {
                 return (
                   <div key={key} className="field-display-item">
                     <span className="field-display-item__label">
-                      <span className="ar">{label.ar}</span>
-                      <span className="en">{label.en}</span>
+                      <L>{{ ar: <>{label.ar}</>, en: <>{label.en}</> }}</L>
                     </span>
                     <span className="field-display-item__value">{val}</span>
                   </div>
@@ -666,15 +642,13 @@ export default function CaseDetail() {
                 <span className="ar">جارٍ التقديم...</span>
               ) : (
                 <>
-                  <span className="ar">تقديم الطلب</span>
-                  <span className="en">Submit Application</span>
+                  <L ar="تقديم الطلب" en="Submit Application" />
                 </>
               )}
             </button>
             {!completeness?.complete && completeness?.missing_documents?.length > 0 && (
               <p className="submit-hint">
-                <span className="ar">يرجى رفع جميع المستندات المطلوبة قبل التقديم</span>
-                <span className="en">Please upload all required documents before submitting</span>
+                <L ar="يرجى رفع جميع المستندات المطلوبة قبل التقديم" en="Please upload all required documents before submitting" />
               </p>
             )}
           </div>
@@ -684,23 +658,16 @@ export default function CaseDetail() {
         {caseData?.status === 'biometric_appointment_required' && (
           <section className="detail-section">
             <h2>
-              <span className="ar">حجز موعد البصمات</span>
-              <span className="en">Book your biometric appointment</span>
+              <L ar="حجز موعد البصمات" en="Book your biometric appointment" />
             </h2>
             <p>
-              <span className="ar">
-                مطلوب زيارة أحد مراكز الأمن العام لأخذ البصمات والتوقيع.
-              </span>
-              <span className="en" style={{ display: 'block' }}>
-                A visit to a GDGS centre is required for fingerprint + signature capture.
-              </span>
+              <L ar="مطلوب زيارة أحد مراكز الأمن العام لأخذ البصمات والتوقيع." en="A visit to a GDGS centre is required for fingerprint + signature capture." />
             </p>
             <button
               className="btn btn--primary btn--lg"
               onClick={() => navigate(`/case/${caseId}/appointment`)}
             >
-              <span className="ar">احجز موعدك</span>
-              <span className="en"> · Book a slot</span>
+              <L ar="احجز موعدك" en="· Book a slot" />
             </button>
           </section>
         )}
@@ -709,13 +676,11 @@ export default function CaseDetail() {
         {(caseData?.status === 'payment_pending' || caseData?.status === 'payment_failed') && (
           <section className="detail-section">
             <h2>
-              <span className="ar">الدفع</span>
-              <span className="en">Payment</span>
+              <L ar="الدفع" en="Payment" />
             </h2>
             <div className="payment-section">
               <p>
-                <span className="ar">طلبك تمت الموافقة عليه. يرجى إتمام الدفع للمتابعة.</span>
-                <span className="en">Your application has been approved. Please complete payment to proceed.</span>
+                <L ar="طلبك تمت الموافقة عليه. يرجى إتمام الدفع للمتابعة." en="Your application has been approved. Please complete payment to proceed." />
               </p>
               <button
                 className={`btn btn--primary btn--lg ${paying ? 'btn--loading' : ''}`}
@@ -726,8 +691,7 @@ export default function CaseDetail() {
                   <span className="ar">جارٍ التحويل...</span>
                 ) : (
                   <>
-                    <span className="ar">ادفع الآن</span>
-                    <span className="en">Pay Now</span>
+                    <L ar="ادفع الآن" en="Pay Now" />
                   </>
                 )}
               </button>
@@ -765,8 +729,7 @@ function TrackingTimeline({ caseId }) {
   return (
     <section className="detail-section">
       <h2>
-        <span className="ar">مسار الطلب</span>
-        <span className="en">Application Timeline</span>
+        <L ar="مسار الطلب" en="Application Timeline" />
       </h2>
       <div className="timeline">
         {tracking.events.map((ev, i) => (
@@ -783,8 +746,7 @@ function TrackingTimeline({ caseId }) {
       </div>
       {tracking.next_action && (
         <div className="next-action">
-          <span className="ar">الخطوة التالية: </span>
-          <span className="en">Next Step: </span>
+          <L ar="الخطوة التالية:" en="Next Step:" />
           <strong>{tracking.next_action}</strong>
         </div>
       )}

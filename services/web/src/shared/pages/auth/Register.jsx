@@ -7,6 +7,7 @@ import {
   GOVERNORATES, DISTRICTS, MUNICIPALITIES,
   getDistrictsForGovernorate, getMunicipalitiesForDistrict, isSingleDistrictGovernorate,
 } from '@shared/constants/districts';
+import L from '@shared/components/L';
 
 function getPasswordStrength(pw) {
   let score = 0;
@@ -36,8 +37,7 @@ function PasswordStrengthBar({ password }) {
         ))}
       </div>
       <p className="password-hint">
-        <span className="ar">٨ أحرف على الأقل، حرف كبير وصغير، رقم، ورمز خاص</span>
-        <span className="en">Min 8 chars, uppercase, lowercase, number, and special character</span>
+        <L ar="٨ أحرف على الأقل، حرف كبير وصغير، رقم، ورمز خاص" en="Min 8 chars, uppercase, lowercase, number, and special character" />
       </p>
     </div>
   );
@@ -176,8 +176,7 @@ export default function Register() {
     return (
       <div className="form-group" key={field.name}>
         <label className="form-label" htmlFor={field.name}>
-          <span className="ar">{field.ar} {field.required ? '*' : ''}</span>
-          <span className="en">{field.en}</span>
+          <L>{{ ar: <>{field.ar} {field.required ? '*' : ''}</>, en: <>{field.en}</> }}</L>
         </label>
         {field.type === 'select' ? (
           <select {...commonProps}>
@@ -205,8 +204,7 @@ export default function Register() {
         )}
         {field.arabicOnly && (
           <p className="field-hint" style={{ fontSize: '0.7rem', color: 'var(--gray-400)', margin: '0.2rem 0 0' }}>
-            <span className="ar">يرجى الكتابة بالعربية فقط</span>
-            <span className="en">Arabic only</span>
+            <L ar="يرجى الكتابة بالعربية فقط" en="Arabic only" />
           </p>
         )}
       </div>
@@ -216,12 +214,10 @@ export default function Register() {
   return (
     <AuthLayout>
       <h2 className="auth-card__heading">
-        <span className="ar">إنشاء حساب جديد</span>
-        <span className="en">Create your account</span>
+        <L ar="إنشاء حساب جديد" en="Create your account" />
       </h2>
       <p className="auth-card__subheading">
-        <span className="ar">ابدأ بتقديم طلبات المستندات الخاصة بك اليوم</span>
-        <span className="en">Start your document application today</span>
+        <L ar="ابدأ بتقديم طلبات المستندات الخاصة بك اليوم" en="Start your document application today" />
       </p>
 
       {error && <div className="alert alert--error">{error}</div>}
@@ -230,8 +226,7 @@ export default function Register() {
         {FIELDS.map((f, i) => renderField(f, i))}
 
         <div className="form-section-label">
-          <span className="ar">المعلومات الشخصية</span>
-          <span className="en">Personal Information</span>
+          <L ar="المعلومات الشخصية" en="Personal Information" />
         </div>
 
         {PERSONAL_ROWS.map((row, ri) => (
@@ -242,15 +237,13 @@ export default function Register() {
 
         {/* Cascading location: Governorate -> District -> Municipality */}
         <div className="form-section-label">
-          <span className="ar">مكان السجل</span>
-          <span className="en">Registry Location</span>
+          <L ar="مكان السجل" en="Registry Location" />
         </div>
 
         <div className="form-row">
           <div className="form-group">
             <label className="form-label" htmlFor="governorate">
-              <span className="ar">المحافظة</span>
-              <span className="en">Governorate</span>
+              <L ar="المحافظة" en="Governorate" />
             </label>
             <select
               id="governorate"
@@ -268,8 +261,7 @@ export default function Register() {
 
           <div className="form-group">
             <label className="form-label" htmlFor="registry_place">
-              <span className="ar">القضاء</span>
-              <span className="en">District</span>
+              <L ar="القضاء" en="District" />
             </label>
             <select
               id="registry_place"
@@ -296,8 +288,7 @@ export default function Register() {
 
           <div className="form-group">
             <label className="form-label" htmlFor="municipality">
-              <span className="ar">البلدة / القرية</span>
-              <span className="en">Municipality</span>
+              <L ar="البلدة / القرية" en="Municipality" />
             </label>
             <select
               id="municipality"
@@ -316,8 +307,7 @@ export default function Register() {
 
           <div className="form-group">
             <label className="form-label" htmlFor="registry_number">
-              <span className="ar">رقم السجل</span>
-              <span className="en">Registry Number</span>
+              <L ar="رقم السجل" en="Registry Number" />
             </label>
             <input
               id="registry_number"
@@ -333,16 +323,14 @@ export default function Register() {
         <button type="submit" className="btn btn--primary" disabled={loading}>
           {loading ? <span className="spinner" /> : (
             <>
-              <span className="ar">إنشاء الحساب</span>
-              <span className="en">Create Account</span>
+              <L ar="إنشاء الحساب" en="Create Account" />
             </>
           )}
         </button>
       </form>
 
       <p className="auth-footer">
-        <span className="ar">لديك حساب بالفعل؟ <Link to="/login">سجّل الدخول</Link></span>
-        <span className="en">Already have an account? <Link to="/login">Sign in</Link></span>
+        <L>{{ ar: <>لديك حساب بالفعل؟ <Link to="/login">سجّل الدخول</Link></>, en: <>Already have an account? <Link to="/login">Sign in</Link></> }}</L>
       </p>
     </AuthLayout>
   );

@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { casesApi } from '@shared/api/cases';
 import '@shared/styles/dashboard.css';
+import L from '@shared/components/L';
 
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 30000;
@@ -77,8 +78,7 @@ export default function PaymentSuccess() {
           <>
             <div className="spinner" aria-label="processing" />
             <h1>
-              <span className="ar">جاري تأكيد الدفع…</span>
-              <span className="en">Confirming your payment…</span>
+              <L ar="جاري تأكيد الدفع…" en="Confirming your payment…" />
             </h1>
             <p>Stripe is notifying our server. This usually takes a few seconds.</p>
           </>
@@ -88,8 +88,7 @@ export default function PaymentSuccess() {
           <>
             <div className="success-check" aria-hidden>✓</div>
             <h1>
-              <span className="ar">تم الدفع بنجاح</span>
-              <span className="en">Payment confirmed</span>
+              <L ar="تم الدفع بنجاح" en="Payment confirmed" />
             </h1>
             <p>
               Your application <strong>{caseData?.tracking_id}</strong> is now being produced. We will email you when it's ready for pickup.
@@ -103,8 +102,7 @@ export default function PaymentSuccess() {
           <>
             <div className="info-clock" aria-hidden>⏳</div>
             <h1>
-              <span className="ar">الدفع قيد المعالجة</span>
-              <span className="en">Payment received, still processing</span>
+              <L ar="الدفع قيد المعالجة" en="Payment received, still processing" />
             </h1>
             <p>
               Stripe confirms your payment went through, but our server hasn't finished updating your case yet. This can happen briefly during high traffic — come back to your case in a minute and the status will refresh.

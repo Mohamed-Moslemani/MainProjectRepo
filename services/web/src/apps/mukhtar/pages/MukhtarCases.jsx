@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { mukhtarApi } from '@shared/api/mukhtar';
 import AuthImage from '@shared/components/AuthImage';
 import AgeBadge from '@shared/components/AgeBadge';
+import L from '@shared/components/L';
 
 const DOC_TYPE_LABELS = {
   selfie: { ar: 'صورة شخصية (سيلفي)', en: 'Selfie' },
@@ -197,8 +198,7 @@ export default function MukhtarCases() {
     <div className="admin-page">
       <div className="admin-page__header">
         <h1 className="admin-page__title">
-          <span className="ar">الطلبات</span>
-          <span className="en">Cases</span>
+          <L ar="الطلبات" en="Cases" />
         </h1>
       </div>
 
@@ -226,19 +226,18 @@ export default function MukhtarCases() {
         <div className="admin-loading"><div className="spinner spinner--dark" /></div>
       ) : cases.length === 0 ? (
         <div className="admin-empty">
-          <span className="ar">لا توجد طلبات</span>
-          <span className="en">No cases found</span>
+          <L ar="لا توجد طلبات" en="No cases found" />
         </div>
       ) : (
         <div className="admin-table-wrap">
           <table className="admin-table">
             <thead>
               <tr>
-                <th><span className="ar">رقم التتبع</span><span className="en">Tracking ID</span></th>
-                <th><span className="ar">الخدمة</span><span className="en">Service</span></th>
-                <th><span className="ar">الحالة</span><span className="en">Status</span></th>
-                <th><span className="ar">التاريخ</span><span className="en">Date</span></th>
-                <th><span className="ar">إجراء</span><span className="en">Action</span></th>
+                <th><L ar="رقم التتبع" en="Tracking ID" /></th>
+                <th><L ar="الخدمة" en="Service" /></th>
+                <th><L ar="الحالة" en="Status" /></th>
+                <th><L ar="التاريخ" en="Date" /></th>
+                <th><L ar="إجراء" en="Action" /></th>
               </tr>
             </thead>
             <tbody>
@@ -248,7 +247,7 @@ export default function MukhtarCases() {
                 return (
                   <tr key={c.id} className={selected === c.id ? 'row--selected' : ''}>
                     <td style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>{c.tracking_id}</td>
-                    <td><span className="ar">{svc.ar}</span><span className="en">{svc.en}</span></td>
+                    <td><L>{{ ar: <>{svc.ar}</>, en: <>{svc.en}</> }}</L></td>
                     <td>
                       <span className="status-badge" style={{ backgroundColor: sl.color + '20', color: sl.color, border: `1px solid ${sl.color}40` }}>
                         <span className="en">{sl.en}</span>
@@ -262,7 +261,7 @@ export default function MukhtarCases() {
                     </td>
                     <td>
                       <button className="btn btn--sm btn--ghost" onClick={() => openDetail(c.id)}>
-                        <span className="ar">عرض</span><span className="en">View</span>
+                        <L ar="عرض" en="View" />
                       </button>
                     </td>
                   </tr>
@@ -282,8 +281,7 @@ export default function MukhtarCases() {
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                 <h2 style={{ margin: 0 }}>
-                  <span className="ar">تفاصيل الطلب</span>
-                  <span className="en">Case Detail</span>
+                  <L ar="تفاصيل الطلب" en="Case Detail" />
                 </h2>
                 <button className="btn btn--sm btn--ghost" onClick={() => { setSelected(null); setDetail(null); }}>X</button>
               </div>
@@ -291,8 +289,7 @@ export default function MukhtarCases() {
               {/* Applicant Identity */}
               <div className="admin-section" style={{ marginBottom: '1.25rem' }}>
                 <h3 className="admin-section__title">
-                  <span className="ar">هوية مقدم الطلب</span>
-                  <span className="en">Applicant Identity</span>
+                  <L ar="هوية مقدم الطلب" en="Applicant Identity" />
                 </h3>
                 {detail.applicant && (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '0.75rem' }}>
@@ -321,8 +318,7 @@ export default function MukhtarCases() {
               {/* Uploaded Documents - the core of what the mukhtar reviews */}
               <div className="admin-section" style={{ marginBottom: '1.25rem' }}>
                 <h3 className="admin-section__title">
-                  <span className="ar">المستندات المرفوعة</span>
-                  <span className="en">Uploaded Documents</span>
+                  <L ar="المستندات المرفوعة" en="Uploaded Documents" />
                 </h3>
                 {detail.documents && detail.documents.length > 0 ? (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '1rem' }}>
@@ -356,8 +352,7 @@ export default function MukhtarCases() {
                           )}
                           <div style={{ padding: '0.5rem 0.75rem' }}>
                             <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>
-                              <span className="ar">{docLabel.ar}</span>
-                              <span className="en">{docLabel.en}</span>
+                              <L>{{ ar: <>{docLabel.ar}</>, en: <>{docLabel.en}</> }}</L>
                             </div>
                           </div>
                         </div>
@@ -372,8 +367,7 @@ export default function MukhtarCases() {
               {/* System Verification - simplified for mukhtar */}
               <div className="admin-section" style={{ marginBottom: '1.25rem' }}>
                 <h3 className="admin-section__title">
-                  <span className="ar">التحقق التلقائي من النظام</span>
-                  <span className="en">System Verification</span>
+                  <L ar="التحقق التلقائي من النظام" en="System Verification" />
                 </h3>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '0.75rem' }}>
                   <div style={{ padding: '0.75rem', borderRadius: '8px', border: '1px solid',
@@ -382,8 +376,7 @@ export default function MukhtarCases() {
                       : { background: '#fefce8', borderColor: '#fde68a', color: '#854d0e' })
                   }}>
                     <div style={{ fontSize: '0.75rem' }}>
-                      <span className="ar">التحقق من الهوية</span>
-                      <span className="en">Identity Verification</span>
+                      <L ar="التحقق من الهوية" en="Identity Verification" />
                     </div>
                     <div style={{ fontSize: '1.1rem', fontWeight: 700 }}>
                       {detail.verification_summary?.identity_verified ? 'Verified / تم التحقق' : 'Pending / قيد الانتظار'}
@@ -397,8 +390,7 @@ export default function MukhtarCases() {
                   </div>
                   <div style={{ padding: '0.75rem', background: '#eff6ff', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
                     <div style={{ fontSize: '0.75rem', color: '#1e40af' }}>
-                      <span className="ar">تطابق البيانات</span>
-                      <span className="en">Data Match</span>
+                      <L ar="تطابق البيانات" en="Data Match" />
                     </div>
                     <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#1e40af' }}>
                       {detail.verification_summary?.data_integrity != null
@@ -419,12 +411,10 @@ export default function MukhtarCases() {
                 {detail.verification_summary?.has_generated_form && (
                   <>
                     <button className="btn btn--primary" onClick={() => handlePreviewForm(selected)}>
-                      <span className="ar">معاينة الاستمارة</span>
-                      <span className="en"> · Preview form</span>
+                      <L ar="معاينة الاستمارة" en="· Preview form" />
                     </button>
                     <button className="btn btn--ghost" onClick={() => handleDownloadForm(selected)}>
-                      <span className="ar">تحميل PDF</span>
-                      <span className="en"> · Download</span>
+                      <L ar="تحميل PDF" en="· Download" />
                     </button>
                   </>
                 )}
@@ -433,20 +423,16 @@ export default function MukhtarCases() {
               {detail.case?.status === 'pending_mukhtar' && (
                 <div style={{ display: 'flex', gap: '0.75rem', paddingTop: '1rem', borderTop: '2px solid var(--gray-200)' }}>
                   <button className="btn btn--success" onClick={() => setModal('approve')}>
-                    <span className="ar">موافقة وتصديق</span>
-                    <span className="en">Approve & Stamp</span>
+                    <L ar="موافقة وتصديق" en="Approve & Stamp" />
                   </button>
                   <button className="btn btn--danger" onClick={() => setModal('reject')}>
-                    <span className="ar">رفض</span>
-                    <span className="en">Reject</span>
+                    <L ar="رفض" en="Reject" />
                   </button>
                   <button className="btn btn--warning" onClick={() => setModal('need_info')}>
-                    <span className="ar">طلب معلومات إضافية</span>
-                    <span className="en">Request Info</span>
+                    <L ar="طلب معلومات إضافية" en="Request Info" />
                   </button>
                   <button className="btn btn--ghost" onClick={openTransferModal} style={{ marginRight: 'auto' }}>
-                    <span className="ar">تحويل لمختار آخر</span>
-                    <span className="en">Transfer</span>
+                    <L ar="تحويل لمختار آخر" en="Transfer" />
                   </button>
                 </div>
               )}
@@ -462,31 +448,27 @@ export default function MukhtarCases() {
         <div className="modal-backdrop" onClick={() => setModal(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
             <h3 style={{ marginTop: 0 }}>
-              {modal === 'approve' && <><span className="ar">تأكيد الموافقة والتصديق</span><span className="en">Confirm Approval & Stamp</span></>}
-              {modal === 'reject' && <><span className="ar">تأكيد الرفض</span><span className="en">Confirm Rejection</span></>}
-              {modal === 'need_info' && <><span className="ar">طلب معلومات إضافية</span><span className="en">Request Additional Info</span></>}
+              {modal === 'approve' && <><L ar="تأكيد الموافقة والتصديق" en="Confirm Approval & Stamp" /></>}
+              {modal === 'reject' && <><L ar="تأكيد الرفض" en="Confirm Rejection" /></>}
+              {modal === 'need_info' && <><L ar="طلب معلومات إضافية" en="Request Additional Info" /></>}
             </h3>
 
             {modal === 'approve' && (
               <div style={{ marginBottom: '1rem', padding: '0.75rem 1rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8 }}>
                 <p style={{ margin: '0 0 0.5rem', fontWeight: 500, fontSize: '0.9rem', color: '#334155' }}>
-                  <span className="ar">أصادق كمختار على التالي</span>
-                  <span className="en">As mukhtar, I attest to the following</span>
+                  <L ar="أصادق كمختار على التالي" en="As mukhtar, I attest to the following" />
                 </p>
                 <label style={{ display: 'block', marginBottom: '0.4rem', cursor: 'pointer' }}>
                   <input type="checkbox" checked={residenceVerified} onChange={(e) => setResidenceVerified(e.target.checked)} style={{ marginInlineEnd: '0.5rem' }} />
-                  <span className="ar">المواطن يقيم في نطاق اختصاصي</span>
-                  <span className="en">The citizen resides in my jurisdiction</span>
+                  <L ar="المواطن يقيم في نطاق اختصاصي" en="The citizen resides in my jurisdiction" />
                 </label>
                 <label style={{ display: 'block', marginBottom: '0.4rem', cursor: 'pointer' }}>
                   <input type="checkbox" checked={photoVerified} onChange={(e) => setPhotoVerified(e.target.checked)} style={{ marginInlineEnd: '0.5rem' }} />
-                  <span className="ar">الصورة المقدّمة تُطابق المواطن</span>
-                  <span className="en">The submitted photo matches the citizen</span>
+                  <L ar="الصورة المقدّمة تُطابق المواطن" en="The submitted photo matches the citizen" />
                 </label>
                 <label style={{ display: 'block', marginBottom: '0.5rem', cursor: 'pointer' }}>
                   <input type="checkbox" checked={presenceVerified} onChange={(e) => setPresenceVerified(e.target.checked)} style={{ marginInlineEnd: '0.5rem' }} />
-                  <span className="ar">المواطن حضر شخصيًا في مكتبي</span>
-                  <span className="en">The citizen was physically present in my office</span>
+                  <L ar="المواطن حضر شخصيًا في مكتبي" en="The citizen was physically present in my office" />
                 </label>
                 <textarea
                   value={residenceNotes}
@@ -500,8 +482,7 @@ export default function MukhtarCases() {
 
             <div style={{ marginBottom: '1rem' }}>
               <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>
-                <span className="ar">ملاحظات</span>
-                <span className="en">Notes</span>
+                <L ar="ملاحظات" en="Notes" />
               </label>
               <textarea
                 value={notes}
@@ -515,8 +496,7 @@ export default function MukhtarCases() {
             {modal === 'reject' && (
               <div style={{ marginBottom: '1rem' }}>
                 <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500, color: '#dc2626' }}>
-                  <span className="ar">أسباب الرفض (مطلوب)</span>
-                  <span className="en">Rejection Reasons (required)</span>
+                  <L ar="أسباب الرفض (مطلوب)" en="Rejection Reasons (required)" />
                 </label>
                 <textarea
                   value={rejectionReasons}
@@ -530,7 +510,7 @@ export default function MukhtarCases() {
 
             <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
               <button className="btn btn--ghost" onClick={() => setModal(null)} disabled={deciding}>
-                <span className="ar">إلغاء</span><span className="en">Cancel</span>
+                <L ar="إلغاء" en="Cancel" />
               </button>
               <button
                 className={`btn ${modal === 'approve' ? 'btn--success' : modal === 'reject' ? 'btn--danger' : 'btn--warning'}`}
@@ -543,9 +523,9 @@ export default function MukhtarCases() {
                 }
               >
                 {deciding ? <div className="spinner" /> : (
-                  modal === 'approve' ? <><span className="ar">موافقة</span><span className="en">Approve</span></> :
-                  modal === 'reject' ? <><span className="ar">رفض</span><span className="en">Reject</span></> :
-                  <><span className="ar">إرسال</span><span className="en">Send</span></>
+                  modal === 'approve' ? <><L ar="موافقة" en="Approve" /></> :
+                  modal === 'reject' ? <><L ar="رفض" en="Reject" /></> :
+                  <><L ar="إرسال" en="Send" /></>
                 )}
               </button>
             </div>
@@ -558,21 +538,18 @@ export default function MukhtarCases() {
         <div className="modal-backdrop" onClick={() => setTransferModal(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
             <h3 style={{ marginTop: 0 }}>
-              <span className="ar">تحويل الطلب لمختار آخر</span>
-              <span className="en">Transfer Case to Another Mukhtar</span>
+              <L ar="تحويل الطلب لمختار آخر" en="Transfer Case to Another Mukhtar" />
             </h3>
 
             {availableMukhtars.length === 0 ? (
               <p style={{ color: 'var(--gray-400)' }}>
-                <span className="ar">لا يوجد مختارين آخرين في نفس القضاء</span>
-                <span className="en">No other mukhtars available in your district</span>
+                <L ar="لا يوجد مختارين آخرين في نفس القضاء" en="No other mukhtars available in your district" />
               </p>
             ) : (
               <>
                 <div style={{ marginBottom: '1rem' }}>
                   <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>
-                    <span className="ar">اختر المختار</span>
-                    <span className="en">Select Mukhtar</span>
+                    <L ar="اختر المختار" en="Select Mukhtar" />
                   </label>
                   <select
                     className="form-input"
@@ -590,8 +567,7 @@ export default function MukhtarCases() {
                 </div>
                 <div style={{ marginBottom: '1rem' }}>
                   <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>
-                    <span className="ar">السبب</span>
-                    <span className="en">Reason (optional)</span>
+                    <L ar="السبب" en="Reason (optional)" />
                   </label>
                   <textarea
                     value={transferReason}
@@ -606,12 +582,12 @@ export default function MukhtarCases() {
 
             <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
               <button className="btn btn--ghost" onClick={() => setTransferModal(false)} disabled={deciding}>
-                <span className="ar">إلغاء</span><span className="en">Cancel</span>
+                <L ar="إلغاء" en="Cancel" />
               </button>
               {availableMukhtars.length > 0 && (
                 <button className="btn btn--primary" onClick={handleTransfer} disabled={deciding || !transferTarget}>
                   {deciding ? <div className="spinner" /> : (
-                    <><span className="ar">تحويل</span><span className="en">Transfer</span></>
+                    <><L ar="تحويل" en="Transfer" /></>
                   )}
                 </button>
               )}

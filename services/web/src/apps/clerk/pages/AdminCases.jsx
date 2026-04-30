@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { adminApi } from '@shared/api/admin';
 import AgeBadge from '@shared/components/AgeBadge';
 import ReconciliationDiff from '@shared/components/ReconciliationDiff';
+import L from '@shared/components/L';
 
 const ALL_STATUSES = [
   'draft', 'submitted', 'validated', 'risk_evaluated',
@@ -234,12 +235,10 @@ export default function AdminCases() {
       <div className="admin-page__header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
         <div>
           <h1 className="admin-page__title">
-            <span className="ar">الطلبات</span>
-            <span className="en">Cases</span>
+            <L ar="الطلبات" en="Cases" />
           </h1>
           <p className="admin-page__subtitle">
-            <span className="ar">{total} طلب إجمالي</span>
-            <span className="en">{total} total cases</span>
+            <L>{{ ar: <>{total} طلب إجمالي</>, en: <>{total} total cases</> }}</L>
           </p>
         </div>
         <button
@@ -258,8 +257,7 @@ export default function AdminCases() {
           className={`filter-chip ${!filterStatus ? 'filter-chip--active' : ''}`}
           onClick={() => handleFilterChange('')}
         >
-          <span className="ar">الكل</span>
-          <span className="en">All</span>
+          <L ar="الكل" en="All" />
         </button>
         {ALL_STATUSES.map((s) => {
           const label = getStatusLabel(s);
@@ -269,8 +267,7 @@ export default function AdminCases() {
               className={`filter-chip ${filterStatus === s ? 'filter-chip--active' : ''}`}
               onClick={() => handleFilterChange(s)}
             >
-              <span className="ar">{label.ar}</span>
-              <span className="en">{label.en}</span>
+              <L>{{ ar: <>{label.ar}</>, en: <>{label.en}</> }}</L>
             </button>
           );
         })}
@@ -318,8 +315,7 @@ export default function AdminCases() {
         </div>
       ) : cases.length === 0 ? (
         <div className="admin-empty">
-          <span className="ar">لا توجد طلبات</span>
-          <span className="en">No cases found</span>
+          <L ar="لا توجد طلبات" en="No cases found" />
         </div>
       ) : (
         <>
@@ -335,11 +331,11 @@ export default function AdminCases() {
                       onChange={togglePageSelection}
                     />
                   </th>
-                  <th><span className="ar">رقم التتبع</span><span className="en">Tracking ID</span></th>
-                  <th><span className="ar">الخدمة</span><span className="en">Service</span></th>
-                  <th><span className="ar">الحالة</span><span className="en">Status</span></th>
-                  <th><span className="ar">التاريخ</span><span className="en">Created</span></th>
-                  <th><span className="ar">إجراءات</span><span className="en">Actions</span></th>
+                  <th><L ar="رقم التتبع" en="Tracking ID" /></th>
+                  <th><L ar="الخدمة" en="Service" /></th>
+                  <th><L ar="الحالة" en="Status" /></th>
+                  <th><L ar="التاريخ" en="Created" /></th>
+                  <th><L ar="إجراءات" en="Actions" /></th>
                 </tr>
               </thead>
               <tbody>
@@ -363,13 +359,11 @@ export default function AdminCases() {
                         </td>
                         <td className="cases-table__tracking">{c.tracking_id}</td>
                         <td>
-                          <span className="ar">{svcLabel.ar}</span>
-                          <span className="en">{svcLabel.en}</span>
+                          <L>{{ ar: <>{svcLabel.ar}</>, en: <>{svcLabel.en}</> }}</L>
                         </td>
                         <td>
                           <span className={`status-badge status-badge--${c.status}`}>
-                            <span className="ar">{stLabel.ar}</span>
-                            <span className="en">{stLabel.en}</span>
+                            <L>{{ ar: <>{stLabel.ar}</>, en: <>{stLabel.en}</> }}</L>
                           </span>
                         </td>
                         <td className="cases-table__date">
@@ -389,8 +383,7 @@ export default function AdminCases() {
                                 openUpdateModal(c);
                               }}
                             >
-                              <span className="ar">تحديث</span>
-                              <span className="en">Update</span>
+                              <L ar="تحديث" en="Update" />
                             </button>
                           )}
                         </td>
@@ -423,16 +416,13 @@ export default function AdminCases() {
           {totalPages > 1 && (
             <div className="pagination">
               <button className="pagination__btn" disabled={page === 0} onClick={() => setPage(page - 1)}>
-                <span className="ar">السابق</span>
-                <span className="en">Previous</span>
+                <L ar="السابق" en="Previous" />
               </button>
               <span className="pagination__info">
-                <span className="ar">صفحة {page + 1} من {totalPages}</span>
-                <span className="en">Page {page + 1} of {totalPages}</span>
+                <L>{{ ar: <>صفحة {page + 1} من {totalPages}</>, en: <>Page {page + 1} of {totalPages}</> }}</L>
               </span>
               <button className="pagination__btn" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)}>
-                <span className="ar">التالي</span>
-                <span className="en">Next</span>
+                <L ar="التالي" en="Next" />
               </button>
             </div>
           )}
@@ -444,8 +434,7 @@ export default function AdminCases() {
         <div className="modal-overlay" onClick={() => setUpdateModal(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3 className="modal__title">
-              <span className="ar">تحديث حالة الطلب</span>
-              <span className="en">Update Case Status</span>
+              <L ar="تحديث حالة الطلب" en="Update Case Status" />
             </h3>
             <p className="modal__subtitle">
               {updateModal.tracking_id} &mdash;{' '}
@@ -455,8 +444,7 @@ export default function AdminCases() {
             <form onSubmit={handleStatusUpdate}>
               <div className="form-group">
                 <label className="form-label">
-                  <span className="ar">الحالة الحالية</span>
-                  <span className="en">Current Status</span>
+                  <L ar="الحالة الحالية" en="Current Status" />
                 </label>
                 <span className={`status-badge status-badge--${updateModal.status}`}>
                   {getStatusLabel(updateModal.status).ar}
@@ -465,8 +453,7 @@ export default function AdminCases() {
 
               <div className="form-group">
                 <label className="form-label" htmlFor="newStatus">
-                  <span className="ar">الحالة الجديدة</span>
-                  <span className="en">New Status</span>
+                  <L ar="الحالة الجديدة" en="New Status" />
                 </label>
                 <select
                   id="newStatus"
@@ -486,8 +473,7 @@ export default function AdminCases() {
               {updateStatus === 'rejected' && (
                 <div className="form-group">
                   <label className="form-label" htmlFor="rejectionReasons">
-                    <span className="ar">أسباب الرفض (سبب في كل سطر)</span>
-                    <span className="en">Rejection Reasons (one per line)</span>
+                    <L ar="أسباب الرفض (سبب في كل سطر)" en="Rejection Reasons (one per line)" />
                   </label>
                   <textarea
                     id="rejectionReasons"
@@ -502,8 +488,7 @@ export default function AdminCases() {
 
               <div className="form-group">
                 <label className="form-label" htmlFor="notes">
-                  <span className="ar">ملاحظات (اختياري)</span>
-                  <span className="en">Notes (optional)</span>
+                  <L ar="ملاحظات (اختياري)" en="Notes (optional)" />
                 </label>
                 <textarea
                   id="notes"
@@ -517,16 +502,14 @@ export default function AdminCases() {
 
               <div className="modal__actions">
                 <button type="button" className="btn-small btn-small--ghost" onClick={() => setUpdateModal(null)}>
-                  <span className="ar">إلغاء</span>
-                  <span className="en">Cancel</span>
+                  <L ar="إلغاء" en="Cancel" />
                 </button>
                 <button type="submit" className="btn-small btn-small--primary" disabled={updating}>
                   {updating ? (
                     <span className="ar">جارٍ التحديث...</span>
                   ) : (
                     <>
-                      <span className="ar">تأكيد</span>
-                      <span className="en">Confirm</span>
+                      <L ar="تأكيد" en="Confirm" />
                     </>
                   )}
                 </button>
@@ -547,7 +530,7 @@ function CaseDetailView({ detail }) {
     <div className="case-detail">
       <div className="case-detail__grid">
         <div className="case-detail__section">
-          <h4><span className="ar">معلومات</span><span className="en">Info</span></h4>
+          <h4><L ar="معلومات" en="Info" /></h4>
           <dl className="case-detail__dl">
             <dt><span className="ar">رقم الطلب</span></dt><dd>{detail.id}</dd>
             <dt><span className="ar">الخدمة</span></dt><dd>{getServiceLabel(detail.service_type).ar}</dd>
@@ -560,7 +543,7 @@ function CaseDetailView({ detail }) {
 
         {detail.risk_result && (
           <div className="case-detail__section">
-            <h4><span className="ar">تقييم المخاطر</span><span className="en">Risk Assessment</span></h4>
+            <h4><L ar="تقييم المخاطر" en="Risk Assessment" /></h4>
             <dl className="case-detail__dl">
               <dt><span className="ar">درجة المخاطر</span></dt>
               <dd>
@@ -575,7 +558,7 @@ function CaseDetailView({ detail }) {
 
         {detail.reconciliation_result && (
           <div className="case-detail__section">
-            <h4><span className="ar">المطابقة</span><span className="en">Reconciliation</span></h4>
+            <h4><L ar="المطابقة" en="Reconciliation" /></h4>
             <dl className="case-detail__dl">
               <dt><span className="ar">نسبة التطابق</span></dt>
               <dd>{detail.reconciliation_result.match_rate != null
@@ -604,7 +587,7 @@ function CaseDetailView({ detail }) {
 
       {detail.rejection_reasons?.length > 0 && (
         <div className="case-detail__section">
-          <h4><span className="ar">أسباب الرفض</span><span className="en">Rejection Reasons</span></h4>
+          <h4><L ar="أسباب الرفض" en="Rejection Reasons" /></h4>
           <ul className="rejection-list">
             {detail.rejection_reasons.map((r, i) => (
               <li key={i}>{r}</li>
@@ -630,7 +613,7 @@ function CaseDetailView({ detail }) {
 
       {detail.declared_fields && Object.keys(detail.declared_fields).length > 0 && (
         <div className="case-detail__section">
-          <h4><span className="ar">البيانات المصرّحة</span><span className="en">Declared Fields</span></h4>
+          <h4><L ar="البيانات المصرّحة" en="Declared Fields" /></h4>
           <dl className="case-detail__dl">
             {Object.entries(detail.declared_fields).map(([key, val]) => (
               <span key={key}><dt>{key}</dt><dd>{String(val)}</dd></span>

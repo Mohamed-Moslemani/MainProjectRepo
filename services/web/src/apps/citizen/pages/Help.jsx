@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import flagImg from '@shared/assets/Figure_1.png';
 import '@shared/styles/dashboard.css';
+import L from '@shared/components/L';
 
 /**
  * Static FAQ / help / terms / privacy page.
@@ -76,7 +77,7 @@ const FAQ = [
 
 export default function Help() {
   return (
-    <div className="dashboard" dir="rtl">
+    <div className="dashboard">
       <header className="dashboard-header">
         <div className="dashboard-header__inner">
           <div className="dashboard-header__brand">
@@ -92,8 +93,7 @@ export default function Help() {
           </div>
           <div className="dashboard-header__actions">
             <Link to="/dashboard" className="btn btn--outline btn--sm">
-              <span className="ar">الرئيسية</span>
-              <span className="en"> · Dashboard</span>
+              <L ar="الرئيسية" en="· Dashboard" />
             </Link>
           </div>
         </div>
@@ -109,23 +109,16 @@ export default function Help() {
 
         <section id="faq" className="detail-section">
           <h2>
-            <span className="ar">الأسئلة الشائعة</span>
-            <span className="en">Frequently Asked Questions</span>
+            <L ar="الأسئلة الشائعة" en="Frequently Asked Questions" />
           </h2>
           <dl style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '0.75rem' }}>
             {FAQ.map((item) => (
               <div key={item.q_en}>
                 <dt style={{ fontWeight: 700, color: '#1f2937' }}>
-                  <span className="ar">{item.q_ar}</span>
-                  <span className="en" style={{ display: 'block', fontSize: '0.85rem', color: '#6b7280' }}>
-                    {item.q_en}
-                  </span>
+                  <L>{{ ar: <>{item.q_ar}</>, en: <>{item.q_en}</> }}</L>
                 </dt>
                 <dd style={{ marginTop: '0.4rem', marginInlineStart: 0, color: '#374151', lineHeight: 1.6 }}>
-                  <span className="ar">{item.a_ar}</span>
-                  <span className="en" style={{ display: 'block', fontSize: '0.88rem', marginTop: '0.25rem' }}>
-                    {item.a_en}
-                  </span>
+                  <L>{{ ar: <>{item.a_ar}</>, en: <>{item.a_en}</> }}</L>
                 </dd>
               </div>
             ))}
@@ -134,53 +127,35 @@ export default function Help() {
 
         <section id="terms" className="detail-section">
           <h2>
-            <span className="ar">شروط الاستخدام</span>
-            <span className="en">Terms of Use</span>
+            <L ar="شروط الاستخدام" en="Terms of Use" />
           </h2>
-          <p className="ar" style={{ lineHeight: 1.7 }}>
-            باستخدامك منصة DocFlow Lebanon فإنك توافق على تقديم بيانات صحيحة قابلة للتحقق، وعلى أن
+          <L>{{ ar: <>باستخدامك منصة DocFlow Lebanon فإنك توافق على تقديم بيانات صحيحة قابلة للتحقق، وعلى أن
             تكون المستندات المرفوعة أصلية وتعود لك. يحقّ للمنصة رفض الطلبات المشبوهة أو غير المكتملة
-            وإحالتها للمراجعة اليدوية.
-          </p>
-          <p className="en" style={{ marginTop: '0.5rem', lineHeight: 1.6, color: '#374151' }}>
-            By using DocFlow Lebanon you agree to provide accurate, verifiable information and that
+            وإحالتها للمراجعة اليدوية.</>, en: <>By using DocFlow Lebanon you agree to provide accurate, verifiable information and that
             every uploaded document is genuine and yours. The platform may reject suspicious or
-            incomplete applications and route them to manual review.
-          </p>
+            incomplete applications and route them to manual review.</> }}</L>
         </section>
 
         <section id="privacy" className="detail-section">
           <h2>
-            <span className="ar">الخصوصية</span>
-            <span className="en">Privacy</span>
+            <L ar="الخصوصية" en="Privacy" />
           </h2>
-          <p className="ar" style={{ lineHeight: 1.7 }}>
-            نحتفظ ببياناتك الشخصية فقط للمدة اللازمة لمعالجة الطلب وإصدار الوثيقة. الصور لا تُشارَك
+          <L>{{ ar: <>نحتفظ ببياناتك الشخصية فقط للمدة اللازمة لمعالجة الطلب وإصدار الوثيقة. الصور لا تُشارَك
             خارج النظام. كل قرار آلي يُسجَّل في سجل التدقيق ويمكن مراجعته. أسماء المواطنين وتواريخ
-            الولادة لا تُسجَّل بنصها الصريح في سجلات النظام بل تُخفى تقنياً.
-          </p>
-          <p className="en" style={{ marginTop: '0.5rem', lineHeight: 1.6, color: '#374151' }}>
-            We retain your personal data only for as long as needed to process the application and
+            الولادة لا تُسجَّل بنصها الصريح في سجلات النظام بل تُخفى تقنياً.</>, en: <>We retain your personal data only for as long as needed to process the application and
             issue the document. Photos are never shared outside the system. Every automated decision
             is recorded in an audit log and can be reviewed. Names, dates of birth, and other PII
-            are technically redacted in our internal logs.
-          </p>
+            are technically redacted in our internal logs.</> }}</L>
         </section>
 
         <section id="contact" className="detail-section">
           <h2>
-            <span className="ar">التواصل</span>
-            <span className="en">Contact</span>
+            <L ar="التواصل" en="Contact" />
           </h2>
           <p style={{ color: '#374151', lineHeight: 1.6 }}>
-            <span className="ar">
-              للأسئلة التقنية أو مشاكل في الطلب، تواصل مع الدعم على
-              {' '}<a href="mailto:support@docflow.lb">support@docflow.lb</a>.
-            </span>
-            <span className="en" style={{ display: 'block', marginTop: '0.5rem' }}>
-              For technical issues or questions about your application, email{' '}
-              <a href="mailto:support@docflow.lb">support@docflow.lb</a>.
-            </span>
+            <L>{{ ar: <>للأسئلة التقنية أو مشاكل في الطلب، تواصل مع الدعم على
+              {' '}<a href="mailto:support@docflow.lb">support@docflow.lb</a>.</>, en: <>For technical issues or questions about your application, email{' '}
+              <a href="mailto:support@docflow.lb">support@docflow.lb</a>.</> }}</L>
           </p>
         </section>
       </main>

@@ -1,5 +1,6 @@
 import { useSearchParams, Link } from 'react-router-dom';
 import '@shared/styles/dashboard.css';
+import L from '@shared/components/L';
 
 export default function PaymentCancelled() {
   const [params] = useSearchParams();
@@ -10,8 +11,7 @@ export default function PaymentCancelled() {
       <div className="payment-callback">
         <div className="info-cross" aria-hidden>✕</div>
         <h1>
-          <span className="ar">تم إلغاء الدفع</span>
-          <span className="en">Payment cancelled</span>
+          <L ar="تم إلغاء الدفع" en="Payment cancelled" />
         </h1>
         <p>
           You cancelled the checkout before the payment was captured. No charge was made.

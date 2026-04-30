@@ -6,6 +6,7 @@ import { useToast } from '@shared/context/useToast';
 import { isLebanesePhone, normalizeLebanesePhone } from '@shared/utils/lebanesePhone';
 import flagImg from '@shared/assets/Figure_1.png';
 import '@shared/styles/dashboard.css';
+import L from '@shared/components/L';
 
 /**
  * Citizen account settings: profile edit + password change.
@@ -118,7 +119,7 @@ export default function AccountSettings() {
 
   if (loading) {
     return (
-      <div className="dashboard" dir="rtl">
+      <div className="dashboard">
         <main className="dashboard-main"><div className="loading-spinner" /></main>
       </div>
     );
@@ -126,7 +127,7 @@ export default function AccountSettings() {
   if (!me) return null;
 
   return (
-    <div className="dashboard" dir="rtl">
+    <div className="dashboard">
       <header className="dashboard-header">
         <div className="dashboard-header__inner">
           <div className="dashboard-header__brand">
@@ -142,8 +143,7 @@ export default function AccountSettings() {
           </div>
           <div className="dashboard-header__actions">
             <Link to="/dashboard" className="btn btn--outline btn--sm">
-              <span className="ar">العودة للرئيسية</span>
-              <span className="en"> · Dashboard</span>
+              <L ar="العودة للرئيسية" en="· Dashboard" />
             </Link>
           </div>
         </div>
@@ -153,16 +153,10 @@ export default function AccountSettings() {
         {/* Read-only identity */}
         <section className="detail-section">
           <h2>
-            <span className="ar">معلومات الهوية</span>
-            <span className="en">Identity (read-only)</span>
+            <L ar="معلومات الهوية" en="Identity (read-only)" />
           </h2>
           <p style={{ fontSize: '0.85rem', color: '#6b7280' }}>
-            <span className="ar">
-              لا يمكن تعديل هذه الحقول هنا — تستخدم لمطابقة سجل القيد المدني.
-            </span>
-            <span className="en" style={{ display: 'block' }}>
-              These fields can't be edited here — they're matched against the civil registry.
-            </span>
+            <L>{{ ar: <>لا يمكن تعديل هذه الحقول هنا — تستخدم لمطابقة سجل القيد المدني.</>, en: <>These fields can't be edited here — they're matched against the civil registry.</> }}</L>
           </p>
           <dl className="case-detail__dl" style={{ marginTop: '0.75rem' }}>
             <dt>Email</dt><dd>{me.email}{me.email_verified ? ' ✓' : ''}</dd>
@@ -176,13 +170,11 @@ export default function AccountSettings() {
         {/* Editable profile */}
         <section className="detail-section">
           <h2>
-            <span className="ar">المعلومات القابلة للتعديل</span>
-            <span className="en">Profile</span>
+            <L ar="المعلومات القابلة للتعديل" en="Profile" />
           </h2>
           <form onSubmit={onProfileSubmit} className="settings-form">
             <label>
-              <span className="ar">رقم الهاتف</span>
-              <span className="en"> · Phone</span>
+              <L ar="رقم الهاتف" en="· Phone" />
               <input
                 type="tel"
                 dir="ltr"
@@ -192,8 +184,7 @@ export default function AccountSettings() {
               />
             </label>
             <label>
-              <span className="ar">العنوان</span>
-              <span className="en"> · Address</span>
+              <L ar="العنوان" en="· Address" />
               <input
                 type="text"
                 value={profileDraft.address}
@@ -201,8 +192,7 @@ export default function AccountSettings() {
               />
             </label>
             <label>
-              <span className="ar">مكان الولادة</span>
-              <span className="en"> · Place of birth</span>
+              <L ar="مكان الولادة" en="· Place of birth" />
               <input
                 type="text"
                 value={profileDraft.place_of_birth}
@@ -210,8 +200,7 @@ export default function AccountSettings() {
               />
             </label>
             <label>
-              <span className="ar">الحالة الاجتماعية</span>
-              <span className="en"> · Marital status</span>
+              <L ar="الحالة الاجتماعية" en="· Marital status" />
               <select
                 value={profileDraft.marital_status}
                 onChange={(e) => setProfileDraft({ ...profileDraft, marital_status: e.target.value })}
@@ -224,8 +213,7 @@ export default function AccountSettings() {
               </select>
             </label>
             <label>
-              <span className="ar">المذهب</span>
-              <span className="en"> · Religious sect (optional)</span>
+              <L ar="المذهب" en="· Religious sect (optional)" />
               <select
                 value={profileDraft.religious_sect || ''}
                 onChange={(e) => setProfileDraft({ ...profileDraft, religious_sect: e.target.value })}
@@ -241,8 +229,7 @@ export default function AccountSettings() {
             <button type="submit" className="btn btn--primary" disabled={savingProfile}>
               {savingProfile ? 'Saving…' : (
                 <>
-                  <span className="ar">حفظ التعديلات</span>
-                  <span className="en"> · Save</span>
+                  <L ar="حفظ التعديلات" en="· Save" />
                 </>
               )}
             </button>
@@ -252,13 +239,11 @@ export default function AccountSettings() {
         {/* Password change */}
         <section className="detail-section">
           <h2>
-            <span className="ar">تغيير كلمة المرور</span>
-            <span className="en">Change password</span>
+            <L ar="تغيير كلمة المرور" en="Change password" />
           </h2>
           <form onSubmit={onPasswordSubmit} className="settings-form">
             <label>
-              <span className="ar">كلمة المرور الحالية</span>
-              <span className="en"> · Current password</span>
+              <L ar="كلمة المرور الحالية" en="· Current password" />
               <input
                 type="password"
                 value={pwd.current}
@@ -267,8 +252,7 @@ export default function AccountSettings() {
               />
             </label>
             <label>
-              <span className="ar">كلمة المرور الجديدة</span>
-              <span className="en"> · New password</span>
+              <L ar="كلمة المرور الجديدة" en="· New password" />
               <input
                 type="password"
                 value={pwd.next}
@@ -278,8 +262,7 @@ export default function AccountSettings() {
               />
             </label>
             <label>
-              <span className="ar">تأكيد كلمة المرور</span>
-              <span className="en"> · Confirm new password</span>
+              <L ar="تأكيد كلمة المرور" en="· Confirm new password" />
               <input
                 type="password"
                 value={pwd.confirm}
@@ -291,18 +274,12 @@ export default function AccountSettings() {
             <button type="submit" className="btn btn--primary" disabled={changingPwd}>
               {changingPwd ? 'Changing…' : (
                 <>
-                  <span className="ar">تغيير كلمة المرور</span>
-                  <span className="en"> · Change</span>
+                  <L ar="تغيير كلمة المرور" en="· Change" />
                 </>
               )}
             </button>
             <p style={{ fontSize: '0.8rem', color: '#6b7280' }}>
-              <span className="ar">
-                سيتم تسجيل خروج كل الأجهزة الأخرى عند تغيير كلمة المرور.
-              </span>
-              <span className="en" style={{ display: 'block' }}>
-                All other sessions will be signed out when you change your password.
-              </span>
+              <L>{{ ar: <>سيتم تسجيل خروج كل الأجهزة الأخرى عند تغيير كلمة المرور.</>, en: <>All other sessions will be signed out when you change your password.</> }}</L>
             </p>
           </form>
         </section>

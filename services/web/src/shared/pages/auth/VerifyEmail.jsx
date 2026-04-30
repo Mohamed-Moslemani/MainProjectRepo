@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import AuthLayout from '@shared/components/AuthLayout';
 import { authApi } from '@shared/api/auth';
 import '@shared/styles/verify.css';
+import L from '@shared/components/L';
 
 export default function VerifyEmail() {
   const location = useLocation();
@@ -113,31 +114,23 @@ export default function VerifyEmail() {
           <>
             <div className="verify-icon" style={{ color: 'var(--success)' }}>&#10003;</div>
             <h2 className="auth-card__heading">
-              <span className="ar">تم التحقق من البريد!</span>
-              <span className="en">Email Verified!</span>
+              <L ar="تم التحقق من البريد!" en="Email Verified!" />
             </h2>
             <div className="alert alert--success">{message}</div>
             <Link to="/login" className="btn btn--primary" style={{ maxWidth: 280, margin: '0 auto' }}>
-              <span className="ar">المتابعة لتسجيل الدخول</span>
-              <span className="en">Continue to Sign In</span>
+              <L ar="المتابعة لتسجيل الدخول" en="Continue to Sign In" />
             </Link>
           </>
         ) : (
           <>
             <div className="verify-icon">&#9993;</div>
             <h2 className="auth-card__heading">
-              <span className="ar">أدخل رمز التحقق</span>
-              <span className="en">Enter verification code</span>
+              <L ar="أدخل رمز التحقق" en="Enter verification code" />
             </h2>
             <p>
-              <span className="ar">
-                أرسلنا رمزاً مكوّناً من ٦ أرقام إلى{' '}
-                {emailFromState ? <strong>{emailFromState}</strong> : 'بريدك الإلكتروني'}
-              </span>
-              <span className="en" style={{ fontSize: '0.8rem', color: 'var(--gray-400)' }}>
-                We sent a 6-digit code to{' '}
-                {emailFromState ? <strong>{emailFromState}</strong> : 'your email'}
-              </span>
+              <L>{{ ar: <>أرسلنا رمزاً مكوّناً من ٦ أرقام إلى{' '}
+                {emailFromState ? <strong>{emailFromState}</strong> : 'بريدك الإلكتروني'}</>, en: <>We sent a 6-digit code to{' '}
+                {emailFromState ? <strong>{emailFromState}</strong> : 'your email'}</> }}</L>
             </p>
 
             {status === 'error' && (
@@ -146,8 +139,7 @@ export default function VerifyEmail() {
 
             {resendDone && (
               <div className="alert alert--success" style={{ justifyContent: 'center' }}>
-                <span className="ar">تم إرسال رمز جديد! تحقق من بريدك.</span>
-                <span className="en">New code sent! Check your inbox.</span>
+                <L ar="تم إرسال رمز جديد! تحقق من بريدك." en="New code sent! Check your inbox." />
               </div>
             )}
 
@@ -179,8 +171,7 @@ export default function VerifyEmail() {
               >
                 {loading ? <span className="spinner" /> : (
                   <>
-                    <span className="ar">تحقق</span>
-                    <span className="en">Verify</span>
+                    <L ar="تحقق" en="Verify" />
                   </>
                 )}
               </button>
@@ -188,15 +179,13 @@ export default function VerifyEmail() {
 
             {status === 'error' && (
               <button className="btn btn--ghost" onClick={handleRetry} style={{ marginTop: '0.5rem' }}>
-                <span className="ar">حاول مجدداً</span>
-                <span className="en">Try again</span>
+                <L ar="حاول مجدداً" en="Try again" />
               </button>
             )}
 
             <div className="verify-resend">
               <p>
-                <span className="ar">لم تستلم الرمز؟</span>
-                <span className="en">Didn&apos;t receive the code?</span>
+                <L ar="لم تستلم الرمز؟" en="Didn&apos;t receive the code?" />
               </p>
               {!emailFromState && (
                 <div className="form-group" style={{ marginTop: '0.5rem' }}>
@@ -220,8 +209,7 @@ export default function VerifyEmail() {
                   <span className="ar">جارٍ الإرسال...</span>
                 ) : (
                   <>
-                    <span className="ar">إعادة إرسال الرمز</span>
-                    <span className="en">Resend Code</span>
+                    <L ar="إعادة إرسال الرمز" en="Resend Code" />
                   </>
                 )}
               </button>
@@ -230,8 +218,7 @@ export default function VerifyEmail() {
         )}
 
         <p className="auth-footer">
-          <span className="ar"><Link to="/login">العودة لتسجيل الدخول</Link></span>
-          <span className="en"><Link to="/login">Back to Sign In</Link></span>
+          <L>{{ ar: <><Link to="/login">العودة لتسجيل الدخول</Link></>, en: <><Link to="/login">Back to Sign In</Link></> }}</L>
         </p>
       </div>
     </AuthLayout>
