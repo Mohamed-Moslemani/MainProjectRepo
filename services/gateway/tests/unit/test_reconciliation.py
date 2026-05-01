@@ -24,7 +24,9 @@ class TestNormalize:
         assert normalize("01/15/1995") == normalize("01-15-1995") == normalize("01.15.1995")
 
     def test_combined_normalization(self):
-        assert normalize("  01/15/1995  ") == "01151995"
+        # Punctuation -> space + whitespace collapse, so a date string
+        # with mixed delimiters folds to a single space-separated form.
+        assert normalize("  01/15/1995  ") == "01 15 1995"
 
 
 class TestCompareField:
