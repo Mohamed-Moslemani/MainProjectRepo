@@ -22,11 +22,13 @@ _NATIONAL_ID_FULL_TEXT = (
 )
 
 _PASSPORT_FULL_TEXT = (
+    # "LR" prefix = post-2016 biometric series; lebanese_rules
+    # (BIOMETRIC_PASSPORT_PREFIX) bounces anything else to need_info.
     "Lebanese Republic\n"
     "Passport\n"
     "Surname: SAAD\n"
     "Given Names: MOHAMED\n"
-    "Passport No: LB1234567\n"
+    "Passport No: LR1234567\n"
     "Nationality: Lebanese\n"
     "Date of Birth: 15/06/1995\n"
     "Sex: M\n"
@@ -34,7 +36,7 @@ _PASSPORT_FULL_TEXT = (
     "Date of Issue: 01/01/2020\n"
     "Date of Expiry: 01/01/2030\n"
     "P<LBNSAAD<<MOHAMED<<<<<<<<<<<<<<<<<<<<<<<<<<\n"
-    "LB12345678LBN9506158M3001019<<<<<<<<<<<<<<00\n"
+    "LR12345678LBN9506158M3001019<<<<<<<<<<<<<<00\n"
 )
 
 _BIRTH_CERT_FULL_TEXT = (
