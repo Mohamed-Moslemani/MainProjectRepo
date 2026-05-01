@@ -134,9 +134,13 @@ jobs:
           EOF
 
       - name: Bring up backend stack
+        # gateway_worker is required: the submit endpoint enqueues
+        # processing to Arq. Without the worker the case stays in
+        # `submitted` indefinitely and the E2E poll-for-decision
+        # loop times out.
         run: |
           docker compose --env-file .env.dev up -d --build \
-            db redis registry_db gateway ocr face registry
+            db redis registry_db gateway gateway_worker ocr face registry
 
       - name: Wait for gateway readiness
         run: |
