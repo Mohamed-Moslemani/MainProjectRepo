@@ -42,4 +42,10 @@ export const casesApi = {
   trackByTrackingId: (trackingId) => api.get(`/cases/track/${trackingId}`),
 
   createPayment: (caseId) => api.post('/payments', { case_id: caseId }),
+
+  // Citizen tear-down actions. `discard` is a hard delete, only
+  // valid on draft cases. `withdraw` flips the case to closed
+  // (audit trail intact) and is allowed pre-payment.
+  discard: (caseId) => api.delete(`/cases/${caseId}`),
+  withdraw: (caseId) => api.post(`/cases/${caseId}/withdraw`),
 };

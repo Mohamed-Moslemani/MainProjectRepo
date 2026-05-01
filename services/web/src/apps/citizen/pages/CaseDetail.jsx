@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { casesApi } from '@shared/api/cases';
+import { useConfirm } from '@shared/components/ConfirmDialog';
+import { localizeTimelineMessage, formatBeirutDateTime } from '@shared/utils/localizeTimeline';
+import { useTranslation } from 'react-i18next';
 import { referenceApi } from '@shared/api/reference';
 import LivenessCheck from '@shared/components/LivenessCheck';
 import UploadPreview from '@shared/components/UploadPreview';
@@ -16,18 +19,26 @@ import L from '@shared/components/L';
 
 const LIVENESS_DOC_TYPES = ['selfie', 'liveness_capture'];
 
+// Keys here MUST match the canonical DocumentType enum values used
+// by the backend (shared/schemas.py). Mismatched slugs (e.g. the
+// old "civil_registry" key vs the actual "civil_registry_extract"
+// the API emits) cause the citizen to see the raw slug in retake
+// banners — surface fix is just keeping these aligned.
 const DOC_LABELS = {
   national_id_front: { ar: 'الهوية - الوجه الأمامي', en: 'National ID (Front)' },
   national_id_back: { ar: 'الهوية - الوجه الخلفي', en: 'National ID (Back)' },
   old_id_front: { ar: 'الهوية القديمة - أمامي', en: 'Old ID (Front)' },
   old_id_back: { ar: 'الهوية القديمة - خلفي', en: 'Old ID (Back)' },
-  civil_registry: { ar: 'سجل القيد العائلي', en: 'Civil Registry Extract' },
+  civil_registry_extract: { ar: 'بيان قيد إفرادي', en: 'Civil Registry Extract' },
   selfie: { ar: 'صورة شخصية', en: 'Selfie Photo' },
-  liveness: { ar: 'صورة التحقق من الحياة', en: 'Liveness Photo' },
-  old_passport: { ar: 'جواز السفر القديم', en: 'Old Passport' },
-  additional_proof: { ar: 'إثبات إضافي', en: 'Additional Proof' },
-  guardian_id: { ar: 'هوية الولي', en: 'Guardian ID' },
-  guardian_consent: { ar: 'موافقة الولي', en: 'Guardian Consent' },
+  liveness_capture: { ar: 'صورة التحقق من الحياة', en: 'Liveness Capture' },
+  passport_data_page: { ar: 'صفحة بيانات الجواز', en: 'Passport Data Page' },
+  old_passport_data_page: { ar: 'جواز السفر القديم', en: 'Old Passport Data Page' },
+  additional_identity_proof: { ar: 'إثبات إضافي للهوية', en: 'Additional Identity Proof' },
+  guardian_docs: { ar: 'وثائق الولي', en: 'Guardian Documents' },
+  police_report: { ar: 'محضر شرطة', en: 'Police Report' },
+  damaged_passport: { ar: 'الجواز التالف', en: 'Damaged Passport' },
+  court_ruling: { ar: 'حكم محكمة', en: 'Court Ruling' },
 };
 
 const FIELD_LABELS = {
@@ -70,6 +81,7 @@ export default function CaseDetail() {
   const navigate = useNavigate();
   const { logout } = useAuth();
   const toast = useToast();
+  const confirm = useConfirm();
 
   const [caseData, setCaseData] = useState(null);
   const [requiredDocs, setRequiredDocs] = useState([]);
@@ -362,9 +374,71 @@ export default function CaseDetail() {
             </h1>
             <p className="case-header__tracking">#{caseData.tracking_id}</p>
           </div>
-          <span className={`status-badge status-badge--${st.color} status-badge--lg`}>
-            <L>{{ ar: <>{st.ar}</>, en: <>{st.en}</> }}</L>
-          </span>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.5rem' }}>
+            <span className={`status-badge status-badge--${st.color} status-badge--lg`}>
+              <L>{{ ar: <>{st.ar}</>, en: <>{st.en}</> }}</L>
+            </span>
+            {/* Tear-down actions:
+                - Draft → "Discard" (hard delete, nothing to preserve)
+                - Pre-payment statuses → "Withdraw" (audit trail kept) */}
+            {isDraft && (
+              <button
+                className="btn btn--sm btn--ghost"
+                style={{ color: '#b91c1c' }}
+                onClick={async () => {
+                  const ok = await confirm({
+                    destructive: true,
+                    ar: { title: 'حذف المسودة', message: 'هل أنت متأكد من حذف هذه المسودة؟ لا يمكن التراجع عن هذا الإجراء.', confirm: 'حذف', cancel: 'إلغاء' },
+                    en: { title: 'Discard draft', message: 'Are you sure you want to discard this draft? This cannot be undone.', confirm: 'Discard', cancel: 'Cancel' },
+                  });
+                  if (!ok) return;
+                  try {
+                    await casesApi.discard(caseId);
+                    toast.success('تم حذف المسودة');
+                    navigate('/dashboard');
+                  } catch (err) {
+                    toast.error(err.response?.data?.detail || 'فشل في الحذف');
+                  }
+                }}
+              >
+                <L ar="حذف المسودة" en="Discard draft" />
+              </button>
+            )}
+            {!isDraft && !['closed', 'rejected', 'approved', 'payment_pending',
+                             'in_production', 'ready_for_pickup'].includes(caseData.status) && (
+              <button
+                className="btn btn--sm btn--ghost"
+                style={{ color: '#b91c1c' }}
+                onClick={async () => {
+                  const ok = await confirm({
+                    destructive: true,
+                    ar: {
+                      title: 'سحب الطلب',
+                      message: 'سيتم إغلاق هذا الطلب. يمكنك تقديم طلب جديد لاحقاً. هل تريد المتابعة؟',
+                      confirm: 'سحب الطلب',
+                      cancel: 'إلغاء',
+                    },
+                    en: {
+                      title: 'Withdraw application',
+                      message: 'This case will be closed. You can apply again later. Continue?',
+                      confirm: 'Withdraw',
+                      cancel: 'Cancel',
+                    },
+                  });
+                  if (!ok) return;
+                  try {
+                    await casesApi.withdraw(caseId);
+                    toast.success('تم سحب الطلب');
+                    navigate('/dashboard');
+                  } catch (err) {
+                    toast.error(err.response?.data?.detail || 'فشل في السحب');
+                  }
+                }}
+              >
+                <L ar="سحب الطلب" en="Withdraw application" />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Per-page success/error banners replaced by the global toast
@@ -412,12 +486,21 @@ export default function CaseDetail() {
           </div>
         )}
 
-        {/* Rejection reasons */}
+        {/* Rejection reasons — backend stores in English; the
+            localizer maps the canonical phrases to Arabic and falls
+            back to verbatim English for anything new. */}
         {caseData.rejection_reasons?.length > 0 && (
           <div className="alert alert--error">
-            <L>{{ ar: <>أسباب الرفض:</>, en: <>Rejection Reasons:</> }}</L>
+            <L ar="أسباب الرفض:" en="Rejection Reasons:" />
             <ul style={{ marginTop: '0.5rem', paddingRight: '1.25rem' }}>
-              {caseData.rejection_reasons.map((r, i) => <li key={i}>{r}</li>)}
+              {caseData.rejection_reasons.map((r, i) => {
+                const m = localizeTimelineMessage(r);
+                return (
+                  <li key={i}>
+                    <L ar={m.ar} en={m.en} />
+                  </li>
+                );
+              })}
             </ul>
           </div>
         )}
@@ -755,6 +838,7 @@ export default function CaseDetail() {
 
 function TrackingTimeline({ caseId }) {
   const [tracking, setTracking] = useState(null);
+  const { i18n } = useTranslation();
 
   useEffect(() => {
     casesApi.getTracking(caseId).then(({ data }) => setTracking(data)).catch(() => {});
@@ -762,28 +846,42 @@ function TrackingTimeline({ caseId }) {
 
   if (!tracking || !tracking.events?.length) return null;
 
+  // Backend stores status_history.message and next_action in
+  // English. Map to the active locale, format timestamps in
+  // Asia/Beirut so the citizen sees their own clock regardless
+  // of where the server lives.
+  const dateLocale = i18n.resolvedLanguage === 'en' ? 'en-GB' : 'ar-LB';
+  const next = tracking.next_action ? localizeTimelineMessage(tracking.next_action) : null;
+
   return (
     <section className="detail-section">
       <h2>
         <L ar="مسار الطلب" en="Application Timeline" />
       </h2>
       <div className="timeline">
-        {tracking.events.map((ev, i) => (
-          <div key={i} className={`timeline__item ${i === 0 ? 'timeline__item--active' : ''}`}>
-            <div className="timeline__dot" />
-            <div className="timeline__content">
-              <p className="timeline__message">{ev.message}</p>
-              <span className="timeline__date">
-                {new Date(ev.timestamp).toLocaleString('ar-LB')}
-              </span>
+        {tracking.events.map((ev, i) => {
+          const m = localizeTimelineMessage(ev.message);
+          return (
+            <div key={i} className={`timeline__item ${i === 0 ? 'timeline__item--active' : ''}`}>
+              <div className="timeline__dot" />
+              <div className="timeline__content">
+                <p className="timeline__message">
+                  <L ar={m.ar} en={m.en} />
+                </p>
+                <span className="timeline__date">
+                  {formatBeirutDateTime(ev.timestamp, dateLocale)}
+                </span>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
-      {tracking.next_action && (
+      {next && (
         <div className="next-action">
-          <L ar="الخطوة التالية:" en="Next Step:" />
-          <strong>{tracking.next_action}</strong>
+          <L ar="الخطوة التالية:" en="Next Step:" />{' '}
+          <strong>
+            <L ar={next.ar} en={next.en} />
+          </strong>
         </div>
       )}
     </section>

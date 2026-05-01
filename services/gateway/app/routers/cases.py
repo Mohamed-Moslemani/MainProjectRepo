@@ -77,6 +77,123 @@ async def get_case(
     return case
 
 
+@router.delete("/{case_id}", status_code=204)
+async def discard_draft_case(
+    case_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Citizen discards a draft case before any pipeline work.
+
+    Restricted to status='draft' — once submitted the case has
+    legal status (audit trail, possible clerk review, payment) and
+    must be withdrawn instead, not deleted. The hard-delete cascade
+    here is safe because draft means no OCR/face/payment rows have
+    been written yet, only the case row + uploaded documents.
+    """
+    case = await _get_user_case(db, case_id, user)
+    if case.status != "draft":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Cannot discard a case in status '{case.status}'. "
+                f"Use the withdraw action instead."
+            ),
+        )
+
+    # Document files on disk are best-effort; if cleanup fails the
+    # rows are still gone and the file becomes orphaned (the next
+    # bucket-sweeper would clean it).
+    docs_result = await db.execute(
+        select(Document).where(Document.case_id == case_id)
+    )
+    for doc in docs_result.scalars().all():
+        try:
+            if doc.file_path and os.path.exists(doc.file_path):
+                os.remove(doc.file_path)
+        except Exception:  # noqa: BLE001
+            pass
+
+    # Tear down dependent rows in FK-safe order. Most tables here
+    # (face_results, ocr_results, payments, appointments) shouldn't
+    # have entries for a draft case but the deletes are no-ops if
+    # absent — keeps the cleanup correct under future code that
+    # may write something earlier in the lifecycle.
+    from sqlalchemy import delete as sa_delete
+    from ..models.payment import Payment
+    from ..models.face_result import FaceResult
+    from ..models.ocr_result import OCRResult
+    from ..models.audit_log import AuditLog
+    from ..models.biometric_appointment import BiometricAppointment
+
+    await db.execute(sa_delete(OCRResult).where(
+        OCRResult.document_id.in_(
+            select(Document.id).where(Document.case_id == case_id)
+        )
+    ))
+    await db.execute(sa_delete(FaceResult).where(FaceResult.case_id == case_id))
+    await db.execute(sa_delete(Payment).where(Payment.case_id == case_id))
+    await db.execute(sa_delete(BiometricAppointment).where(
+        BiometricAppointment.case_id == case_id
+    ))
+    await db.execute(sa_delete(Document).where(Document.case_id == case_id))
+    await db.execute(sa_delete(AuditLog).where(AuditLog.case_id == case_id))
+    await db.delete(case)
+    await db.commit()
+
+    await log_action(
+        db, "case_discarded", user_id=user.id,
+        details={"case_id": case_id, "service_type": case.service_type},
+    )
+    await db.commit()
+    return None
+
+
+@router.post("/{case_id}/withdraw", response_model=CaseDetailResponse)
+async def withdraw_case(
+    case_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Citizen withdraws an in-flight case.
+
+    Allowed for any pre-payment status (submitted, validated,
+    risk_evaluated, need_info, pending_mukhtar, biometric_*). The
+    case is set to 'closed' with a withdrawal note — the audit
+    trail stays intact, the citizen is free to start a fresh case.
+    Once paid the case is no longer self-cancellable; refund flow
+    would be a clerk action.
+    """
+    case = await _get_user_case(db, case_id, user)
+
+    NON_WITHDRAWABLE = {"closed", "rejected", "approved",
+                        "payment_pending", "in_production",
+                        "ready_for_pickup"}
+    if case.status in NON_WITHDRAWABLE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot withdraw a case in status '{case.status}'.",
+        )
+
+    prev = case.status
+    case.status = "closed"
+    case.notes = (case.notes or "") + "\n[Withdrawn by citizen]"
+    case.status_history = (case.status_history or []) + [{
+        "status": "closed",
+        "message": "Withdrawn by citizen",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }]
+    await db.commit()
+    await db.refresh(case)
+
+    CASE_STATUS_TRANSITIONS.labels(from_status=prev, to_status="closed").inc()
+    await log_action(
+        db, "case_withdrawn", user_id=user.id, case_id=case_id,
+        details={"from_status": prev},
+    )
+    return case
+
+
 @router.patch("/{case_id}/declared-fields", response_model=CaseDetailResponse)
 async def patch_declared_fields(
     case_id: str,

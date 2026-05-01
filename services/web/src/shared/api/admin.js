@@ -57,4 +57,8 @@ export const adminApi = {
   },
   replayStripeEvent: (eventId) =>
     api.post(`/admin/stripe-events/${encodeURIComponent(eventId)}/replay`),
+
+  // Hard-delete a case + all its dependent rows. Admin role only,
+  // audit-logged server-side.
+  deleteCase: (caseId) => api.delete(`/admin/cases/${caseId}`),
 };

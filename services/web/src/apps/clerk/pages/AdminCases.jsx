@@ -4,6 +4,9 @@ import { adminApi } from '@shared/api/admin';
 import AgeBadge from '@shared/components/AgeBadge';
 import ReconciliationDiff from '@shared/components/ReconciliationDiff';
 import L from '@shared/components/L';
+import { useAuth } from '@shared/context/useAuth';
+import { useToast } from '@shared/context/useToast';
+import { useConfirm } from '@shared/components/ConfirmDialog';
 
 const ALL_STATUSES = [
   'draft', 'submitted', 'validated', 'risk_evaluated',
@@ -41,6 +44,9 @@ const TRANSITIONS = {
 const PAGE_SIZE = 20;
 
 export default function AdminCases() {
+  const { user } = useAuth();
+  const toast = useToast();
+  const confirm = useConfirm();
   const [searchParams, setSearchParams] = useSearchParams();
   const filterStatus = searchParams.get('status') || '';
 
@@ -103,7 +109,21 @@ export default function AdminCases() {
 
   const runBulkTransition = async (targetStatus) => {
     if (selected.size === 0 || bulkRunning) return;
-    if (!confirm(`Transition ${selected.size} case(s) → ${targetStatus}?`)) return;
+    const ok = await confirm({
+      ar: {
+        title: 'نقل الطلبات',
+        message: `سيتم نقل ${selected.size} طلب(ات) إلى الحالة: ${targetStatus}.`,
+        confirm: 'متابعة',
+        cancel: 'إلغاء',
+      },
+      en: {
+        title: 'Bulk transition',
+        message: `Transition ${selected.size} case(s) → ${targetStatus}?`,
+        confirm: 'Apply',
+        cancel: 'Cancel',
+      },
+    });
+    if (!ok) return;
     setBulkRunning(true);
     const ids = [...selected];
     let okCount = 0;
@@ -375,17 +395,57 @@ export default function AdminCases() {
                           </div>
                         </td>
                         <td>
-                          {(TRANSITIONS[c.status] || []).length > 0 && (
-                            <button
-                              className="btn-small btn-small--primary"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openUpdateModal(c);
-                              }}
-                            >
-                              <L ar="تحديث" en="Update" />
-                            </button>
-                          )}
+                          <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'flex-end' }}>
+                            {(TRANSITIONS[c.status] || []).length > 0 && (
+                              <button
+                                className="btn-small btn-small--primary"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openUpdateModal(c);
+                                }}
+                              >
+                                <L ar="تحديث" en="Update" />
+                              </button>
+                            )}
+                            {/* Hard-delete escape hatch — admin role
+                                only. Used for testing fixtures and
+                                rare right-to-erasure requests. The
+                                action is audit-logged server-side. */}
+                            {(user?.role === 'admin') && (
+                              <button
+                                className="btn-small"
+                                style={{ color: '#fff', background: '#b91c1c', borderColor: '#b91c1c' }}
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  const ok = await confirm({
+                                    destructive: true,
+                                    ar: {
+                                      title: 'حذف نهائي للطلب',
+                                      message: `سيتم حذف الطلب ${c.tracking_id} بشكل نهائي مع جميع المستندات ونتائج التعرّف والدفعات. الإجراء مسجّل في سجل التدقيق.`,
+                                      confirm: 'حذف',
+                                      cancel: 'إلغاء',
+                                    },
+                                    en: {
+                                      title: 'Hard-delete case',
+                                      message: `Permanently delete case ${c.tracking_id}? This wipes documents, OCR/face results, payments, and the case row. Audit-logged.`,
+                                      confirm: 'Delete',
+                                      cancel: 'Cancel',
+                                    },
+                                  });
+                                  if (!ok) return;
+                                  try {
+                                    await adminApi.deleteCase(c.id);
+                                    toast.success(`Deleted ${c.tracking_id}`);
+                                    loadCases();
+                                  } catch (err) {
+                                    toast.error(err.response?.data?.detail || 'Delete failed');
+                                  }
+                                }}
+                              >
+                                <L ar="حذف" en="Delete" />
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
 

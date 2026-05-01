@@ -275,6 +275,70 @@ async def dashboard_stats(
     }
 
 
+@router.delete("/cases/{case_id}", status_code=204)
+async def admin_delete_case(
+    case_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("admin")),
+):
+    """Hard-delete a case and all its dependent data.
+
+    Admin-only and audit-logged. Use only for testing fixtures or
+    explicit citizen "right to erasure" requests. Cascades through
+    documents → ocr_results, face_results, payments, biometric
+    appointments, audit logs scoped to the case, and the case row
+    itself. Files on disk are best-effort cleanup; orphans don't
+    break anything.
+    """
+    from sqlalchemy import delete as sa_delete
+    from ..models.document import Document
+    from ..models.payment import Payment
+    from ..models.face_result import FaceResult
+    from ..models.ocr_result import OCRResult
+    from ..models.biometric_appointment import BiometricAppointment
+    import os
+
+    result = await db.execute(select(Case).where(Case.id == case_id))
+    case = result.scalar_one_or_none()
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    docs_result = await db.execute(select(Document).where(Document.case_id == case_id))
+    for doc in docs_result.scalars().all():
+        try:
+            if doc.file_path and os.path.exists(doc.file_path):
+                os.remove(doc.file_path)
+        except Exception:  # noqa: BLE001
+            pass
+
+    await db.execute(sa_delete(OCRResult).where(
+        OCRResult.document_id.in_(
+            select(Document.id).where(Document.case_id == case_id)
+        )
+    ))
+    await db.execute(sa_delete(FaceResult).where(FaceResult.case_id == case_id))
+    await db.execute(sa_delete(Payment).where(Payment.case_id == case_id))
+    await db.execute(sa_delete(BiometricAppointment).where(
+        BiometricAppointment.case_id == case_id
+    ))
+    await db.execute(sa_delete(Document).where(Document.case_id == case_id))
+    await db.execute(sa_delete(AuditLog).where(AuditLog.case_id == case_id))
+    await db.delete(case)
+    await db.commit()
+
+    await log_action(
+        db, "admin_case_deleted", user_id=user.id,
+        details={
+            "deleted_case_id": case_id,
+            "service_type": case.service_type,
+            "tracking_id": case.tracking_id,
+            "from_status": case.status,
+        },
+    )
+    await db.commit()
+    return None
+
+
 # ── Stripe webhook replay ─────────────────────────────────────────
 #
 # Stripe retries delivery on any non-2xx, but it stops once it sees
