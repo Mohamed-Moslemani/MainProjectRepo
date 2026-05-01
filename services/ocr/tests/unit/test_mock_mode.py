@@ -29,7 +29,7 @@ class TestExtractTextMockMode:
     def test_passport_fixture_includes_mrz(self, mock_mode):
         result = extract_text("/nonexistent.jpg", "old_passport_data_page")
         assert "P<LBN" in result["full_text"]
-        assert "LB12345678" in result["full_text"]
+        assert "LR12345678" in result["full_text"]
 
     def test_birth_certificate_fixture(self, mock_mode):
         result = extract_text("/nonexistent.jpg", "birth_certificate")
