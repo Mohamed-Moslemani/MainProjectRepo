@@ -60,7 +60,21 @@ PATTERN_MAP = {
     "old_id_back": NATIONAL_ID_PATTERNS,
     "passport_data_page": PASSPORT_PATTERNS,
     "old_passport_data_page": PASSPORT_PATTERNS,
-    "civil_registry_extract": NATIONAL_ID_PATTERNS,
+    # Civil registry has its own dedicated pattern set — Lebanese
+    # civil records don't print Latin names so full_name_en is
+    # intentionally absent. Regex won't realistically extract from
+    # this 3-column table; the LLM fallback in routers/ocr.py is
+    # the actual extractor for this doc type.
+    "civil_registry_extract": {
+        "full_name_ar": r"(?:الإسم|الاسم)[:\s]+(.+?)(?:\n|$)",
+        "father_name":  r"(?:إسم الأب|اسم الأب)[:\s]+(.+?)(?:\n|$)",
+        "mother_name":  r"(?:إسم الأم(?: وشهرتها)?|اسم الأم(?: وشهرتها)?)[:\s]+(.+?)(?:\n|$)",
+        "date_of_birth": r"تاريخ الولادة[:\s]+(\d{4}[/\-.]\d{1,2}[/\-.]\d{1,2}|\d{1,2}[/\-.]\d{1,2}[/\-.]\d{2,4})",
+        "place_of_birth": r"محل الولادة[:\s]+(.+?)(?:\n|$)",
+        "gender": r"الجنس[:\s]+(ذكر|أنثى|انثى)",
+        "id_number": r"(?:رقم بطاقة الهوية|رقم الهوية)[:\s]*([\d.\-]+)",
+        "register_place": r"(?:محل ورقم القيد|محل القيد|محل السجل)[:\s]+(.+?)(?:\n|$)",
+    },
 }
 
 

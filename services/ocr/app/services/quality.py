@@ -46,12 +46,25 @@ def assess_quality(image_path: str) -> dict:
     if glare_detected:
         issues.append(f"Glare detected ({glare_ratio*100:.1f}% overexposed)")
 
-    # Resolution check
+    # Resolution check — orientation-agnostic. Citizen photos arrive
+    # in landscape OR portrait; what we actually care about is "is
+    # the image at least N×M pixels in some orientation?". The old
+    # check (w>=640 AND h>=480) wrongly rejected a portrait phone
+    # photo at 600×800 even though it has more pixels than the
+    # threshold demands. Compare the larger dim against
+    # `min_resolution_width` and the smaller against
+    # `min_resolution_height`.
+    long_side, short_side = max(w, h), min(w, h)
     resolution_ok = bool(
-        w >= settings.min_resolution_width and h >= settings.min_resolution_height
+        long_side >= settings.min_resolution_width
+        and short_side >= settings.min_resolution_height
     )
     if not resolution_ok:
-        issues.append(f"Resolution too low ({w}x{h}), minimum {settings.min_resolution_width}x{settings.min_resolution_height}")
+        issues.append(
+            f"Resolution too low ({w}x{h}), minimum "
+            f"{settings.min_resolution_width}x{settings.min_resolution_height} "
+            f"in either orientation"
+        )
 
     # Angle check - detect document edges via Hough transform
     edges = cv2.Canny(gray, 50, 150)

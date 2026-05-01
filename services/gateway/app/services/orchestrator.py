@@ -255,6 +255,16 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
 
         try:
             ocr_data = await call_ocr_service(doc)
+            # Re-uploaded documents keep the same document_id but the
+            # underlying file changed; the previous OCR row from the
+            # failed first attempt would otherwise collide with the
+            # unique constraint on ocr_results.document_id. Wipe the
+            # stale row before inserting the fresh one so a retake
+            # cycle is idempotent across submits.
+            from sqlalchemy import delete as sa_delete
+            await db.execute(
+                sa_delete(OCRResult).where(OCRResult.document_id == doc.id)
+            )
             ocr_record = OCRResult(
                 document_id=doc.id,
                 extracted_fields=ocr_data.get("extracted_fields", {}),

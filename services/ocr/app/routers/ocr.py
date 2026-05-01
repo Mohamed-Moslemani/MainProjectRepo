@@ -11,6 +11,7 @@ from ..services.quality import assess_quality
 from ..services.google_ocr import extract_text
 from ..services.field_extractor import extract_fields
 from ..services.mrz_parser import parse_mrz
+from ..services import ai_extractor
 from ..config import get_settings
 from ..metrics import (
     OCR_REQUESTS,
@@ -84,6 +85,61 @@ async def process_document(req: ProcessRequest):
         extracted_fields = field_result["fields"]
         confidence_scores = field_result["confidence_scores"]
 
+        settings = get_settings()
+
+        # ── LLM extraction ──────────────────────────────────────
+        # Lebanese civil-status docs are 3-column tables whose
+        # label/value pairs land on different OCR lines — regex
+        # frequently grabs the wrong cell (e.g. "father_name" picks
+        # up "محل الولادة" because it follows the label spatially
+        # but not by the line-flow regex assumes). For these doc
+        # types we let the LLM extract the canonical truth and
+        # OVERWRITE the regex output rather than treating it as
+        # fallback. Regex is kept ONLY for fixed-grammar docs
+        # (passport MRZ) where it's reliable and cheap.
+        #
+        # For other table-shaped docs (national_id_*, old_id_*) the
+        # LLM still runs but only as a fallback when regex returned
+        # too few fields, so we don't pay LLM cost on every call.
+        ALWAYS_LLM = {"civil_registry_extract"}
+
+        if settings.llm_fallback_enabled and ai_extractor.supports(req.document_type):
+            should_call_llm = (
+                req.document_type in ALWAYS_LLM
+                or len(extracted_fields) < settings.llm_fallback_min_fields
+            )
+            if should_call_llm:
+                try:
+                    with open(req.file_path, "rb") as fh:
+                        image_bytes = fh.read()
+                    llm_fields = await asyncio.to_thread(
+                        ai_extractor.extract_with_llm,
+                        req.document_type,
+                        ocr_result["full_text"],
+                        image_bytes,
+                        model=settings.llm_model,
+                    )
+                    if llm_fields:
+                        force_overwrite = req.document_type in ALWAYS_LLM
+                        for k, v in llm_fields.items():
+                            if force_overwrite or k not in extracted_fields or not extracted_fields[k]:
+                                extracted_fields[k] = v
+                                # LLM extraction confidence is opinionated — we use a
+                                # mid-range constant rather than a model-reported
+                                # logprob. Risk scoring downstream weighs all OCR
+                                # confidences uniformly; this keeps the merged
+                                # output comparable.
+                                confidence_scores[k] = 0.85
+                        logger.info(
+                            "LLM extractor produced %d fields for %s (overwrite=%s)",
+                            len(llm_fields), req.document_type, force_overwrite,
+                        )
+                except Exception as exc:  # noqa: BLE001
+                    # LLM is best-effort — never crash the OCR call
+                    # because it failed. The regex-only output stays.
+                    OCR_ERRORS.labels(stage="llm_fallback").inc()
+                    logger.warning("LLM extractor raised: %s", exc)
+
         OCR_FIELDS_EXTRACTED.observe(len(extracted_fields))
 
         nonzero_scores = [c for c in confidence_scores.values() if c > 0]
@@ -91,7 +147,6 @@ async def process_document(req: ProcessRequest):
             avg_conf = sum(nonzero_scores) / len(nonzero_scores)
             OCR_CONFIDENCE.observe(avg_conf)
 
-        settings = get_settings()
         low_confidence_fields = [
             f for f, c in confidence_scores.items()
             if c < settings.min_confidence_threshold and c > 0
@@ -101,9 +156,29 @@ async def process_document(req: ProcessRequest):
                 f"Low confidence on fields: {', '.join(low_confidence_fields)}"
             )
 
-        missing_fields = [f for f, c in confidence_scores.items() if c == 0.0]
-        if missing_fields:
-            retake_reasons.append(f"Could not extract fields: {', '.join(missing_fields)}")
+        # Civil-registry extracts have fields whose value cells the
+        # OCR routinely skips (full_name_ar in particular — the
+        # citizen photo overlaps with the first-name row geometry).
+        # Don't bounce a doc that produced *most* fields just
+        # because OCR couldn't read every cell. Critical fields
+        # (surname, ID number, DOB) being missing is the trigger;
+        # everything else is informational.
+        if req.document_type == "civil_registry_extract":
+            critical = ("surname_ar", "id_number", "date_of_birth")
+            missing_critical = [
+                f for f in critical
+                if confidence_scores.get(f, 0.0) == 0.0
+            ]
+            if missing_critical:
+                retake_reasons.append(
+                    f"Could not extract fields: {', '.join(missing_critical)}"
+                )
+        else:
+            missing_fields = [f for f, c in confidence_scores.items() if c == 0.0]
+            if missing_fields:
+                retake_reasons.append(
+                    f"Could not extract fields: {', '.join(missing_fields)}"
+                )
 
         mrz_result = None
         if req.document_type in ("old_passport_data_page", "passport_data_page"):

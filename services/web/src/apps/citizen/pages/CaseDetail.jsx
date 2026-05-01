@@ -218,6 +218,35 @@ export default function CaseDetail() {
   const canEdit = isDraft || isNeedInfo;
   const st = STATUS_MAP[caseData?.status] || { ar: '', en: '', color: 'gray' };
 
+  // Set of document_types the backend flagged for retake on this
+  // case. Used to swap a green ✓ for a "Replace" button so the
+  // citizen can fix the bad upload — without this they were stuck
+  // looking at a checkmark with no way forward.
+  const retakeDocTypes = new Set(
+    (caseData?.retake_reasons || []).map((r) => r.document_type)
+  );
+
+  // Translate the OCR service's free-form English quality reasons
+  // into Arabic so the bilingual <L> on the retake banner shows the
+  // right language. Uses pattern matching because the upstream
+  // strings include numbers (resolution, blur scores, angles) that
+  // we want to preserve verbatim.
+  const localizeReason = (en) => {
+    if (!en) return { ar: '', en: '' };
+    let ar = en;
+    ar = ar.replace(/^Resolution too low \((\d+)x(\d+)\), minimum (\d+)x(\d+)$/,
+      'الدقة منخفضة جداً ($1×$2)، الحد الأدنى $3×$4');
+    ar = ar.replace(/^Image is too blurry \(score: ([\d.]+), min: ([\d.]+)\)$/,
+      'الصورة ضبابية جداً (النتيجة: $1، الحد الأدنى: $2)');
+    ar = ar.replace(/^Glare detected \(([\d.]+)% overexposed\)$/,
+      'انعكاس ضوء قوي ($1٪ مفرط الإضاءة)');
+    ar = ar.replace(/^Document appears skewed \(angle: ([\d.]+) degrees\)$/,
+      'المستند مائل (الزاوية: $1 درجة)');
+    ar = ar.replace(/^Could not extract fields: (.+)$/,
+      'تعذّر استخراج الحقول: $1');
+    return { ar, en };
+  };
+
   // Liveness: check if already completed via session
   const livenessCompleted = !!(caseData?.liveness_result?.liveness_passed);
   const requiresLiveness = requiredDocs.some((d) => LIVENESS_DOC_TYPES.includes(d));
@@ -363,7 +392,14 @@ export default function CaseDetail() {
                     </strong>
                     {finding.reasons?.length > 0 && (
                       <ul style={{ marginTop: '0.25rem', paddingRight: '1rem', fontSize: '0.85rem' }}>
-                        {finding.reasons.map((r, j) => <li key={j}>{r}</li>)}
+                        {finding.reasons.map((r, j) => {
+                          const loc = localizeReason(r);
+                          return (
+                            <li key={j}>
+                              <L ar={loc.ar} en={loc.en} />
+                            </li>
+                          );
+                        })}
                       </ul>
                     )}
                   </li>
@@ -435,18 +471,18 @@ export default function CaseDetail() {
                     )}
                   </div>
                   <div className="doc-card__action">
-                    {uploaded ? (
+                    {uploaded && !retakeDocTypes.has(docType) ? (
                       <span className="doc-card__check">&#10003;</span>
                     ) : canEdit ? (
-                      <label className={`btn btn--sm btn--outline ${isUploading || checkingFile ? 'btn--loading' : ''}`}>
+                      <label className={`btn btn--sm ${retakeDocTypes.has(docType) ? 'btn--primary' : 'btn--outline'} ${isUploading || checkingFile ? 'btn--loading' : ''}`}>
                         {isUploading ? (
                           <L ar="جارٍ الرفع..." en="Uploading..." />
                         ) : checkingFile ? (
                           <L ar="جاري الفحص..." en="Checking..." />
+                        ) : retakeDocTypes.has(docType) ? (
+                          <L ar="إعادة الرفع" en="Replace" />
                         ) : (
-                          <>
-                            <L ar="رفع" en="Upload" />
-                          </>
+                          <L ar="رفع" en="Upload" />
                         )}
                         <input
                           type="file"
