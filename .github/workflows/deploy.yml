@@ -118,7 +118,7 @@ jobs:
       # keeps the gate signal-rich (no point failing on a CVE no
       # upstream patch exists for yet).
       - name: Trivy scan
-        uses: aquasecurity/trivy-action@0.32.0
+        uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ env.REGISTRY }}/${{ steps.lcowner.outputs.owner }}/docflow-${{ matrix.service }}@${{ steps.build.outputs.digest }}
           format: sarif
