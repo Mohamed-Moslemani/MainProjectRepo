@@ -49,10 +49,29 @@ _BIRTH_CERT_FULL_TEXT = (
 )
 
 
+_CIVIL_REGISTRY_FULL_TEXT = (
+    # Mock layout mirrors the real Lebanese بيان قيد إفرادي labels
+    # so the regex extractor (CIVIL_REGISTRY_PATTERNS) finds the
+    # same fields it does on a real OCR'd form. Without this the
+    # mock fixture (English-only labels) silently produced zero
+    # fields and the orchestrator bounced every mock case to
+    # need_info before reconciliation could run.
+    "الجمهورية اللبنانية\n"
+    "بيان قيد إفرادي\n"
+    "الإسم: Mohamed Saad\n"
+    "اسم الأب: Ali Saad\n"
+    "اسم الأم: Fatima Hassan\n"
+    "تاريخ الولادة: 15/06/1995\n"
+    "محل الولادة: Beirut\n"
+    "الجنس: ذكر\n"
+    "رقم بطاقة الهوية: 12345\n"
+    "محل ورقم القيد: Beirut 1\n"
+)
+
 _TEXT_BY_TYPE = {
     "national_id": _NATIONAL_ID_FULL_TEXT,
     "old_id": _NATIONAL_ID_FULL_TEXT,
-    "civil_registry_extract": _NATIONAL_ID_FULL_TEXT,
+    "civil_registry_extract": _CIVIL_REGISTRY_FULL_TEXT,
     "national_id_front": _NATIONAL_ID_FULL_TEXT,
     "national_id_back": _NATIONAL_ID_FULL_TEXT,
     "old_id_front": _NATIONAL_ID_FULL_TEXT,
