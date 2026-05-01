@@ -36,7 +36,7 @@ _PASSPORT_FULL_TEXT = (
     "Date of Issue: 01/01/2020\n"
     "Date of Expiry: 01/01/2030\n"
     "P<LBNSAAD<<MOHAMED<<<<<<<<<<<<<<<<<<<<<<<<<<\n"
-    "LR12345678LBN9506158M3001019<<<<<<<<<<<<<<00\n"
+    "LR12345676LBN9506158M3001019<<<<<<<<<<<<<<04\n"
 )
 
 _BIRTH_CERT_FULL_TEXT = (
