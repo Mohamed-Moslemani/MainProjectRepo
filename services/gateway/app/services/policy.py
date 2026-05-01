@@ -67,8 +67,13 @@ SERVICE_POLICIES = {
         "ocr_documents": [
             DocumentType.CIVIL_REGISTRY_EXTRACT,
         ],
-        "face_reference_doc": None,  # no existing ID to compare against
-        "face_match_required": False,
+        # First-time citizen has no prior national ID, so the only
+        # face the system has on file is the photo printed on the
+        # civil-registry extract (بيان قيد إفرادي). AWS CompareFaces
+        # auto-detects the largest face on the page, so we don't have
+        # to crop the photo out manually — point it at the full doc.
+        "face_reference_doc": DocumentType.CIVIL_REGISTRY_EXTRACT,
+        "face_match_required": True,
         "needs_mrz": False,
         "declared_fields": [
             "full_name", "father_name", "mother_name", "date_of_birth",
@@ -107,13 +112,17 @@ SERVICE_POLICIES = {
 
     ServiceType.PASSPORT_NEW: {
         "required_documents": [
+            # Lebanese law requires a valid national ID to apply for
+            # a new passport — promoted from optional so the FE
+            # surfaces the upload slots and the orchestrator's OCR
+            # pass doesn't fail with "missing document".
+            DocumentType.NATIONAL_ID_FRONT,
+            DocumentType.NATIONAL_ID_BACK,
             DocumentType.CIVIL_REGISTRY_EXTRACT,
             DocumentType.SELFIE,
             DocumentType.LIVENESS_CAPTURE,
         ],
         "optional_documents": [
-            DocumentType.NATIONAL_ID_FRONT,
-            DocumentType.NATIONAL_ID_BACK,
             DocumentType.ADDITIONAL_IDENTITY_PROOF,
             DocumentType.GUARDIAN_DOCS,
         ],
@@ -122,7 +131,14 @@ SERVICE_POLICIES = {
             DocumentType.NATIONAL_ID_BACK,
             DocumentType.CIVIL_REGISTRY_EXTRACT,
         ],
-        "face_reference_doc": DocumentType.NATIONAL_ID_FRONT,
+        # Compare the liveness frame against the photo printed on
+        # the civil-registry extract. Both national_id_front and the
+        # registry extract carry a biometric-quality photo of the
+        # citizen; we use the registry extract because it's the doc
+        # the GDGS form anchors identity to, and it's required on
+        # every passport flow. national_id_front stays in the
+        # required_documents list for OCR + identity reconciliation.
+        "face_reference_doc": DocumentType.CIVIL_REGISTRY_EXTRACT,
         "face_match_required": True,
         "needs_mrz": False,
         "mukhtar_required": True,

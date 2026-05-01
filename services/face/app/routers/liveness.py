@@ -32,6 +32,13 @@ class CredentialsResponse(BaseModel):
     secret_access_key: str
     session_token: str
     region: str
+    # Amplify v6 FaceLivenessDetector's credentialProvider expects
+    # an `expiration` to know when to refresh. Without it, the SDK
+    # treats the creds as already-expired and gets stuck retrying
+    # the WebSocket handshake — surfaces in the UI as a permanent
+    # "Connecting…". STS GetFederationToken always returns this
+    # field, we just weren't passing it through.
+    expiration: str
 
 
 @router.get("/credentials", response_model=CredentialsResponse)
@@ -70,6 +77,9 @@ async def get_streaming_credentials():
         secret_access_key=creds["SecretAccessKey"],
         session_token=creds["SessionToken"],
         region=settings.aws_region,
+        # ISO-8601 with timezone — what Amplify's credentialProvider
+        # contract expects on the JS side.
+        expiration=creds["Expiration"].isoformat(),
     )
 
 
@@ -81,6 +91,14 @@ class CreateSessionResponse(BaseModel):
 class SessionResultRequest(BaseModel):
     session_id: str
     reference_doc_path: str | None = None
+    # Optional fallback references tried in order if the primary
+    # reference returned no detected face. Real-world Lebanese civil
+    # registry extracts can be tilted, glared, or partly cropped —
+    # the photo on the form is small and CompareFaces sometimes
+    # fails to detect it. The pipeline falls back to the next doc
+    # (typically national_id_front) before declaring the comparison
+    # unrecoverable.
+    fallback_doc_paths: list[str] = []
 
 
 class SessionResultResponse(BaseModel):
@@ -150,38 +168,69 @@ async def get_results(req: SessionResultRequest):
 
     similarity_score = None
     face_comparison_decision = None
+    matched_reference_path = None
 
-    if req.reference_doc_path and result.get("reference_image"):
-        try:
-            def _read_doc(path: str) -> bytes:
-                with open(path, "rb") as f:
-                    return f.read()
+    # Try the primary reference doc first, then each fallback in order.
+    # We attempt the next fallback ONLY when CompareFaces returned
+    # no detected face on the reference (face_detected_reference=False).
+    # Once a face is detected on a reference we trust that comparison
+    # whether it scored high or low — falling back further would let
+    # a low-similarity doc be silently swapped for a higher-similarity
+    # one, which defeats the verification.
+    candidate_paths = [p for p in (
+        [req.reference_doc_path] + (req.fallback_doc_paths or [])
+    ) if p]
 
-            doc_bytes = await asyncio.to_thread(_read_doc, req.reference_doc_path)
+    if candidate_paths and result.get("reference_image"):
+        def _read_doc(path: str) -> bytes:
+            with open(path, "rb") as f:
+                return f.read()
 
-            comparison = await asyncio.to_thread(
-                compare_faces_bytes,
-                result["reference_image"],
-                doc_bytes,
+        for ref_path in candidate_paths:
+            try:
+                doc_bytes = await asyncio.to_thread(_read_doc, ref_path)
+                comparison = await asyncio.to_thread(
+                    compare_faces_bytes,
+                    result["reference_image"],
+                    doc_bytes,
+                )
+                if not comparison.get("face_detected_reference"):
+                    # No face on this reference — try the next one.
+                    logger.info(
+                        "No face detected on reference %s, trying next fallback",
+                        ref_path,
+                    )
+                    continue
+                similarity_score = comparison["similarity_score"]
+                matched_reference_path = ref_path
+                FACE_SIMILARITY_SCORE.observe(similarity_score)
+                break
+            except FileNotFoundError:
+                reasons.append(f"Reference document not found: {ref_path}")
+                continue
+            except Exception as e:
+                FACE_ERRORS.labels(operation="compare").inc()
+                logger.error(f"Face comparison failed for {ref_path}: {e}")
+                reasons.append(f"Face comparison failed: {str(e)}")
+                continue
+
+        if similarity_score is None:
+            # No reference (primary or fallback) had a detectable face.
+            # That's not the citizen's fault — route to manual review
+            # rather than auto-rejecting on a missing-face technicality.
+            face_comparison_decision = "manual_review"
+            reasons.append(
+                "Could not detect a face on any reference document — "
+                "manual review required"
             )
-            similarity_score = comparison["similarity_score"]
-            FACE_SIMILARITY_SCORE.observe(similarity_score)
-
-            if similarity_score >= settings.similarity_pass_threshold:
-                face_comparison_decision = "pass"
-            elif similarity_score < settings.similarity_review_threshold:
-                face_comparison_decision = "fail"
-                reasons.append(f"Face similarity too low ({similarity_score:.1f}%)")
-            else:
-                face_comparison_decision = "manual_review"
-                reasons.append(f"Face similarity borderline ({similarity_score:.1f}%)")
-
-        except FileNotFoundError:
-            reasons.append(f"Reference document not found: {req.reference_doc_path}")
-        except Exception as e:
-            FACE_ERRORS.labels(operation="compare").inc()
-            logger.error(f"Face comparison failed: {e}")
-            reasons.append(f"Face comparison failed: {str(e)}")
+        elif similarity_score >= settings.similarity_pass_threshold:
+            face_comparison_decision = "pass"
+        elif similarity_score < settings.similarity_review_threshold:
+            face_comparison_decision = "fail"
+            reasons.append(f"Face similarity too low ({similarity_score:.1f}%)")
+        else:
+            face_comparison_decision = "manual_review"
+            reasons.append(f"Face similarity borderline ({similarity_score:.1f}%)")
 
     return SessionResultResponse(
         session_id=req.session_id,

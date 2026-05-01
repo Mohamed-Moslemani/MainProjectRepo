@@ -130,24 +130,57 @@ async def get_liveness_results(
     if case.liveness_session_id != req.session_id:
         raise HTTPException(status_code=400, detail="Session ID mismatch")
 
-    # Find the reference document for face comparison (per policy)
+    # Find the reference document(s) for face comparison.
+    #
+    # Photos on Lebanese civil registry extracts can be hard for
+    # CompareFaces to detect (small, sometimes glared, can be cropped
+    # in the photograph the citizen takes). When the primary reference
+    # has no detectable face, the face service falls back through this
+    # ordered list before declaring the comparison unrecoverable.
+    # Order: primary -> national_id_front -> old_passport_data_page ->
+    # national_id_back. We only include docs the citizen actually
+    # uploaded.
     from ..services.policy import get_policy
     policy = get_policy(case.service_type)
     reference_doc_path = None
+    fallback_doc_paths: list[str] = []
 
     if policy.get("face_match_required"):
         ref_doc_type = policy.get("face_reference_doc")
-        if ref_doc_type:
-            ref_doc_type_val = ref_doc_type.value if hasattr(ref_doc_type, 'value') else ref_doc_type
-            doc_result = await db.execute(
+
+        async def _resolve_path(doc_type) -> str | None:
+            if not doc_type:
+                return None
+            val = doc_type.value if hasattr(doc_type, "value") else doc_type
+            r = await db.execute(
                 select(Document).where(
                     Document.case_id == case.id,
-                    Document.document_type == ref_doc_type_val,
+                    Document.document_type == val,
                 )
             )
-            ref_doc = doc_result.scalar_one_or_none()
-            if ref_doc:
-                reference_doc_path = ref_doc.file_path
+            d = r.scalar_one_or_none()
+            return d.file_path if d else None
+
+        reference_doc_path = await _resolve_path(ref_doc_type)
+        primary_val = (
+            ref_doc_type.value if (ref_doc_type and hasattr(ref_doc_type, "value"))
+            else ref_doc_type
+        )
+
+        # Walk the fallback ladder. Skip the doc we already used as
+        # primary, and skip docs the citizen didn't upload.
+        FALLBACK_LADDER = [
+            "national_id_front",
+            "old_passport_data_page",
+            "national_id_back",
+            "civil_registry_extract",
+        ]
+        for doc_val in FALLBACK_LADDER:
+            if doc_val == primary_val:
+                continue
+            path = await _resolve_path(doc_val)
+            if path:
+                fallback_doc_paths.append(path)
 
     settings = get_settings()
     try:
@@ -155,6 +188,7 @@ async def get_liveness_results(
             payload = {
                 "session_id": req.session_id,
                 "reference_doc_path": reference_doc_path,
+                "fallback_doc_paths": fallback_doc_paths,
             }
             resp = await client.post(
                 f"{settings.face_service_url}/api/v1/face/liveness/get-results",

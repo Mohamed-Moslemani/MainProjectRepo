@@ -463,7 +463,21 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
             face_similarity = liveness_data.get("similarity_score") or 0.0
             liveness_passed = liveness_data.get("liveness_passed", False)
 
-            face_decision = liveness_data.get("face_comparison_decision", "manual_review")
+            # face_comparison_decision can come back as null (not just
+            # missing) when there's no reference document to compare
+            # against — passport_new is the canonical case: a brand-new
+            # citizen has no existing ID/passport to face-match a
+            # selfie to, but they DO need liveness. In that case the
+            # decision is "pass" if liveness succeeded, "fail" if not;
+            # falling back to "manual_review" only when both signals
+            # are absent. Without this `or`, the .get default never
+            # fires (the key exists with value None) and the FaceResult
+            # insert violates the NOT NULL constraint.
+            face_decision = (
+                liveness_data.get("face_comparison_decision")
+                or ("pass" if liveness_passed else "fail")
+                or "manual_review"
+            )
 
             face_data = {
                 "similarity_score": face_similarity,
