@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { adminApi } from '@shared/api/admin';
 import { useToast } from '@shared/context/useToast';
+import { useConfirm } from '@shared/components/ConfirmDialog';
 
 // Stripe webhook ledger + manual replay.
 //
@@ -13,6 +14,7 @@ import { useToast } from '@shared/context/useToast';
 // state machine, so replay is safe to retry.
 export default function AdminStripeEvents() {
   const toast = useToast();
+  const confirm = useConfirm();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(null);
@@ -35,7 +37,21 @@ export default function AdminStripeEvents() {
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [filterType]);
 
   const onReplay = async (eventId) => {
-    if (!window.confirm(`Replay ${eventId}? Handlers are idempotent — safe to retry.`)) return;
+    const ok = await confirm({
+      ar: {
+        title: 'إعادة تشغيل الحدث',
+        message: `هل تريد إعادة تشغيل ${eventId}؟ المعالجات قابلة للتكرار — الإجراء آمن.`,
+        confirm: 'إعادة',
+        cancel: 'إلغاء',
+      },
+      en: {
+        title: 'Replay event',
+        message: `Replay ${eventId}? Handlers are idempotent — safe to retry.`,
+        confirm: 'Replay',
+        cancel: 'Cancel',
+      },
+    });
+    if (!ok) return;
     setBusy(eventId);
     try {
       await adminApi.replayStripeEvent(eventId);
