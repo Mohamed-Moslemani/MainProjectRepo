@@ -182,7 +182,7 @@ export default function AdminDashboard() {
               return (
                 <span key={status} className="pipeline-legend__item">
                   <span className="pipeline-legend__dot" style={{ backgroundColor: label.color }} />
-                  <span className="en">{label.en}</span> ({count})
+                  {label.en} ({count})
                 </span>
               );
             })}

@@ -247,7 +247,7 @@ export default function AdminCases() {
           onClick={handleExportCsv}
           title="Export current filter to CSV"
         >
-          ⬇ <span className="en">Export CSV</span>
+          ⬇ <L ar="تصدير CSV" en="Export CSV" />
         </button>
       </div>
 
@@ -311,7 +311,7 @@ export default function AdminCases() {
       {loading ? (
         <div className="admin-loading">
           <div className="spinner spinner--dark" />
-          <span className="ar">جارٍ التحميل...</span>
+          <L ar="جارٍ التحميل..." en="Loading..." />
         </div>
       ) : cases.length === 0 ? (
         <div className="admin-empty">
@@ -400,7 +400,7 @@ export default function AdminCases() {
                               <CaseDetailView detail={detail} />
                             ) : (
                               <p style={{ padding: '1rem', color: 'var(--gray-500)' }}>
-                                <span className="ar">فشل في تحميل التفاصيل</span>
+                                <L ar="فشل في تحميل التفاصيل" en="Failed to load details" />
                               </p>
                             )}
                           </td>
@@ -506,7 +506,7 @@ export default function AdminCases() {
                 </button>
                 <button type="submit" className="btn-small btn-small--primary" disabled={updating}>
                   {updating ? (
-                    <span className="ar">جارٍ التحديث...</span>
+                    <L ar="جارٍ التحديث..." en="Updating..." />
                   ) : (
                     <>
                       <L ar="تأكيد" en="Confirm" />
@@ -532,12 +532,12 @@ function CaseDetailView({ detail }) {
         <div className="case-detail__section">
           <h4><L ar="معلومات" en="Info" /></h4>
           <dl className="case-detail__dl">
-            <dt><span className="ar">رقم الطلب</span></dt><dd>{detail.id}</dd>
-            <dt><span className="ar">الخدمة</span></dt><dd>{getServiceLabel(detail.service_type).ar}</dd>
-            <dt><span className="ar">الحالة</span></dt>
+            <dt><L ar="رقم الطلب" en="Case ID" /></dt><dd>{detail.id}</dd>
+            <dt><L ar="الخدمة" en="Service" /></dt><dd>{getServiceLabel(detail.service_type).ar}</dd>
+            <dt><L ar="الحالة" en="Status" /></dt>
             <dd><span className={`status-badge status-badge--${detail.status}`}>{getStatusLabel(detail.status).ar}</span></dd>
-            <dt><span className="ar">تاريخ الإنشاء</span></dt><dd>{new Date(detail.created_at).toLocaleString('ar-LB')}</dd>
-            {detail.notes && <><dt><span className="ar">ملاحظات</span></dt><dd>{detail.notes}</dd></>}
+            <dt><L ar="تاريخ الإنشاء" en="Created" /></dt><dd>{new Date(detail.created_at).toLocaleString('ar-LB')}</dd>
+            {detail.notes && <><dt><L ar="ملاحظات" en="Notes" /></dt><dd>{detail.notes}</dd></>}
           </dl>
         </div>
 
@@ -545,13 +545,13 @@ function CaseDetailView({ detail }) {
           <div className="case-detail__section">
             <h4><L ar="تقييم المخاطر" en="Risk Assessment" /></h4>
             <dl className="case-detail__dl">
-              <dt><span className="ar">درجة المخاطر</span></dt>
+              <dt><L ar="درجة المخاطر" en="Risk score" /></dt>
               <dd>
                 <span className={`risk-score ${detail.risk_result.total_score > 60 ? 'risk-score--high' : detail.risk_result.total_score > 25 ? 'risk-score--medium' : 'risk-score--low'}`}>
                   {detail.risk_result.total_score}
                 </span>
               </dd>
-              <dt><span className="ar">القرار</span></dt><dd>{detail.risk_result.decision}</dd>
+              <dt><L ar="القرار" en="Decision" /></dt><dd>{detail.risk_result.decision}</dd>
             </dl>
           </div>
         )}
@@ -560,13 +560,13 @@ function CaseDetailView({ detail }) {
           <div className="case-detail__section">
             <h4><L ar="المطابقة" en="Reconciliation" /></h4>
             <dl className="case-detail__dl">
-              <dt><span className="ar">نسبة التطابق</span></dt>
+              <dt><L ar="نسبة التطابق" en="Match score" /></dt>
               <dd>{detail.reconciliation_result.match_rate != null
                 ? `${Math.round(detail.reconciliation_result.match_rate * 100)}%`
                 : 'N/A'}</dd>
               {detail.reconciliation_result.mismatches?.length > 0 && (
                 <>
-                  <dt><span className="ar">عدم تطابق</span></dt>
+                  <dt><L ar="عدم تطابق" en="Mismatches" /></dt>
                   <dd>
                     {detail.reconciliation_result.mismatches.map((m, i) => (
                       <span key={i} className="mismatch-tag">{m.field || m}</span>
@@ -598,7 +598,7 @@ function CaseDetailView({ detail }) {
 
       {detail.documents?.length > 0 && (
         <div className="case-detail__section">
-          <h4><span className="ar">المستندات ({detail.documents.length})</span></h4>
+          <h4><L ar="المستندات" en="Documents" /> ({detail.documents.length})</h4>
           <div className="doc-chips">
             {detail.documents.map((doc) => (
               <div key={doc.id} className="doc-chip">

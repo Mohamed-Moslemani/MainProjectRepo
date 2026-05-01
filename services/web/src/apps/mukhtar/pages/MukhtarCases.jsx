@@ -250,7 +250,7 @@ export default function MukhtarCases() {
                     <td><L>{{ ar: <>{svc.ar}</>, en: <>{svc.en}</> }}</L></td>
                     <td>
                       <span className="status-badge" style={{ backgroundColor: sl.color + '20', color: sl.color, border: `1px solid ${sl.color}40` }}>
-                        <span className="en">{sl.en}</span>
+                        <L ar={sl.ar} en={sl.en} />
                       </span>
                     </td>
                     <td style={{ fontSize: '0.85rem' }}>
@@ -600,7 +600,7 @@ export default function MukhtarCases() {
         <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Application form preview">
           <div className="modal modal--lg" style={{ display: 'flex', flexDirection: 'column', height: '90vh', maxWidth: '900px' }}>
             <header className="modal__header">
-              <h2><span className="en">Application form preview</span></h2>
+              <h2><L ar="معاينة استمارة الطلب" en="Application form preview" /></h2>
               <button type="button" className="modal__close" onClick={closePreview} aria-label="Close">×</button>
             </header>
             <div style={{ flex: 1, overflow: 'hidden' }}>

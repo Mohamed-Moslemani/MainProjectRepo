@@ -168,7 +168,7 @@ export default function AdminAuditLogs() {
       {loading ? (
         <div className="admin-loading">
           <div className="spinner spinner--dark" />
-          <span className="ar">جارٍ التحميل...</span>
+          <L ar="جارٍ التحميل..." en="Loading..." />
         </div>
       ) : logs.length === 0 ? (
         <div className="admin-empty">

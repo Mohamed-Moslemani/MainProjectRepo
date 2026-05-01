@@ -440,9 +440,9 @@ export default function CaseDetail() {
                     ) : canEdit ? (
                       <label className={`btn btn--sm btn--outline ${isUploading || checkingFile ? 'btn--loading' : ''}`}>
                         {isUploading ? (
-                          <span className="ar">جارٍ الرفع...</span>
+                          <L ar="جارٍ الرفع..." en="Uploading..." />
                         ) : checkingFile ? (
-                          <span className="ar">جاري الفحص...</span>
+                          <L ar="جاري الفحص..." en="Checking..." />
                         ) : (
                           <>
                             <L ar="رفع" en="Upload" />
@@ -639,7 +639,7 @@ export default function CaseDetail() {
               disabled={submitting || !completeness?.complete}
             >
               {submitting ? (
-                <span className="ar">جارٍ التقديم...</span>
+                <L ar="جارٍ التقديم..." en="Submitting..." />
               ) : (
                 <>
                   <L ar="تقديم الطلب" en="Submit Application" />
@@ -688,7 +688,7 @@ export default function CaseDetail() {
                 disabled={paying}
               >
                 {paying ? (
-                  <span className="ar">جارٍ التحويل...</span>
+                  <L ar="جارٍ التحويل..." en="Redirecting..." />
                 ) : (
                   <>
                     <L ar="ادفع الآن" en="Pay Now" />

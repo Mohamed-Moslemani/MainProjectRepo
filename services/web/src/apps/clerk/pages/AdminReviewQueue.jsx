@@ -436,7 +436,7 @@ export default function AdminReviewQueue() {
         <div className="admin-empty" style={{ textAlign: 'center', padding: '4rem 2rem' }}>
           <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>✓</div>
           <h3><L ar="لا توجد طلبات بحاجة لمراجعة" en="No cases need review" /></h3>
-          <p style={{ color: '#9ca3af' }}><span className="en">All caught up!</span></p>
+          <p style={{ color: '#9ca3af' }}><L ar="لا شيء في الانتظار" en="All caught up!" /></p>
         </div>
       ) : (
         <div className="review-queue">

@@ -206,7 +206,7 @@ export default function VerifyEmail() {
                 disabled={resendLoading || !resendEmail}
               >
                 {resendLoading ? (
-                  <span className="ar">جارٍ الإرسال...</span>
+                  <L ar="جارٍ الإرسال..." en="Sending..." />
                 ) : (
                   <>
                     <L ar="إعادة إرسال الرمز" en="Resend Code" />

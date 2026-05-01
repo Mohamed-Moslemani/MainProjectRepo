@@ -84,7 +84,7 @@ export default function ReconciliationDiff({ reconciliation }) {
               <L ar="المُدخل" en="· Declared" />
             </th>
             <th>
-              <span className="ar">OCR</span>
+              OCR
             </th>
             <th>
               <L ar="الحالة" en="· Status" />

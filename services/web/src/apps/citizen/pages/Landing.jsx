@@ -33,6 +33,62 @@ const FEATURES = [
   { ar: 'موافقة المختار رقمياً للجوازات', en: 'Digital mukhtar attestation for passports' },
 ];
 
+// Pipeline tour for examiners landing on "/". Each step explains
+// what the platform actually *does* with a submission — the kind
+// of thing the citizen-facing copy ("upload, check, pay, pick up")
+// hides. Surfaces the AI providers, the cross-checks, and where
+// the human-in-the-loop sits.
+const PIPELINE = [
+  {
+    n: '1',
+    icon: '🔍',
+    ar: 'استخراج النصوص (OCR)',
+    en: 'OCR extraction',
+    body_ar: 'Google Cloud Vision يقرأ بطاقة الهوية أو جواز السفر، ويستخرج الاسم وتاريخ الولادة ورقم السجل و MRZ للجوازات.',
+    body_en: 'Google Cloud Vision reads the ID or passport, extracts name / DOB / registry number / MRZ for passports, scores image quality on the spot.',
+  },
+  {
+    n: '2',
+    icon: '🪪',
+    ar: 'مطابقة الوجه + إثبات الحياة',
+    en: 'Face match + liveness',
+    body_ar: 'AWS Rekognition يقارن السيلفي بصورة المستند، ويتحقق من أن الشخص حي أمام الكاميرا (ليس صورة).',
+    body_en: 'AWS Rekognition compares the selfie with the photo on the document and runs Face Liveness — proves the person is actually present, not a printed photo.',
+  },
+  {
+    n: '3',
+    icon: '📚',
+    ar: 'مطابقة السجل المدني',
+    en: 'Civil registry check',
+    body_ar: 'النظام يطابق البيانات المدخلة مع السجل العائلي ويرفع علامة التناقضات قبل أي قرار آلي.',
+    body_en: 'Declared fields are reconciled with the civil registry. Mismatches are surfaced before any automated decision is allowed.',
+  },
+  {
+    n: '4',
+    icon: '⚖️',
+    ar: 'تقييم المخاطر',
+    en: 'Risk scoring',
+    body_ar: 'يتم احتساب نتيجة موزونة (جودة OCR، تطابق الوجه، إثبات الحياة، تناقضات السجل، حدّة الإشارات) لتحديد المسار.',
+    body_en: 'Weighted score across OCR confidence, face similarity, liveness, registry reconciliation, image quality, severity. Threshold determines the routing.',
+  },
+  {
+    n: '5',
+    icon: '🧑‍⚖️',
+    ar: 'القرار + المختار',
+    en: 'Decision + mukhtar',
+    body_ar: 'موافقة آلية للمنخفض الخطر، مراجعة موظف للحالات الحدية، رفض للمرتفع. الجوازات تمر بختم المختار رقمياً.',
+    body_en: 'Auto-approved when risk is low, sent to a clerk when borderline, rejected when high. Passport applications additionally require a digital mukhtar attestation.',
+  },
+  {
+    n: '6',
+    icon: '💳',
+    ar: 'دفع + استلام',
+    en: 'Payment + pickup',
+    body_ar: 'الدفع عبر Stripe برسوم محسوبة حسب الخدمة ومدة صلاحية الجواز، ثم زيارة واحدة لمركز GDGS لاستلام الوثيقة.',
+    body_en: 'Stripe checkout with fees scaled by service type and passport validity tier, then a single visit to a GDGS centre for biometric capture and pickup.',
+  },
+];
+
 export default function Landing() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -137,6 +193,40 @@ export default function Landing() {
               </div>
             ))}
           </div>
+        </section>
+
+        <section className="landing__pipeline" aria-labelledby="pipeline-h">
+          <header className="landing__pipeline-header">
+            <h2 id="pipeline-h">
+              <L
+                ar="ما يحدث لطلبك خلف الكواليس"
+                en="What happens to your application, end-to-end"
+              />
+            </h2>
+            <p className="landing__pipeline-sub">
+              <L
+                ar="ست مراحل آلية — استخراج، مطابقة، تحقق، تقييم، قرار، دفع — موثّقة في سجل تدقيق لكل قرار."
+                en="Six automated stages — extract, match, verify, score, decide, pay — every decision logged to an audit trail."
+              />
+            </p>
+          </header>
+
+          <ol className="landing__pipeline-list">
+            {PIPELINE.map((p) => (
+              <li key={p.n} className="landing__pipeline-step">
+                <span className="landing__pipeline-num" aria-hidden="true">{p.n}</span>
+                <span className="landing__pipeline-icon" aria-hidden="true">{p.icon}</span>
+                <div className="landing__pipeline-text">
+                  <h3>
+                    <L ar={p.ar} en={p.en} />
+                  </h3>
+                  <p>
+                    <L ar={p.body_ar} en={p.body_en} />
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ol>
         </section>
 
         <section className="landing__features">
