@@ -51,7 +51,7 @@ DECLARED_FIELDS = {
     "mother_name": "Fatima Hassan",
     "date_of_birth": "15/06/1995",
     "place_of_birth": "Beirut",
-    "old_passport_number": "LB1234567",
+    "old_passport_number": "LR1234567",
     "passport_type": "ordinary",
     "registry_number": "12345",
     "registry_place": REGISTRY_PLACE,
