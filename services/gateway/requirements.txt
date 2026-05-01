@@ -28,3 +28,4 @@ sentry-sdk[fastapi]==2.18.0
 setuptools>=70,<81
 arq==0.26.1
 aioboto3==13.2.0
+rapidfuzz==3.10.1

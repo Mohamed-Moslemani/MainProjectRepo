@@ -1,36 +1,162 @@
-"""Reconciliation service - compares user-declared fields against OCR-extracted fields.
+"""Reconciliation — declared-vs-extracted field comparison.
 
-Produces:
-- Field-by-field match/mismatch report
-- Integrity score
-- Validation result: PASS / NEED_INFO / FAIL
+Problem this module solves:
+
+The citizen types declared values into the form (Arabic, often by hand,
+sometimes from a phone keyboard that injects diacritics or Eastern
+Arabic numerals). The OCR + LLM pipeline extracts values from the
+photographed civil-registry extract. Both produce *correct* values
+that don't compare equal as raw strings:
+
+  declared:   "صور"
+  extracted:  "صور"      ← identical to the eye, not byte-equal
+                            (different alef-with-hamza, trailing
+                            zero-width-joiner, NBSP, …)
+
+  declared:   "محمد مسلماني"
+  extracted:  "محمد المسلماني"   ← prefix difference
+
+  declared:   "53"
+  extracted:  "٥٣"        ← Eastern Arabic digits
+
+Without normalization, every match becomes a mismatch and reconciliation
+auto-rejects legitimate citizens.
+
+Approach:
+
+1. Aggressive *Arabic-aware* normalization — NFKC, hamza-fold,
+   ya/alef-maksura fold, teh-marbuta -> heh, diacritics stripped,
+   tatweel removed, Eastern->Western digits, whitespace collapsed.
+2. Fuzzy matching on top — rapidfuzz token_set_ratio handles
+   re-ordered name parts ("علي محمد" vs "محمد علي") and partial
+   surname matches ("الشهرة" returning "مسلماني" vs declared
+   "محمد مسلماني").
+3. Numeric fields (DOB, registry_number, ID number) compared as
+   normalised strings — ٢٠٠٠/٠٨/٠٣ == 2000-08-03 after digit fold.
+
+Output shape kept identical to the previous implementation so
+downstream consumers (orchestrator, FE, audit log) don't change.
 """
 
+from __future__ import annotations
+
 import logging
-from difflib import SequenceMatcher
+import re
+import unicodedata
+
+try:
+    from rapidfuzz import fuzz
+except ImportError:  # pragma: no cover - dev environments without rapidfuzz
+    fuzz = None
 
 logger = logging.getLogger(__name__)
 
-# Fields to reconcile (declared field name -> possible OCR field names)
+
+# Field mapping: declared field -> ordered list of OCR fields to consult.
+# For full_name we now consult both the LLM's surname_ar and the
+# legacy full_name_ar; the matcher tries each and keeps the best score.
 FIELD_MAPPING = {
-    "full_name": ["full_name", "full_name_ar", "full_name_en", "surname", "given_names"],
+    "full_name":   ["full_name_ar", "full_name", "full_name_en", "surname",
+                    "surname_ar", "given_names"],
+    "first_name":  ["full_name_ar", "given_names"],
+    "last_name":   ["surname_ar", "surname"],
     "father_name": ["father_name"],
     "mother_name": ["mother_name"],
-    "date_of_birth": ["date_of_birth"],
-    "registry_number": ["registry_number", "id_number", "register_number"],
+    "date_of_birth": ["date_of_birth", "mrz_date_of_birth"],
+    "registry_number": ["registry_number", "id_number", "register_number",
+                        "mrz_passport_number"],
+    "registry_place": ["register_place", "registry_place"],
     "place_of_birth": ["place_of_birth"],
-    "old_passport_number": ["passport_number"],
+    "old_passport_number": ["passport_number", "mrz_passport_number"],
+    "gender": ["gender", "mrz_sex"],
+    "religious_sect": ["religious_sect"],
 }
 
-# Minimum similarity ratio for a "match"
+# Score thresholds. token_set_ratio scales 0-100; we read it as 0-1.
 MATCH_THRESHOLD = 0.85
-# Below this = definite mismatch
 MISMATCH_THRESHOLD = 0.5
 
 
-def normalize(value: str) -> str:
-    """Normalize a field value for comparison."""
-    return value.strip().lower().replace("-", "").replace("/", "").replace(".", "")
+# ── Arabic normalization ─────────────────────────────────────────────
+
+# Eastern + Persian Arabic digits → Western Arabic digits (0-9).
+_DIGIT_MAP = str.maketrans({
+    # Arabic-Indic digits (U+0660..U+0669)
+    "٠": "0", "١": "1", "٢": "2", "٣": "3", "٤": "4",
+    "٥": "5", "٦": "6", "٧": "7", "٨": "8", "٩": "9",
+    # Extended Arabic-Indic / Persian digits (U+06F0..U+06F9)
+    "۰": "0", "۱": "1", "۲": "2", "۳": "3", "۴": "4",
+    "۵": "5", "۶": "6", "۷": "7", "۸": "8", "۹": "9",
+})
+
+# Hamza variants → bare alef. Ya variants → bare ya. Teh-marbuta → heh.
+# These are the standard "imperfect-search" folds Arabic NLP libraries
+# use; they collapse forms a citizen and a printer might use
+# interchangeably.
+_LETTER_MAP = str.maketrans({
+    "أ": "ا", "إ": "ا", "آ": "ا", "ٱ": "ا",
+    "ى": "ي",
+    "ة": "ه",
+    # Common Persian/Urdu/Pashto variants that show up in scanned text
+    "ﻱ": "ي", "ﻲ": "ي", "ﻳ": "ي", "ﻴ": "ي",
+    "ك": "ك",   # Arabic kaf (already Arabic, but normalise from Persian
+    "ک": "ك",   # Persian kaf
+    # Tatweel — kashida / elongation char, has no semantic value
+    "ـ": "",
+})
+
+# Tashkeel (diacritics) range we strip wholesale. Includes shadda,
+# fatha, kasra, damma, tanween, sukun, and Quranic marks.
+_TASHKEEL_RE = re.compile("[ً-ٰٟۖ-ۭ]")
+# Zero-width chars + bidi controls + various joiners that copy-paste
+# from PDFs/forms drag along.
+_ZW_RE = re.compile("[​-‏‪-‮⁦-⁩﻿]")
+# Anything not letter/digit/space after stripping → drop. Keeps
+# Arabic + Latin + numbers; drops "/", "-", ".", etc.
+_PUNCT_RE = re.compile(r"[^\w؀-ۿ\s]", flags=re.UNICODE)
+# Collapse runs of whitespace.
+_WS_RE = re.compile(r"\s+")
+
+# Honorifics + filler words that appear in declared names but not in
+# civil records (or vice-versa). "ال" prefix is the Arabic definite
+# article; we fold "المسلماني" -> "مسلماني" so it matches "مسلماني".
+_AL_PREFIX_RE = re.compile(r"\bال")
+
+
+def normalize(value) -> str:
+    """Arabic-aware normalization for fuzzy field comparison.
+
+    Order matters: NFKC first to fold compatibility forms, then digit
+    map, then letter folds, then strip diacritics + zero-widths +
+    tatweel + the definite article, then collapse whitespace.
+    """
+    if value is None:
+        return ""
+    s = str(value)
+    s = unicodedata.normalize("NFKC", s)
+    s = s.translate(_DIGIT_MAP)
+    s = s.translate(_LETTER_MAP)
+    s = _TASHKEEL_RE.sub("", s)
+    s = _ZW_RE.sub("", s)
+    s = _PUNCT_RE.sub(" ", s)
+    s = _AL_PREFIX_RE.sub("", s)
+    s = _WS_RE.sub(" ", s)
+    return s.strip().lower()
+
+
+def _ratio(a: str, b: str) -> float:
+    """Fuzzy ratio in [0, 1]. Token-set so reordered names match."""
+    if not a or not b:
+        return 0.0
+    if fuzz is not None:
+        return max(
+            fuzz.token_set_ratio(a, b),
+            fuzz.partial_ratio(a, b),
+        ) / 100.0
+    # rapidfuzz absent — fall back to difflib so the module still
+    # imports in a stripped dev env. Quality is worse for Arabic.
+    from difflib import SequenceMatcher
+    return SequenceMatcher(None, a, b).ratio()
 
 
 def compare_field(declared: str, extracted: str) -> dict:
@@ -38,38 +164,76 @@ def compare_field(declared: str, extracted: str) -> dict:
     d = normalize(declared)
     e = normalize(extracted)
 
+    if not d and not e:
+        return {"match": True, "similarity": 1.0, "status": "both_empty"}
     if d == e:
         return {"match": True, "similarity": 1.0, "status": "exact_match"}
 
-    ratio = SequenceMatcher(None, d, e).ratio()
+    ratio = _ratio(d, e)
 
     if ratio >= MATCH_THRESHOLD:
         return {"match": True, "similarity": round(ratio, 4), "status": "close_match"}
-    elif ratio >= MISMATCH_THRESHOLD:
+    if ratio >= MISMATCH_THRESHOLD:
         return {"match": False, "similarity": round(ratio, 4), "status": "partial_match"}
-    else:
-        return {"match": False, "similarity": round(ratio, 4), "status": "mismatch"}
+    return {"match": False, "similarity": round(ratio, 4), "status": "mismatch"}
+
+
+def _best_extracted(declared_value: str, ocr_keys: list[str], ocr_fields: dict[str, str]):
+    """For multi-field declared values (full_name), try each candidate
+    OCR field and keep the one with the highest similarity.
+
+    Concatenated candidates: when comparing declared "محمد مسلماني"
+    against OCR fields that split first-name and surname into
+    full_name_ar + surname_ar, we also try the joined string so the
+    full-name match doesn't depend on which OCR row Vision happened
+    to land on.
+    """
+    best = (None, None, -1.0)
+
+    # Single-field candidates. Track even ratio=0 so a present-but-
+    # unrelated extracted value reports as a mismatch (the right
+    # decision for the validator) instead of "not found in OCR".
+    for ok in ocr_keys:
+        v = ocr_fields.get(ok)
+        if not v:
+            continue
+        r = _ratio(normalize(declared_value), normalize(v))
+        if r > best[2]:
+            best = (ok, v, r)
+
+    # Try concatenations of (first_name, surname) when both exist
+    fn = ocr_fields.get("full_name_ar") or ocr_fields.get("given_names")
+    sn = ocr_fields.get("surname_ar") or ocr_fields.get("surname")
+    if fn and sn:
+        joined = f"{fn} {sn}"
+        r = _ratio(normalize(declared_value), normalize(joined))
+        if r > best[2]:
+            best = ("full_name_ar+surname_ar", joined, r)
+
+    if best[2] < 0:
+        return (None, None, 0.0)
+    return best  # (key, value, ratio)
 
 
 def reconcile(
     declared_fields: dict[str, str],
     ocr_fields: dict[str, str],
 ) -> dict:
-    """Run field-by-field reconciliation.
+    """Field-by-field reconciliation between declared + extracted values.
 
-    Args:
-        declared_fields: User-submitted form data.
-        ocr_fields: Fields extracted by OCR from documents.
+    Output shape (kept stable for orchestrator / FE / audit consumers):
 
-    Returns:
         {
             "field_results": {field: {match, similarity, status, declared, extracted}},
-            "mismatch_flags": [field_names with mismatches],
-            "integrity_score": float (0-1),
+            "mismatch_flags": [...],
+            "not_found_fields": [...],
+            "integrity_score": float,
             "validation_result": "pass" | "need_info" | "fail",
+            "total_fields": int,
+            "matched_fields": int,
         }
     """
-    field_results = {}
+    field_results: dict[str, dict] = {}
     matches = 0
     total = 0
 
@@ -77,13 +241,10 @@ def reconcile(
         if not declared_value:
             continue
 
-        # Find matching OCR field
         ocr_keys = FIELD_MAPPING.get(declared_key, [declared_key])
-        extracted_value = None
-        for ok in ocr_keys:
-            if ok in ocr_fields and ocr_fields[ok]:
-                extracted_value = ocr_fields[ok]
-                break
+        chosen_key, extracted_value, best_ratio = _best_extracted(
+            declared_value, ocr_keys, ocr_fields
+        )
 
         if extracted_value is None:
             field_results[declared_key] = {
@@ -96,13 +257,27 @@ def reconcile(
             total += 1
             continue
 
-        result = compare_field(declared_value, extracted_value)
-        result["declared"] = declared_value
-        result["extracted"] = extracted_value
-        field_results[declared_key] = result
+        # Re-derive match/status from the best ratio so the displayed
+        # similarity matches what we used to pick the candidate.
+        if best_ratio >= MATCH_THRESHOLD:
+            status = "exact_match" if best_ratio == 1.0 else "close_match"
+            match = True
+        elif best_ratio >= MISMATCH_THRESHOLD:
+            status, match = "partial_match", False
+        else:
+            status, match = "mismatch", False
+
+        field_results[declared_key] = {
+            "match": match,
+            "similarity": round(best_ratio, 4),
+            "status": status,
+            "declared": declared_value,
+            "extracted": extracted_value,
+            "matched_against": chosen_key,
+        }
 
         total += 1
-        if result["match"]:
+        if match:
             matches += 1
 
     integrity_score = matches / total if total > 0 else 0.0
@@ -115,7 +290,6 @@ def reconcile(
         f for f, r in field_results.items() if r["status"] == "not_found_in_ocr"
     ]
 
-    # Decide validation result
     if integrity_score >= 0.9 and len(mismatch_flags) == 0:
         validation_result = "pass"
     elif len(mismatch_flags) >= 3 or integrity_score < 0.4:
