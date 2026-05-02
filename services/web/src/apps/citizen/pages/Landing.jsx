@@ -4,7 +4,8 @@ import { useAuth } from '@shared/context/useAuth';
 import flagImg from '@shared/assets/Figure_1.png';
 import '@shared/styles/dashboard.css';
 import '@shared/styles/landing.css';
-import L, { useL } from '@shared/components/L';
+import L from '@shared/components/L';
+import { useL } from '@shared/hooks/useL';
 
 /**
  * Public landing page at "/".

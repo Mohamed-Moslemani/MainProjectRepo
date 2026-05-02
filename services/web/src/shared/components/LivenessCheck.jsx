@@ -78,7 +78,6 @@ export default function LivenessCheck({ caseId, onComplete, onError, onCancel })
     // depending on what failed. Translate the well-known states
     // into something a citizen can act on; everything else falls
     // back to the SDK's raw message + the state code.
-    // eslint-disable-next-line no-console
     console.error('[Liveness] error payload:', livenessError);
     const e = livenessError || {};
     const inner = e.error || {};

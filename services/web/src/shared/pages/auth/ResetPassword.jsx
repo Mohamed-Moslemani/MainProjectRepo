@@ -3,7 +3,8 @@ import { Link, useSearchParams } from 'react-router-dom';
 import AuthLayout from '@shared/components/AuthLayout';
 import PasswordInput from '@shared/components/PasswordInput';
 import { authApi } from '@shared/api/auth';
-import L, { useL } from '@shared/components/L';
+import L from '@shared/components/L';
+import { useL } from '@shared/hooks/useL';
 
 function getPasswordStrength(pw) {
   let score = 0;

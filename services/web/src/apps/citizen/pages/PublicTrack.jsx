@@ -3,7 +3,8 @@ import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { casesApi } from '@shared/api/cases';
 import flagImg from '@shared/assets/Figure_1.png';
 import '@shared/styles/dashboard.css';
-import L, { useL } from '@shared/components/L';
+import L from '@shared/components/L';
+import { useL } from '@shared/hooks/useL';
 
 const STATUS_MAP = {
   draft: { ar: 'مسودة', en: 'Draft', color: 'gray' },

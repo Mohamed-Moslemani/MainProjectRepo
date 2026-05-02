@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@shared/context/useAuth';
 import flagImg from '@shared/assets/Figure_1.png';
 import '@shared/styles/admin.css';
-import L, { useL } from '@shared/components/L';
+import L from '@shared/components/L';
+import { useL } from '@shared/hooks/useL';
 
 const ROLE_LABELS = {
   admin: { ar: 'مسؤول', en: 'Admin' },

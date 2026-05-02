@@ -7,7 +7,8 @@ import {
   GOVERNORATES, DISTRICTS, MUNICIPALITIES,
   getDistrictsForGovernorate, getMunicipalitiesForDistrict, isSingleDistrictGovernorate,
 } from '@shared/constants/districts';
-import L, { useL } from '@shared/components/L';
+import L from '@shared/components/L';
+import { useL } from '@shared/hooks/useL';
 
 function getPasswordStrength(pw) {
   let score = 0;

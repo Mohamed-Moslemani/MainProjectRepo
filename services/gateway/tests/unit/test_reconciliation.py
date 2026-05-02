@@ -148,21 +148,43 @@ class TestReconcileFieldMapping:
 
 class TestReconcileMissingFields:
     def test_not_found_in_ocr_flagged(self):
-        declared = {"full_name": "Mohamed", "address": "Beirut"}
-        ocr = {"full_name": "Mohamed"}  # no address in OCR
+        # `address` is now in SKIP_RECONCILIATION_FIELDS (citizen-typed
+        # metadata with no document analog), so use a field that is
+        # genuinely OCR-extractable but missing from this run's output:
+        # registry_number is in FIELD_MAPPING and would normally come
+        # from the national-ID OCR. When declared but absent from OCR
+        # it must show up as not_found_in_ocr (not a mismatch).
+        declared = {"full_name": "Mohamed", "registry_number": "12345"}
+        ocr = {"full_name": "Mohamed"}  # no registry_number in OCR
         result = reconcile(declared, ocr)
-        assert "address" in result["not_found_fields"]
+        assert "registry_number" in result["not_found_fields"]
         # not_found_in_ocr entries do NOT count as mismatch_flags (those are compared mismatches only)
-        assert "address" not in result["mismatch_flags"]
-        assert result["field_results"]["address"]["status"] == "not_found_in_ocr"
+        assert "registry_number" not in result["mismatch_flags"]
+        assert result["field_results"]["registry_number"]["status"] == "not_found_in_ocr"
 
     def test_empty_declared_value_is_skipped(self):
         """Empty declared values should not be evaluated at all."""
-        declared = {"full_name": "Mohamed", "address": ""}
+        declared = {"full_name": "Mohamed", "registry_number": ""}
+        ocr = {"full_name": "Mohamed"}
+        result = reconcile(declared, ocr)
+        assert "registry_number" not in result["field_results"]
+        assert result["total_fields"] == 1
+
+    def test_metadata_only_fields_are_excluded_entirely(self):
+        """Citizen-typed fields with no document analog (address,
+        marital_status, renewal_reason, ...) must not contribute to
+        the integrity denominator — including them used to push
+        clean cases below the manual-review threshold."""
+        from app.services.reconciliation import SKIP_RECONCILIATION_FIELDS
+        # Confirm the field we used to test for is now skipped.
+        assert "address" in SKIP_RECONCILIATION_FIELDS
+        declared = {"full_name": "Mohamed", "address": "Beirut"}
         ocr = {"full_name": "Mohamed"}
         result = reconcile(declared, ocr)
         assert "address" not in result["field_results"]
+        assert "address" not in result["not_found_fields"]
         assert result["total_fields"] == 1
+        assert result["integrity_score"] == 1.0
 
 
 class TestReconcileOutputShape:

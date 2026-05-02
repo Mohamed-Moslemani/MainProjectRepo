@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { adminApi } from '@shared/api/admin';
-import L, { useL } from '@shared/components/L';
+import L from '@shared/components/L';
+import { useL } from '@shared/hooks/useL';
 
 const PAGE_SIZE = 30;
 

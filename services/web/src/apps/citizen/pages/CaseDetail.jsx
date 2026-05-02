@@ -15,7 +15,8 @@ import flagImg from '@shared/assets/Figure_1.png';
 import { useAuth } from '@shared/context/useAuth';
 import { useToast } from '@shared/context/useToast';
 import '@shared/styles/dashboard.css';
-import L, { useL } from '@shared/components/L';
+import L from '@shared/components/L';
+import { useL } from '@shared/hooks/useL';
 
 const LIVENESS_DOC_TYPES = ['selfie', 'liveness_capture'];
 

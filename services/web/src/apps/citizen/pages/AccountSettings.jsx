@@ -6,7 +6,8 @@ import { useToast } from '@shared/context/useToast';
 import { isLebanesePhone, normalizeLebanesePhone } from '@shared/utils/lebanesePhone';
 import flagImg from '@shared/assets/Figure_1.png';
 import '@shared/styles/dashboard.css';
-import L, { useL } from '@shared/components/L';
+import L from '@shared/components/L';
+import { useL } from '@shared/hooks/useL';
 
 /**
  * Citizen account settings: profile edit + password change.

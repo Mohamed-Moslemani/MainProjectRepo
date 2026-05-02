@@ -5,7 +5,8 @@ import { casesApi } from '@shared/api/cases';
 import { useToast } from '@shared/context/useToast';
 import flagImg from '@shared/assets/Figure_1.png';
 import '@shared/styles/dashboard.css';
-import L, { useL } from '@shared/components/L';
+import L from '@shared/components/L';
+import { useL } from '@shared/hooks/useL';
 
 // Biometric appointment booking. Lebanese passport flow gates on a
 // physical visit to a GDGS centre for fingerprint + signature

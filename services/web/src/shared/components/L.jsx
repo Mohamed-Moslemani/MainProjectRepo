@@ -12,6 +12,8 @@ import { useTranslation } from 'react-i18next';
 //
 // Prefer t('key') with the catalogue in `shared/i18n/{en,ar}.json`
 // for new code; this is the migration shim, not the destination.
+// useL hook lives in @shared/hooks/useL — keeping a non-component
+// export here would trip react-refresh/only-export-components.
 export default function L(props) {
   const { i18n } = useTranslation();
   const lang = i18n.resolvedLanguage === 'en' ? 'en' : 'ar';
@@ -20,16 +22,4 @@ export default function L(props) {
     return props.children[lang] ?? props.children.ar ?? props.children.en ?? null;
   }
   return props[lang] ?? props.ar ?? props.en ?? null;
-}
-
-// Hook for places that need the resolved string at render time —
-// option labels, button text inside a ternary, aria-labels,
-// document.title, toast messages. Returns a `pick({ ar, en })`
-// helper plus the active lang so callers can branch directly when
-// it reads cleaner than calling pick.
-export function useL() {
-  const { i18n } = useTranslation();
-  const lang = i18n.resolvedLanguage === 'en' ? 'en' : 'ar';
-  const pick = (pair) => (pair?.[lang] ?? pair?.ar ?? pair?.en ?? '');
-  return { lang, pick, isAr: lang === 'ar' };
 }

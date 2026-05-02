@@ -7,7 +7,7 @@ import { useToast } from '@shared/context/useToast';
 import { SkeletonCard } from '@shared/components/Skeleton';
 import flagImg from '@shared/assets/Figure_1.png';
 import '@shared/styles/dashboard.css';
-import { useL } from '@shared/components/L';
+import { useL } from '@shared/hooks/useL';
 
 // Status enum the backend speaks. Both "color" (visual class) and
 // the i18n key live here so the dashboard never invents copy.

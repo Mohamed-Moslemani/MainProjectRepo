@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
 import { QUALITY_THRESHOLDS } from '@shared/utils/imageQuality';
 import { useFocusTrap } from '@shared/hooks/useFocusTrap';
-import L, { useL } from '@shared/components/L';
+import L from '@shared/components/L';
+import { useL } from '@shared/hooks/useL';
 
 /**
  * Pre-flight upload review modal.

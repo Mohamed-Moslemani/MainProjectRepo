@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { adminApi } from '@shared/api/admin';
 import { useToast } from '@shared/context/useToast';
 import { useConfirm } from '@shared/components/ConfirmDialog';
-import L, { useL } from '@shared/components/L';
+import L from '@shared/components/L';
+import { useL } from '@shared/hooks/useL';
 
 // Stripe webhook ledger + manual replay.
 //

@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { mukhtarApi } from '@shared/api/mukhtar';
 import AuthImage from '@shared/components/AuthImage';
 import AgeBadge from '@shared/components/AgeBadge';
-import L, { useL } from '@shared/components/L';
+import L from '@shared/components/L';
+import { useL } from '@shared/hooks/useL';
 
 const DOC_TYPE_LABELS = {
   selfie: { ar: 'صورة شخصية (سيلفي)', en: 'Selfie' },
