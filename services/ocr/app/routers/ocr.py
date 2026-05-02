@@ -103,6 +103,7 @@ async def process_document(req: ProcessRequest):
         # too few fields, so we don't pay LLM cost on every call.
         ALWAYS_LLM = {"civil_registry_extract"}
 
+        llm_trace: dict | None = None
         if settings.llm_fallback_enabled and ai_extractor.supports(req.document_type):
             should_call_llm = (
                 req.document_type in ALWAYS_LLM
@@ -112,7 +113,7 @@ async def process_document(req: ProcessRequest):
                 try:
                     with open(req.file_path, "rb") as fh:
                         image_bytes = fh.read()
-                    llm_fields = await asyncio.to_thread(
+                    llm_fields, llm_trace = await asyncio.to_thread(
                         ai_extractor.extract_with_llm,
                         req.document_type,
                         ocr_result["full_text"],
@@ -236,6 +237,12 @@ async def process_document(req: ProcessRequest):
             "retake_required": retake_required,
             "retake_reasons": retake_reasons,
             "processing_time_ms": total_ms,
+            # Per-call LLM trace (None when LLM didn't run). The
+            # gateway persists this to audit_logs for case-level
+            # traceability — examiner / auditor can answer "what did
+            # the model see and return for case X?" with a single
+            # SELECT, without standing up Langfuse.
+            "llm_trace": llm_trace,
             # Reproducibility metadata. The image hash + this dict
             # together let an investigator replay the exact same
             # inputs through the same code months later.

@@ -53,3 +53,29 @@ OCR_FIELDS_EXTRACTED = Histogram(
     "Number of fields extracted per document",
     buckets=[0, 1, 2, 3, 5, 7, 10, 15],
 )
+
+# ── LLM extractor (vision-LLM fallback for table-shaped docs) ────────────
+# The LLM path is opt-in (regex-first), so these counters also tell us
+# how often we paid for an LLM call vs. served the request from regex.
+OCR_LLM_CALLS = Counter(
+    "docflow_ocr_llm_calls_total",
+    "LLM extractor invocations",
+    ["document_type", "model", "outcome"],  # outcome: success, error, skipped_no_key, skipped_unsupported, skipped_no_package
+)
+OCR_LLM_DURATION = Histogram(
+    "docflow_ocr_llm_duration_seconds",
+    "Wall-clock time per LLM extraction call",
+    ["document_type", "model"],
+    buckets=[0.5, 1, 2, 3, 5, 8, 12, 20, 30],
+)
+OCR_LLM_FIELDS_EXTRACTED = Histogram(
+    "docflow_ocr_llm_fields_extracted",
+    "Number of fields the LLM returned (after schema filter)",
+    ["document_type"],
+    buckets=[0, 1, 2, 3, 5, 7, 10, 15],
+)
+OCR_LLM_TOKENS = Counter(
+    "docflow_ocr_llm_tokens_total",
+    "Token usage on LLM extractor calls",
+    ["model", "kind"],  # kind: prompt, completion
+)

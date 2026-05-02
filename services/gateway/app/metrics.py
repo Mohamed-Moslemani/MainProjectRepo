@@ -61,6 +61,27 @@ RISK_SCORE = Histogram(
     buckets=[0, 10, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100],
 )
 
+# ── Reconciliation ────────────────────────────────────────────────────────────
+# Reconciliation compares declared fields vs OCR-extracted fields. Integrity
+# score is the weighted match ratio (0-1); validation_result classifies the
+# outcome (pass / need_info / fail). These feed into risk scoring (~25%
+# weight) and are the only AI signal currently invisible on the dashboard.
+RECONCILIATION_INTEGRITY = Histogram(
+    "docflow_reconciliation_integrity_score",
+    "Reconciliation integrity score (0-1)",
+    buckets=[0.0, 0.25, 0.5, 0.65, 0.75, 0.85, 0.9, 0.95, 1.0],
+)
+RECONCILIATION_RESULTS = Counter(
+    "docflow_reconciliation_results_total",
+    "Reconciliation validation outcomes",
+    ["validation_result"],  # pass, need_info, fail
+)
+RECONCILIATION_MISMATCHES = Counter(
+    "docflow_reconciliation_mismatches_total",
+    "Per-field reconciliation mismatches",
+    ["field"],
+)
+
 # ── Documents ─────────────────────────────────────────────────────────────────
 DOCUMENTS_UPLOADED = Counter(
     "docflow_documents_uploaded_total",

@@ -32,6 +32,10 @@ import os
 import time
 from typing import Any
 
+from ..metrics import (
+    OCR_LLM_CALLS, OCR_LLM_DURATION, OCR_LLM_FIELDS_EXTRACTED, OCR_LLM_TOKENS,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -162,30 +166,77 @@ def extract_with_llm(
     *,
     model: str | None = None,
     api_key: str | None = None,
-) -> dict[str, str]:
+) -> tuple[dict[str, str], dict[str, Any]]:
     """Run the LLM extractor against this document.
 
-    Returns a dict of {field_name: string_value}. Empty on any
-    failure path — caller should treat empty as "LLM didn't help"
-    rather than raising.
+    Returns (fields, trace).
+      - fields: {field_name: string_value} — empty on any failure
+        path so the caller can fall through to regex output.
+      - trace: structured record of what we sent + got back (or why
+        the call was skipped). Includes prompt text, raw response,
+        token usage, model name, elapsed time, and outcome. Image
+        bytes are intentionally NOT included — the doc has its own
+        hash captured elsewhere and we don't want audit_logs to
+        balloon. The caller is responsible for persisting the trace
+        (typically forwarded to the gateway and written to
+        audit_logs keyed by case_id).
     """
+    model_name = model or "gpt-4o-mini"
+    trace: dict[str, Any] = {
+        "model": model_name,
+        "document_type": document_type,
+        "outcome": None,
+    }
+
     if not supports(document_type):
-        return {}
+        OCR_LLM_CALLS.labels(
+            document_type=document_type, model=model_name, outcome="skipped_unsupported",
+        ).inc()
+        trace["outcome"] = "skipped_unsupported"
+        return {}, trace
 
     key = api_key or os.getenv("OPENAI_API_KEY")
     if not key:
         logger.warning("ai_extractor: OPENAI_API_KEY not set, skipping")
-        return {}
+        OCR_LLM_CALLS.labels(
+            document_type=document_type, model=model_name, outcome="skipped_no_key",
+        ).inc()
+        trace["outcome"] = "skipped_no_key"
+        return {}, trace
 
     try:
         from openai import OpenAI
     except ImportError:
         logger.warning("ai_extractor: openai package not installed, skipping")
-        return {}
+        OCR_LLM_CALLS.labels(
+            document_type=document_type, model=model_name, outcome="skipped_no_package",
+        ).inc()
+        trace["outcome"] = "skipped_no_package"
+        return {}, trace
 
     client = OpenAI(api_key=key)
     messages = _build_messages(document_type, ocr_text, image_bytes)
     schema_keys = set(_SCHEMAS[document_type].keys())
+
+    # Capture prompt for the trace BEFORE the API call so a network
+    # error still yields a usable record. We strip the base64 image
+    # from the user message to keep audit_logs small — the OCR text
+    # alone is enough to debug what the model saw.
+    system_prompt = next((m["content"] for m in messages if m["role"] == "system"), "")
+    user_text = ""
+    for m in messages:
+        if m["role"] != "user":
+            continue
+        content = m["content"]
+        if isinstance(content, list):
+            for part in content:
+                if part.get("type") == "text":
+                    user_text = part.get("text", "")
+                    break
+        else:
+            user_text = content
+        break
+    trace["prompt"] = {"system": system_prompt, "user": user_text}
 
     started = time.perf_counter()
     try:
@@ -193,24 +244,66 @@ def extract_with_llm(
         # single parseable JSON object — saves us a try/except on
         # malformed-text outputs.
         resp = client.chat.completions.create(
-            model=model or "gpt-4o-mini",
+            model=model_name,
             messages=messages,
             response_format={"type": "json_object"},
             temperature=0,
             max_tokens=800,
         )
-        elapsed_ms = int((time.perf_counter() - started) * 1000)
+        elapsed_s = time.perf_counter() - started
         content = resp.choices[0].message.content or "{}"
         raw = json.loads(content)
         fields = _normalise(raw, schema_keys)
+
+        OCR_LLM_CALLS.labels(
+            document_type=document_type, model=model_name, outcome="success",
+        ).inc()
+        OCR_LLM_DURATION.labels(
+            document_type=document_type, model=model_name,
+        ).observe(elapsed_s)
+        OCR_LLM_FIELDS_EXTRACTED.labels(document_type=document_type).observe(len(fields))
+
+        prompt_tokens = 0
+        completion_tokens = 0
+        usage = getattr(resp, "usage", None)
+        if usage is not None:
+            # Attribute names differ across openai-python versions;
+            # tolerate both camelCase and snake_case.
+            prompt_tokens = getattr(usage, "prompt_tokens", None) or getattr(usage, "promptTokens", 0) or 0
+            completion_tokens = getattr(usage, "completion_tokens", None) or getattr(usage, "completionTokens", 0) or 0
+            if prompt_tokens:
+                OCR_LLM_TOKENS.labels(model=model_name, kind="prompt").inc(prompt_tokens)
+            if completion_tokens:
+                OCR_LLM_TOKENS.labels(model=model_name, kind="completion").inc(completion_tokens)
+
+        trace.update({
+            "outcome": "success",
+            "raw_response": content,
+            "extracted_fields": fields,
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "elapsed_ms": int(elapsed_s * 1000),
+        })
+
         logger.info(
             "ai_extractor: %s extracted %d fields in %dms",
-            document_type, len(fields), elapsed_ms,
+            document_type, len(fields), int(elapsed_s * 1000),
         )
-        return fields
+        return fields, trace
     except Exception as exc:  # noqa: BLE001
         # Defensive: any LLM/network/parse error should not crash
         # the OCR pipeline. Log and return empty so the caller
         # falls through to whatever regex produced.
+        OCR_LLM_CALLS.labels(
+            document_type=document_type, model=model_name, outcome="error",
+        ).inc()
+        OCR_LLM_DURATION.labels(
+            document_type=document_type, model=model_name,
+        ).observe(time.perf_counter() - started)
         logger.warning("ai_extractor: %s failed: %s", document_type, exc)
-        return {}
+        trace.update({
+            "outcome": "error",
+            "error": str(exc),
+            "elapsed_ms": int((time.perf_counter() - started) * 1000),
+        })
+        return {}, trace
