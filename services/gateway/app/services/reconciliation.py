@@ -76,6 +76,25 @@ FIELD_MAPPING = {
 MATCH_THRESHOLD = 0.85
 MISMATCH_THRESHOLD = 0.5
 
+# Declared fields that have NO document analog — they're citizen-typed
+# metadata (renewal reason, requested validity tier, marital status,
+# residential address). Including them in reconciliation would always
+# produce "not_found_in_ocr" which drags integrity_score down for
+# perfectly-clean cases. Filter them out before scoring; they're still
+# kept in case.declared_fields for the audit trail and the mukhtar form.
+SKIP_RECONCILIATION_FIELDS = {
+    "passport_validity_years",  # citizen picks 1y/3y/5y/10y at submit
+    "renewal_reason",            # passport_renewal: expired / damaged / lost / name_change
+    "reason_for_renewal",        # id_renewal: same idea, different name
+    "passport_type",             # ordinary / diplomatic / service
+    "marital_status",            # never on a national ID
+    "address",                   # residential, optional, never on a doc
+    "phone",                     # contact field, not a doc field
+    "religious_sect",            # printed only on civil-registry extract;
+                                 # reconciled separately when present in OCR
+    "municipality",              # mukhtar jurisdiction routing only
+}
+
 
 # ── Arabic normalization ─────────────────────────────────────────────
 
@@ -239,6 +258,11 @@ def reconcile(
 
     for declared_key, declared_value in declared_fields.items():
         if not declared_value:
+            continue
+        if declared_key in SKIP_RECONCILIATION_FIELDS:
+            # Citizen-typed metadata with no document analog — keeping it
+            # in the loop would always score "not_found_in_ocr" and pull
+            # integrity down on otherwise-clean cases. See constant doc.
             continue
 
         ocr_keys = FIELD_MAPPING.get(declared_key, [declared_key])

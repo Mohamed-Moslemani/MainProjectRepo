@@ -31,6 +31,7 @@ from ..models.user import User
 from ..metrics import (
     PIPELINE_DURATION, PIPELINE_DECISIONS, RISK_SCORE,
     CASE_STATUS_TRANSITIONS, EXTERNAL_CALL_DURATION, EXTERNAL_CALL_ERRORS,
+    RECONCILIATION_INTEGRITY, RECONCILIATION_RESULTS, RECONCILIATION_MISMATCHES,
 )
 
 logger = logging.getLogger(__name__)
@@ -312,6 +313,23 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
                 },
             )
 
+            # Per-call LLM trace gets its own audit_log row so an
+            # auditor can answer "what did the model see + return
+            # for case X?" with one SELECT. Skipped-outcome traces
+            # (no_key / unsupported / no_package) carry no prompt
+            # or response — they're still recorded so the absence
+            # of an LLM call is itself part of the trail.
+            llm_trace = ocr_data.get("llm_trace")
+            if llm_trace:
+                await log_action(
+                    db, "llm_extraction_completed", case_id=case.id,
+                    details={
+                        "document_id": doc.id,
+                        "document_type": doc_type_val,
+                        **llm_trace,
+                    },
+                )
+
         except Exception as e:
             logger.error(f"OCR failed for {doc_type_val}: {e}")
             results["issues"].append(f"OCR failed for {doc_type_val}")
@@ -460,8 +478,22 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
         if case.liveness_result and case.liveness_result.get("status") == "SUCCEEDED":
             liveness_data = case.liveness_result
             liveness_score = liveness_data["confidence"] / 100.0
-            face_similarity = liveness_data.get("similarity_score") or 0.0
+            # similarity_score = None means Rekognition couldn't run a
+            # face-to-face comparison (no reference face was extractable
+            # — typical for first-time applicants where the only photo
+            # on file is the civil-registry extract, which Rekognition
+            # may not find a face on). Distinguish that case from a
+            # genuine 0% match. If liveness passed, fall back to the
+            # liveness confidence as the face signal — the alternative
+            # (defaulting to 0) caused id_new + passport_new applicants
+            # to be auto-penalised with 100% face risk despite a
+            # successful liveness check.
+            raw_similarity = liveness_data.get("similarity_score")
             liveness_passed = liveness_data.get("liveness_passed", False)
+            if raw_similarity is None:
+                face_similarity = (liveness_score * 100.0) if liveness_passed else 0.0
+            else:
+                face_similarity = float(raw_similarity)
 
             # face_comparison_decision can come back as null (not just
             # missing) when there's no reference document to compare
@@ -606,6 +638,15 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
     case.reconciliation_result = recon_result
     results["reconciliation"] = recon_result
 
+    RECONCILIATION_INTEGRITY.observe(float(recon_result.get("integrity_score") or 0.0))
+    RECONCILIATION_RESULTS.labels(
+        validation_result=recon_result.get("validation_result", "unknown"),
+    ).inc()
+    for flag in recon_result.get("mismatch_flags") or []:
+        # mismatch_flags is a list of field names that didn't reconcile;
+        # cardinality is bounded by the declared-field schema.
+        RECONCILIATION_MISMATCHES.labels(field=str(flag)).inc()
+
     await log_action(
         db, "reconciliation_completed", case_id=case.id,
         details={
@@ -620,6 +661,30 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
         },
     )
 
+    # If reconciliation flagged any field-level mismatches, surface
+    # them on the case so the citizen sees field names — not just
+    # "data integrity issue". Without this, a case bounced to
+    # need_info on reconciliation looks identical to a quality-gate
+    # bounce in the UI, and the citizen resubmits the same wrong
+    # data because they were never told which fields were wrong.
+    # Risk scoring still runs; routing uses the mismatch count.
+    mismatch_flags = recon_result.get("mismatch_flags") or []
+    if mismatch_flags:
+        readable = ", ".join(mismatch_flags)
+        recon_finding = {
+            "document_type": "_reconciliation",
+            "code": "field_mismatch",
+            "reasons": [f"Declared values don't match the documents for: {readable}"],
+            "reasons_ar": [f"البيانات المُدخلة لا تطابق المستندات في: {readable}"],
+            "fields": mismatch_flags,
+        }
+        # Preserve any prior reasons (e.g. eligibility findings) — these
+        # accumulate; the UI lists them all so the citizen can fix every
+        # issue in one resubmit.
+        existing = list(case.retake_reasons or [])
+        existing.append(recon_finding)
+        case.retake_reasons = existing
+
     # ---- Step 3.5: Civil registry verification ----
     registry_result = await call_registry_service(declared)
     case.registry_result = registry_result
@@ -630,6 +695,22 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
     registry_status = registry_result.get("status", "error")
     registry_confidence = float(registry_result.get("confidence") or 0.0)
     registry_deceased = registry_status == "deceased"
+    # When the registry service is unreachable, the raw confidence
+    # is 0.0 (see call_registry_service). Feeding 0.0 directly into
+    # the risk scorer means an infra outage looks identical to a
+    # citizen with bogus data — every case auto-rejects. Treat the
+    # error case as a neutral signal so risk is dominated by OCR /
+    # face / reconciliation; ops sees the outage on the dashboard.
+    if registry_status == "error":
+        registry_confidence = 1.0
+        await log_action(
+            db, "registry_degraded_mode", case_id=case.id,
+            details={
+                "reason": "registry service unreachable",
+                "neutral_confidence_used": 1.0,
+                "raw_reasons": registry_result.get("reasons", []),
+            },
+        )
 
     await log_action(
         db, "registry_verification_completed", case_id=case.id,
@@ -740,21 +821,45 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
                 details={"mukhtar_id": case.mukhtar_id, "registry_place": case.declared_fields.get("registry_place")},
             )
 
-        # Generate the application form PDF
+        # Generate the application form PDF. Wrapped because the
+        # generator touches the filesystem (template render + write
+        # to /app/uploads) — disk-full / permission errors must NOT
+        # silently leave the mukhtar with no form to review. Audit
+        # the failure and continue: the case still routes to the
+        # mukhtar; they get the form on a re-generation request.
         from .form_generator import generate_passport_application
         user_result = await db.execute(select(User).where(User.id == case.user_id))
         applicant = user_result.scalar_one_or_none()
         if applicant:
-            form_path = generate_passport_application(case, applicant)
-            case.generated_form_path = form_path
+            try:
+                form_path = generate_passport_application(case, applicant)
+                case.generated_form_path = form_path
+            except Exception as exc:  # noqa: BLE001
+                logger.exception("Passport form generation failed for case %s", case.id)
+                await log_action(
+                    db, "form_generation_failed", case_id=case.id,
+                    details={"error": str(exc), "service_type": case.service_type},
+                )
     elif routing == "auto_approve":
         CASE_STATUS_TRANSITIONS.labels(from_status="risk_evaluated", to_status="approved").inc()
         CASE_STATUS_TRANSITIONS.labels(from_status="approved", to_status="payment_pending").inc()
         _transition(case, "approved", "Auto-approved: low risk, all checks passed")
         _transition(case, "payment_pending", "Please complete payment to proceed")
     else:
-        # manual_review - stays at risk_evaluated, clerk must act
-        pass
+        # manual_review — case stays at RISK_EVALUATED waiting for a
+        # clerk in the Admin Review Queue to act. Without an explicit
+        # audit row here, an auditor querying audit_logs for the case
+        # sees the pipeline silently end with no decision, which looks
+        # identical to a crashed worker. Emit a marker so the trail
+        # explains *why* the case is parked.
+        await log_action(
+            db, "manual_review_required", case_id=case.id,
+            details={
+                "risk_score": risk_result["risk_score"],
+                "routing": "manual_review",
+                "reason": "Risk score in manual-review band (>auto-approve, <reject)",
+            },
+        )
 
     await db.commit()
 
