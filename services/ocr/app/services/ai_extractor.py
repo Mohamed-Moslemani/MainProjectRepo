@@ -35,6 +35,7 @@ from typing import Any
 from ..metrics import (
     OCR_LLM_CALLS, OCR_LLM_DURATION, OCR_LLM_FIELDS_EXTRACTED, OCR_LLM_TOKENS,
 )
+from . import langfuse_client
 
 logger = logging.getLogger(__name__)
 
@@ -121,19 +122,40 @@ def supports(document_type: str) -> bool:
     return document_type in _SCHEMAS
 
 
-def _build_messages(document_type: str, ocr_text: str, image_bytes: bytes) -> list[dict]:
+# Code-side fallback for the field-extractor system prompt. This is the
+# canonical version — Langfuse, if configured, can override it without
+# a code change by editing the prompt with the same name and promoting
+# a new "production" label. Keep this string in sync with whatever's
+# in Langfuse so unconfigured deploys don't drift.
+_FIELD_EXTRACTOR_SYSTEM_FALLBACK = (
+    "You extract structured fields from photographed Lebanese civil-status "
+    "documents. The document image plus the raw OCR text are both attached. "
+    "Return a single JSON object whose keys are the requested field names "
+    "and whose values are the extracted strings (Arabic preserved verbatim). "
+    "Use null for any field genuinely not present or unreadable. "
+    "Do not invent values, do not translate Arabic to English, and do not "
+    "include any keys other than those listed."
+)
+
+
+def _build_messages(
+    document_type: str, ocr_text: str, image_bytes: bytes,
+) -> tuple[list[dict], "langfuse_client.ManagedPrompt"]:
+    """Build the chat-completion messages + return the resolved prompt.
+
+    Returning the ManagedPrompt alongside the messages lets the caller
+    link its Langfuse generation observation back to the prompt
+    version actually used (so prompt edits in Langfuse roll forward
+    into eval reports).
+    """
     schema = _SCHEMAS[document_type]
     fields_doc = "\n".join(f"  - {k}: {v}" for k, v in schema.items())
 
-    system = (
-        "You extract structured fields from photographed Lebanese civil-status "
-        "documents. The document image plus the raw OCR text are both attached. "
-        "Return a single JSON object whose keys are the requested field names "
-        "and whose values are the extracted strings (Arabic preserved verbatim). "
-        "Use null for any field genuinely not present or unreadable. "
-        "Do not invent values, do not translate Arabic to English, and do not "
-        "include any keys other than those listed."
+    managed = langfuse_client.get_prompt(
+        langfuse_client.PROMPT_NAME_FIELD_EXTRACTOR,
+        fallback=_FIELD_EXTRACTOR_SYSTEM_FALLBACK,
     )
+    system = managed.text
     user_text = (
         f"Document type: {document_type}\n\n"
         f"Required fields:\n{fields_doc}\n\n"
@@ -142,7 +164,7 @@ def _build_messages(document_type: str, ocr_text: str, image_bytes: bytes) -> li
     )
 
     image_b64 = base64.b64encode(image_bytes).decode("ascii")
-    return [
+    messages = [
         {"role": "system", "content": system},
         {
             "role": "user",
@@ -155,6 +177,7 @@ def _build_messages(document_type: str, ocr_text: str, image_bytes: bytes) -> li
             ],
         },
     ]
+    return messages, managed
 
 
 def _normalise(raw: dict[str, Any], schema_keys: set[str]) -> dict[str, str]:
@@ -178,6 +201,7 @@ def extract_with_llm(
     *,
     model: str | None = None,
     api_key: str | None = None,
+    langfuse_trace: Any | None = None,
 ) -> tuple[dict[str, str], dict[str, Any]]:
     """Run the LLM extractor against this document.
 
@@ -252,8 +276,10 @@ def extract_with_llm(
         return {}, trace
 
     client = OpenAI(api_key=key)
-    messages = _build_messages(document_type, ocr_text, image_bytes)
+    messages, managed_prompt = _build_messages(document_type, ocr_text, image_bytes)
     schema_keys = set(_SCHEMAS[document_type].keys())
+    trace["prompt_version"] = managed_prompt.version
+    trace["prompt_source"] = managed_prompt.source
 
     # Capture prompt for the trace BEFORE the API call so a network
     # error still yields a usable record. We strip the base64 image
@@ -326,6 +352,24 @@ def extract_with_llm(
             "ai_extractor: %s extracted %d fields in %dms",
             document_type, len(fields), int(elapsed_s * 1000),
         )
+        langfuse_client.log_generation(
+            langfuse_trace,
+            name=f"field-extractor.{document_type}",
+            model=model_name,
+            messages=messages,
+            response_text=content,
+            parsed_output=fields,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            elapsed_ms=int(elapsed_s * 1000),
+            outcome="success",
+            prompt_obj=managed_prompt.langfuse_obj,
+            metadata={
+                "document_type": document_type,
+                "fields_extracted": len(fields),
+                "prompt_source": managed_prompt.source,
+            },
+        )
         return fields, trace
     except Exception as exc:  # noqa: BLE001
         # Defensive: any LLM/network/parse error should not crash
@@ -343,4 +387,17 @@ def extract_with_llm(
             "error": str(exc),
             "elapsed_ms": int((time.perf_counter() - started) * 1000),
         })
+        langfuse_client.log_generation(
+            langfuse_trace,
+            name=f"field-extractor.{document_type}",
+            model=model_name,
+            messages=messages,
+            response_text=None,
+            parsed_output=None,
+            elapsed_ms=int((time.perf_counter() - started) * 1000),
+            outcome="error",
+            error=str(exc),
+            prompt_obj=managed_prompt.langfuse_obj,
+            metadata={"document_type": document_type, "prompt_source": managed_prompt.source},
+        )
         return {}, trace

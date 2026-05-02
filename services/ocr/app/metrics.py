@@ -79,3 +79,24 @@ OCR_LLM_TOKENS = Counter(
     "Token usage on LLM extractor calls",
     ["model", "kind"],  # kind: prompt, completion
 )
+
+# ── Document-type / authenticity classifier ──────────────────────────────
+# Runs a vision-LLM classification pass before field extraction so the
+# pipeline can reject wrong-document and casually-forged uploads up front
+# instead of leaking them into manual review with empty extraction output.
+OCR_CLASSIFIER_CALLS = Counter(
+    "docflow_ocr_classifier_calls_total",
+    "Document-type classifier invocations",
+    ["document_type", "model", "outcome"],  # outcome: success, error, mock, skipped_*
+)
+OCR_CLASSIFIER_DURATION = Histogram(
+    "docflow_ocr_classifier_duration_seconds",
+    "Wall-clock time per classifier call",
+    ["document_type", "model"],
+    buckets=[0.5, 1, 2, 3, 5, 8, 12, 20],
+)
+OCR_CLASSIFIER_REJECTED = Counter(
+    "docflow_ocr_classifier_rejected_total",
+    "Uploads the classifier flagged as wrong-type or not-authentic",
+    ["expected_type", "reason"],  # reason: type_mismatch, not_authentic
+)

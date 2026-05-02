@@ -12,6 +12,7 @@ from shared.telemetry import install_telemetry
 from .config import get_settings
 from .routers import ocr
 from . import metrics  # noqa: F401 — registers Prometheus collectors
+from .services import langfuse_client
 
 logging.basicConfig(level=logging.INFO)
 install_logging_filter()
@@ -31,7 +32,13 @@ async def lifespan(app: FastAPI):
             )
         else:
             logger.info("Google Vision credentials detected at %s", settings.google_credentials_path)
+    # Eagerly init Langfuse so the first /process request doesn't pay
+    # the SDK handshake. No-op when LANGFUSE_PUBLIC_KEY isn't set.
+    langfuse_client.get_client()
     yield
+    # Flush any pending Langfuse events on shutdown so we don't drop
+    # the last few traces when the container is rolled.
+    langfuse_client.shutdown()
 
 
 app = FastAPI(title="DocFlow - OCR Service", version="0.1.0", lifespan=lifespan)

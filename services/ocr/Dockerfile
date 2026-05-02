@@ -10,6 +10,7 @@ COPY services/ocr/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY services/ocr/app/ ./app/
+COPY services/ocr/scripts/ ./scripts/
 COPY shared/ ./shared/
 
 EXPOSE 8001

@@ -13,7 +13,7 @@ from ..services.google_ocr import extract_text
 # is now the only field extractor. Kept as a module for the MRZ
 # constants and the unit tests that exercise legacy behaviour.
 from ..services.mrz_parser import parse_mrz
-from ..services import ai_extractor
+from ..services import ai_extractor, doc_classifier, langfuse_client
 from ..config import get_settings
 from ..metrics import (
     OCR_REQUESTS,
@@ -52,6 +52,21 @@ async def process_document(req: ProcessRequest):
     OCR_REQUESTS.labels(document_type=req.document_type).inc()
     start = time.time()
 
+    # Open a Langfuse trace per OCR request so the classifier + field
+    # extractor LLM calls land under the same parent. The trace is
+    # named after the document type so Langfuse's UI can group runs by
+    # doc type out of the box. trace_handle is None when Langfuse is
+    # unconfigured — every downstream call site no-ops cleanly.
+    trace_handle = langfuse_client.start_trace(
+        name=f"ocr.process.{req.document_type}",
+        session_id=req.document_id,
+        metadata={
+            "document_type": req.document_type,
+            "document_id": req.document_id,
+        },
+        tags=["ocr", req.document_type],
+    )
+
     try:
         try:
             quality = await asyncio.to_thread(assess_quality, req.file_path)
@@ -73,6 +88,64 @@ async def process_document(req: ProcessRequest):
             logger.error(f"OCR extraction failed: {e}")
             raise HTTPException(status_code=500, detail=f"OCR extraction failed: {str(e)}")
 
+        settings = get_settings()
+        # Image bytes are reused by the classifier and the field extractor
+        # — read once and pass through to both.
+        try:
+            with open(req.file_path, "rb") as fh:
+                image_bytes = fh.read()
+        except Exception as exc:  # noqa: BLE001
+            OCR_ERRORS.labels(stage="read_image").inc()
+            logger.warning("read_image raised: %s", exc)
+            image_bytes = b""
+
+        # ── Document-type + authenticity classifier ───────────────────
+        # Verify the photographed object actually IS the document type
+        # the citizen claimed. Without this step, a power-bill upload
+        # labelled `passport_data_page` would silently produce empty
+        # field extraction and the case would limp into manual review
+        # rather than being hard-rejected up front.
+        #
+        # Fail-open by design: if the LLM is unavailable the classifier
+        # returns matches_expected_type=True so the pipeline degrades
+        # to its prior behaviour. Cross-doc coherence + reconciliation
+        # are still active downstream.
+        classification: doc_classifier.ClassificationResult | None = None
+        classifier_trace: dict | None = None
+        if image_bytes:
+            try:
+                classification, classifier_trace = await asyncio.to_thread(
+                    doc_classifier.classify,
+                    req.document_type,
+                    image_bytes,
+                    model=settings.llm_model,
+                    langfuse_trace=trace_handle,
+                )
+            except Exception as exc:  # noqa: BLE001
+                OCR_ERRORS.labels(stage="classifier").inc()
+                logger.warning("doc_classifier raised: %s", exc)
+
+        if classification is not None and (
+            not classification.matches_expected_type
+            or not classification.looks_authentic
+        ):
+            # Hard reject: surface as a retake reason. The orchestrator
+            # routes any retake_required upload to NEED_INFO so the
+            # citizen sees the rejection on the case-detail page.
+            if not classification.matches_expected_type:
+                detected = classification.detected_type or "unknown"
+                retake_reasons.append(
+                    f"Uploaded document does not appear to be a {req.document_type} "
+                    f"(detected: {detected})"
+                )
+            if not classification.looks_authentic:
+                retake_reasons.append(
+                    f"Uploaded {req.document_type} does not look authentic — "
+                    "please re-photograph the original document"
+                )
+            for r in classification.reasons[:2]:
+                retake_reasons.append(f"Classifier note: {r}")
+
         # Field extraction is now LLM-only. We dropped the regex pass
         # entirely (services/ocr/app/services/field_extractor.py used to
         # try Arabic / Latin label patterns first and fall through to
@@ -88,19 +161,17 @@ async def process_document(req: ProcessRequest):
         # with check digits — that's a parser, not text-pattern work).
         extracted_fields: dict[str, str] = {}
         confidence_scores: dict[str, float] = {}
-        settings = get_settings()
 
         llm_trace: dict | None = None
         if ai_extractor.supports(req.document_type):
             try:
-                with open(req.file_path, "rb") as fh:
-                    image_bytes = fh.read()
                 llm_fields, llm_trace = await asyncio.to_thread(
                     ai_extractor.extract_with_llm,
                     req.document_type,
                     ocr_result["full_text"],
                     image_bytes,
                     model=settings.llm_model,
+                    langfuse_trace=trace_handle,
                 )
                 for k, v in (llm_fields or {}).items():
                     extracted_fields[k] = v
@@ -240,6 +311,13 @@ async def process_document(req: ProcessRequest):
             # the model see and return for case X?" with a single
             # SELECT, without standing up Langfuse.
             "llm_trace": llm_trace,
+            # Document-type / authenticity classifier verdict. Persisted
+            # by the gateway alongside the extraction trace so audits
+            # can answer "did the classifier accept this upload, and
+            # if not, why?". None when the classifier was unsupported
+            # for this document type or skipped (no API key).
+            "classification": classification.to_dict() if classification else None,
+            "classifier_trace": classifier_trace,
             # Reproducibility metadata. The image hash + this dict
             # together let an investigator replay the exact same
             # inputs through the same code months later.

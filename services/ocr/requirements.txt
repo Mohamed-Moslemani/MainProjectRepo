@@ -4,6 +4,13 @@ pydantic==2.10.4
 pydantic-settings==2.7.1
 google-cloud-vision==3.9.0
 openai==1.59.7
+# Langfuse — LLM observability + prompt management. Cloud-hosted by
+# default (LANGFUSE_HOST=https://cloud.langfuse.com); set
+# LANGFUSE_HOST=http://langfuse-web:3000 to point at a self-hosted
+# instance. The wrapper in app/services/langfuse_client.py falls back
+# to a no-op tracer when keys aren't configured, so unconfigured
+# deploys still run.
+langfuse==2.60.5
 opencv-python-headless==4.10.0.84
 numpy==2.2.1
 prometheus-fastapi-instrumentator==7.0.2

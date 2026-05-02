@@ -130,6 +130,13 @@ services:
       OCR_GOOGLE_CREDENTIALS_PATH: /app/credentials/google-vision.json
       OCR_MIN_CONFIDENCE_THRESHOLD: 0.7
       OCR_MOCK_MODE: ${OCR_MOCK_MODE:-false}
+      # Langfuse env (LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY /
+      # LANGFUSE_HOST / LANGFUSE_BASE_URL / LANGFUSE_ENABLED) is loaded
+      # from env_file above. We deliberately do NOT redeclare them here
+      # — Compose's ${VAR:-} substitution reads the host shell, not the
+      # env_file, which would silently overwrite real keys with empty
+      # strings and disable tracing. Empty keys → no-op (see
+      # app/services/langfuse_client.py).
     volumes:
       - uploads:/app/uploads
       - ./credentials:/app/credentials:ro
