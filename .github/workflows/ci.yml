@@ -162,6 +162,15 @@ jobs:
       - name: Run id_renewal E2E
         run: python -m evaluation.test_id_renewal_e2e
 
+      - name: Run id_new E2E
+        run: python -m evaluation.test_id_new_e2e
+
+      - name: Run passport_new E2E
+        run: python -m evaluation.test_passport_new_e2e
+
+      - name: Run mukhtar attestation E2E
+        run: python -m evaluation.test_mukhtar_attestation_e2e
+
       - name: Collect container logs on failure
         if: failure()
         run: docker compose logs --tail=300
