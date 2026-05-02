@@ -138,6 +138,42 @@ export default function LivenessCheck({ caseId, onComplete, onError, onCancel })
 
   if (!sessionId || !credentials) return null;
 
+  // Mock-mode bypass. The Amplify FaceLivenessDetectorCore SDK opens
+  // a WebSocket directly to AWS Rekognition Streaming using a real
+  // session ID minted by AWS. In mock mode the gateway returns a
+  // fake "mock-<uuid>" session ID and synthetic credentials — neither
+  // is recognised by AWS, so the SDK fails with SERVER_ERROR and a
+  // "Deserialization error" the moment it tries to connect. Skip the
+  // SDK entirely and render a one-click "complete" button that calls
+  // get-results directly. The backend's mock_get_liveness_session_results
+  // returns SUCCEEDED + similarity_score=95 unconditionally.
+  const isMock = sessionId.startsWith("mock-");
+  if (isMock) {
+    return (
+      <div className="liveness-container">
+        <div className="liveness-header">
+          <h3>
+            <L ar="التحقق من الهوية (وضع تجريبي)" en="Identity Verification (Mock Mode)" />
+          </h3>
+          <p className="liveness-instructions">
+            <L
+              ar="الخادم في وضع تجريبي — يتم تخطي كاميرا AWS Rekognition. اضغط للمتابعة بنتيجة ناجحة محاكاة."
+              en="The server is in mock mode — the AWS Rekognition camera step is skipped. Click to complete with a simulated success."
+            />
+          </p>
+        </div>
+        <div style={{ display: "flex", gap: "0.75rem", marginTop: "1.5rem", justifyContent: "center" }}>
+          <button className="btn btn--primary" onClick={handleAnalysisComplete}>
+            <L ar="إكمال التحقق (محاكاة)" en="Complete verification (mock)" />
+          </button>
+          <button className="btn btn--outline" onClick={onCancel}>
+            <L ar="إلغاء" en="Cancel" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="liveness-container">
       <div className="liveness-header">
