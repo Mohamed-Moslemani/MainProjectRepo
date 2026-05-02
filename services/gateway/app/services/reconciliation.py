@@ -52,14 +52,21 @@ except ImportError:  # pragma: no cover - dev environments without rapidfuzz
 logger = logging.getLogger(__name__)
 
 
-# Field mapping: declared field -> ordered list of OCR fields to consult.
-# For full_name we now consult both the LLM's surname_ar and the
-# legacy full_name_ar; the matcher tries each and keeps the best score.
+# Field mapping: declared field -> ordered list of OCR fields to
+# consult. The matcher tries each candidate key and keeps the best
+# fuzzy score. For full_name we look at the synthesised full_name_ar
+# (built by field_extractor.py from the first_name_ar + surname_ar
+# cells found on real Lebanese IDs and civil-registry extracts) AND
+# at the individual part keys, so a citizen's declared "Mohamed Saad"
+# scores high against either the joined cell or the surname alone.
+# Latin-script keys (full_name_en, given_names, surname) cover
+# passports, which DO print Latin alongside Arabic.
 FIELD_MAPPING = {
     "full_name":   ["full_name_ar", "full_name", "full_name_en", "surname",
-                    "surname_ar", "given_names"],
-    "first_name":  ["full_name_ar", "given_names"],
+                    "surname_ar", "first_name_ar", "given_names"],
+    "first_name":  ["first_name_ar", "given_names"],
     "last_name":   ["surname_ar", "surname"],
+    "surname":     ["surname_ar", "surname"],
     "father_name": ["father_name"],
     "mother_name": ["mother_name"],
     "date_of_birth": ["date_of_birth", "mrz_date_of_birth"],
@@ -70,6 +77,8 @@ FIELD_MAPPING = {
     "old_passport_number": ["passport_number", "mrz_passport_number"],
     "gender": ["gender", "mrz_sex"],
     "religious_sect": ["religious_sect"],
+    "marital_status": ["marital_status"],
+    "district": ["district"],
 }
 
 # Score thresholds. token_set_ratio scales 0-100; we read it as 0-1.

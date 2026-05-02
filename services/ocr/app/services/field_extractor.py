@@ -9,17 +9,50 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Patterns for Lebanese National ID
+# Patterns for the Lebanese National ID (بطاقة هوية).
+#
+# Real Lebanese IDs are Arabic-only — there is no Latin name on
+# either face. The card splits the holder's name across two
+# separate cells: الاسم (first name) and الشهرة (surname).
+# The previous pattern set treated الاسم as full_name_ar, which
+# is wrong: it captures only the first name. Reconciliation
+# against a citizen who declared their full Arabic name then
+# fails because "محمد سعد" never matches the extracted "محمد".
+#
+# Layout reference (front face, two-column):
+#   الاسم: محمد              اسم الأم وشهرتها: زهرة أيوب
+#   الشهرة: مسلماني           محل الولادة: صور
+#   اسم الأب: علي             تاريخ الولادة: ١٩٦١/٠١/١٢
+#   رقم بطاقة الهوية: ٠٠٠٤٦٦١٧٧٨
+#
+# Back face has issuance date, sect (المذهب), marital status
+# (الوضع العائلي), district (القضاء), barcode, and the
+# village/locale of registration — never the holder's name.
 NATIONAL_ID_PATTERNS = {
-    "full_name_ar": r"الاسم[:\s]+(.+?)(?:\n|$)",
-    "full_name_en": r"Name[:\s]+(.+?)(?:\n|$)",
-    "father_name": r"(?:اسم الأب|Father)[:\s]+(.+?)(?:\n|$)",
-    "mother_name": r"(?:اسم الأم|Mother)[:\s]+(.+?)(?:\n|$)",
-    "date_of_birth": r"(?:تاريخ الولادة|Date of Birth|DOB)[:\s]+([\d]{1,2}[/\-.][\d]{1,2}[/\-.][\d]{2,4})",
-    "place_of_birth": r"(?:محل الولادة|Place of Birth)[:\s]+(.+?)(?:\n|$)",
-    "gender": r"(?:الجنس|Sex|Gender)[:\s]+([\w\u0600-\u06FF]+)",
-    "id_number": r"(?:رقم السجل|Record No|ID No)[:\s]*([\d]+)",
-    "register_place": r"(?:محل السجل|Register)[:\s]+(.+?)(?:\n|$)",
+    # First name — the cell labelled الاسم. Distinct from
+    # full_name; reconciliation scores first_name + surname
+    # separately rather than fuzzy-matching half a declared name.
+    "first_name_ar": r"(?:^|\n)\s*(?:ال)?اسم\s*[:：]?\s*([^\n]+?)\s*(?:\n|$)",
+    # Surname — the cell labelled الشهرة.
+    "surname_ar":    r"(?:^|\n)\s*(?:ال)?شهرة\s*[:：]?\s*([^\n]+?)\s*(?:\n|$)",
+    # Father's first name — اسم الأب.
+    "father_name":   r"(?:^|\n)\s*اسم\s*الأب\s*[:：]?\s*([^\n]+?)\s*(?:\n|$)",
+    # Mother's full name — Lebanese IDs print BOTH her first name
+    # and her own surname under إسم الأم وشهرتها.
+    "mother_name":   r"(?:^|\n)\s*(?:إ|ا)سم\s*الأم(?:\s*وشهرتها)?\s*[:：]?\s*([^\n]+?)\s*(?:\n|$)",
+    # DOB — accept Eastern Arabic numerals (٠-٩) alongside Latin.
+    "date_of_birth": r"تاريخ\s*الولادة\s*[:：]?\s*([\d٠-٩]{1,4}[/\-.][\d٠-٩]{1,2}[/\-.][\d٠-٩]{1,4})",
+    "place_of_birth": r"محل\s*الولادة\s*[:：]?\s*([^\n]+?)\s*(?:\n|$)",
+    "gender":         r"الجنس\s*[:：]?\s*(ذكر|أنثى|انثى)",
+    # ID number is a long digit string; older cards use dots as
+    # thousand separators. Strip dots downstream.
+    "id_number":      r"(?:رقم\s*بطاقة\s*الهوية|رقم\s*الهوية|رقم\s*السجل)\s*[:：]?\s*([\d.\-٠-٩]+)",
+    # Back-of-card fields. national_id_back specifically.
+    "issue_date":     r"تاريخ\s*الإصدار\s*[:：]?\s*([\d٠-٩]{1,4}[/\-.][\d٠-٩]{1,2}[/\-.][\d٠-٩]{1,4})",
+    "register_place": r"(?:محلة\s*أو\s*القرية|محل\s*السجل)\s*[:：]?\s*([^\n]+?)\s*(?:\n|$)",
+    "district":       r"(?:القضاء|المنطقة|المحافظة)\s*[:：]?\s*([^\n]+?)\s*(?:\n|$)",
+    "marital_status": r"الوضع\s*العائلي\s*[:：]?\s*(أعزب\w*|عزباء|متزوج\w*|مطلق\w*|أرمل\w*)",
+    "religious_sect": r"المذهب\s*[:：]?\s*([^\n]+?)\s*(?:\n|$)",
 }
 
 # Patterns for Lebanese Passport
@@ -62,18 +95,24 @@ PATTERN_MAP = {
     "old_passport_data_page": PASSPORT_PATTERNS,
     # Civil registry has its own dedicated pattern set — Lebanese
     # civil records don't print Latin names so full_name_en is
-    # intentionally absent. Regex won't realistically extract from
-    # this 3-column table; the LLM fallback in routers/ocr.py is
-    # the actual extractor for this doc type.
+    # intentionally absent. Like the National ID, the document
+    # splits the holder's name into separate cells: الإسم (first
+    # name only) and الشهرة (surname). The LLM fallback in
+    # routers/ocr.py handles cells the regex can't reach (e.g.
+    # the spelled-out date next to the numeric DOB).
     "civil_registry_extract": {
-        "full_name_ar": r"(?:الإسم|الاسم)[:\s]+(.+?)(?:\n|$)",
-        "father_name":  r"(?:إسم الأب|اسم الأب)[:\s]+(.+?)(?:\n|$)",
-        "mother_name":  r"(?:إسم الأم(?: وشهرتها)?|اسم الأم(?: وشهرتها)?)[:\s]+(.+?)(?:\n|$)",
-        "date_of_birth": r"تاريخ الولادة[:\s]+(\d{4}[/\-.]\d{1,2}[/\-.]\d{1,2}|\d{1,2}[/\-.]\d{1,2}[/\-.]\d{2,4})",
-        "place_of_birth": r"محل الولادة[:\s]+(.+?)(?:\n|$)",
-        "gender": r"الجنس[:\s]+(ذكر|أنثى|انثى)",
-        "id_number": r"(?:رقم بطاقة الهوية|رقم الهوية)[:\s]*([\d.\-]+)",
-        "register_place": r"(?:محل ورقم القيد|محل القيد|محل السجل)[:\s]+(.+?)(?:\n|$)",
+        "first_name_ar": r"(?:^|\n)\s*(?:ال)?(?:ا|إ)سم\s*[:：]?\s*([^\n]+?)\s*(?:\n|$)",
+        "surname_ar":    r"(?:^|\n)\s*(?:ال)?شهرة\s*[:：]?\s*([^\n]+?)\s*(?:\n|$)",
+        "father_name":   r"(?:إ|ا)سم\s*الأب\s*[:：]?\s*([^\n]+?)\s*(?:\n|$)",
+        "mother_name":   r"(?:إ|ا)سم\s*الأم(?:\s*وشهرتها)?\s*[:：]?\s*([^\n]+?)\s*(?:\n|$)",
+        "date_of_birth": r"تاريخ\s*الولادة\s*[:：]?\s*([\d٠-٩]{4}[/\-.][\d٠-٩]{1,2}[/\-.][\d٠-٩]{1,2}|[\d٠-٩]{1,2}[/\-.][\d٠-٩]{1,2}[/\-.][\d٠-٩]{2,4})",
+        "place_of_birth": r"محل\s*الولادة\s*[:：]?\s*([^\n]+?)\s*(?:\n|$)",
+        "gender":         r"الجنس\s*[:：]?\s*(ذكر|أنثى|انثى)",
+        "id_number":      r"(?:رقم\s*بطاقة\s*الهوية|رقم\s*الهوية)\s*[:：]?\s*([\d.\-٠-٩]+)",
+        "register_place": r"(?:محل\s*ورقم\s*القيد|محل\s*القيد|محل\s*السجل)\s*[:：]?\s*([^\n]+?)\s*(?:\n|$)",
+        "district":       r"(?:القضاء|المنطقة)\s*[:：]?\s*([^\n]+?)\s*(?:\n|$)",
+        "religious_sect": r"المذهب\s*[:：]?\s*([^\n]+?)\s*(?:\n|$)",
+        "marital_status": r"الوضع\s*العائلي\s*[:：]?\s*(أعزب\w*|عزباء|متزوج\w*|مطلق\w*|أرمل\w*)",
     },
 }
 
@@ -118,5 +157,25 @@ def extract_fields(full_text: str, document_type: str, word_confidences: list[di
         if mrz_match:
             fields["mrz"] = mrz_match.group(0)
             confidence_scores["mrz"] = 0.95  # MRZ is machine-printed, high confidence
+
+    # Synthesise full_name_ar from the two cells where it lives on
+    # Lebanese ID + civil-registry extracts. The citizen declares a
+    # single `full_name` field at registration; without this join,
+    # reconciliation only ever compares the declared full name to
+    # half the document (the first name OR the surname), partial-matches,
+    # and pulls integrity_score down. We keep first_name_ar +
+    # surname_ar in the output too so a future audit can still see
+    # the cells separately.
+    first = fields.get("first_name_ar", "").strip()
+    last = fields.get("surname_ar", "").strip()
+    if first or last:
+        full = f"{first} {last}".strip()
+        if full:
+            fields["full_name_ar"] = full
+            # Confidence is the min of the parts (either part missing
+            # = the join is incomplete; either part low-confidence =
+            # the join is unreliable).
+            parts = [confidence_scores.get(k, 0.0) for k in ("first_name_ar", "surname_ar") if fields.get(k)]
+            confidence_scores["full_name_ar"] = min(parts) if parts else 0.0
 
     return {"fields": fields, "confidence_scores": confidence_scores}
