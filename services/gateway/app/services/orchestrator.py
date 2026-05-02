@@ -330,6 +330,24 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
                     },
                 )
 
+            # Document-type / authenticity classifier outcome. Recorded
+            # on every call so audits can show the verdict that gated
+            # acceptance — including the happy path, where it confirms
+            # the upload looked right. classifier_trace carries prompt
+            # + raw response (image bytes excluded).
+            classification = ocr_data.get("classification")
+            classifier_trace = ocr_data.get("classifier_trace")
+            if classification or classifier_trace:
+                await log_action(
+                    db, "doc_classification_completed", case_id=case.id,
+                    details={
+                        "document_id": doc.id,
+                        "document_type": doc_type_val,
+                        "classification": classification,
+                        "trace": classifier_trace,
+                    },
+                )
+
         except Exception as e:
             logger.error(f"OCR failed for {doc_type_val}: {e}")
             results["issues"].append(f"OCR failed for {doc_type_val}")
@@ -692,7 +710,13 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
     # hard reject — a case where the documents describe two different
     # people must NOT reach the manual_review queue.
     from .cross_doc_check import check_cross_doc_identity, summarize_for_citizen
-    coherence = check_cross_doc_identity(results["ocr_results"])
+    # Feed the citizen's declared/account fields in as a virtual "declared"
+    # identity doc — when a real fraud submits someone else's identity
+    # document, the divergence between declared and the OCR'd doc fires
+    # the rejection even if only one identity doc made it through OCR.
+    coherence = check_cross_doc_identity(
+        results["ocr_results"], declared_fields=case.declared_fields or {},
+    )
     case.cross_doc_coherence = coherence.to_dict()  # persisted for audit
     await log_action(
         db, "cross_doc_check_completed", case_id=case.id,

@@ -92,8 +92,16 @@ SERVICE_POLICIES = {
             DocumentType.NATIONAL_ID_FRONT,
             DocumentType.GUARDIAN_DOCS,
         ],
+        # Civil-registry extract MUST be OCR'd alongside the old
+        # passport. Without it the cross-document identity check sees
+        # only one identity-bearing doc and skips with
+        # "fewer_than_two_identity_docs" — which lets a citizen submit
+        # someone else's passport plus their own registry extract and
+        # have the fraud go undetected (case DFL-121F9135 hit exactly
+        # this gap before the fix).
         "ocr_documents": [
             DocumentType.OLD_PASSPORT_DATA_PAGE,
+            DocumentType.CIVIL_REGISTRY_EXTRACT,
             DocumentType.NATIONAL_ID_FRONT,
         ],
         "face_reference_doc": DocumentType.OLD_PASSPORT_DATA_PAGE,

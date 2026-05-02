@@ -131,8 +131,44 @@ IDENTITY_DOC_TYPES = {
 }
 
 
+def _declared_to_identity_fields(declared: dict | None) -> dict[str, str]:
+    """Project a case.declared_fields dict onto the OCR field-name space.
+
+    The citizen's account / form data uses unprefixed Latin keys
+    (`full_name`, `father_name`, `date_of_birth`). The OCR docs use
+    `first_name_ar` / `surname_ar` / `given_names`, etc. Build a
+    minimum dict containing whatever overlap is enough for IDENTITY_FIELDS
+    candidate-key lookup to find a value.
+    """
+    if not declared:
+        return {}
+    out: dict[str, str] = {}
+    full = (declared.get("full_name") or "").strip()
+    if full:
+        # Lebanese citizen accounts store full_name in Arabic. Only
+        # project onto the *_ar keys — mapping it onto the Latin
+        # `surname`/`given_names` keys would compare Arabic vs Latin
+        # transliteration on docs that print both, causing false
+        # rejections of legitimate cases. _value()'s candidate-key
+        # order [surname_ar, surname] / [first_name_ar, given_names]
+        # already prefers Arabic when both sides have it.
+        out["surname_ar"] = full
+        out["first_name_ar"] = full
+    for src, dst in (
+        ("father_name", "father_name"),
+        ("mother_name", "mother_name"),
+        ("date_of_birth", "date_of_birth"),
+        ("gender", "gender"),
+    ):
+        v = declared.get(src)
+        if v:
+            out[dst] = str(v)
+    return out
+
+
 def check_cross_doc_identity(
     ocr_results_by_doc: dict[str, dict],
+    declared_fields: dict | None = None,
 ) -> CrossDocCheckResult:
     """Verify every identity-bearing document describes the same person.
 
@@ -140,9 +176,16 @@ def check_cross_doc_identity(
       ocr_results_by_doc: {document_type: ocr_data} where each
         ocr_data has an `extracted_fields` dict. Maps directly from
         results["ocr_results"] in the orchestrator.
+      declared_fields: the citizen's typed account / form data
+        (case.declared_fields). When present, treated as a virtual
+        "declared" identity doc so the check fires even when only one
+        identity doc was OCR'd. This is the safety net for the
+        case where a wrong-person passport was uploaded but the
+        registry extract for some reason didn't get OCR'd —
+        declared-vs-passport divergence still catches the fraud.
 
     Returns CrossDocCheckResult. coherent=True if no field on any
-    pair of identity docs diverges below threshold.
+    pair of identity sources diverges below threshold.
     """
     # Filter to identity-bearing docs that actually have extracted fields.
     identity_docs = {
@@ -150,6 +193,13 @@ def check_cross_doc_identity(
         for dt, data in ocr_results_by_doc.items()
         if dt in IDENTITY_DOC_TYPES and (data.get("extracted_fields") or {})
     }
+
+    # Project declared_fields onto the same field-name space the OCR
+    # docs use, then add it as another "doc" labeled "declared" so the
+    # pair-wise comparison loop treats it like any other source.
+    declared_proj = _declared_to_identity_fields(declared_fields)
+    if declared_proj:
+        identity_docs["declared"] = declared_proj
 
     if len(identity_docs) < 2:
         return CrossDocCheckResult(
