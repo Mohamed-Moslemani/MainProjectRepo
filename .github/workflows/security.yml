@@ -18,6 +18,10 @@ on:
 permissions:
   contents: read
   security-events: write
+  # codeql-action/upload-sarif's telemetry GETs the workflow run; needs
+  # actions:read or every upload errors with "Resource not accessible
+  # by integration" even though SARIF actually published successfully.
+  actions: read
 
 jobs:
   # ── Filesystem dependency scan ─────────────────────────────────
@@ -41,7 +45,7 @@ jobs:
           exit-code: '0'
       - name: Upload SARIF
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-fs.sarif
           category: trivy-fs
@@ -78,7 +82,7 @@ jobs:
             -f sarif -o bandit.sarif -ll || true
       - name: Upload SARIF
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: bandit.sarif
           category: bandit
@@ -101,7 +105,7 @@ jobs:
         continue-on-error: true
       - name: Upload SARIF
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: kube-linter.sarif
           category: kube-linter

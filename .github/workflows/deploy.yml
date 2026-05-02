@@ -23,11 +23,15 @@ permissions:
   # attestation to the pushed image manifest.
   id-token: write
   attestations: write
-  # github/codeql-action/upload-sarif (Trivy SARIF results) writes to
-  # the Security tab — without this scope every job ends with
-  # "Resource not accessible by integration" annotations even though
-  # the build itself succeeded.
+  # github/codeql-action/upload-sarif (Trivy SARIF results) needs two
+  # scopes:
+  #   - security-events:write to publish findings to the Security tab
+  #   - actions:read so its telemetry can GET the workflow run
+  # Without actions:read, the SARIF upload fails with "Resource not
+  # accessible by integration — workflow-runs#get-a-workflow-run"
+  # even when security-events:write is granted.
   security-events: write
+  actions: read
 
 jobs:
   # ── Build and push every image to GHCR, tagged by git SHA + branch ───────
@@ -143,7 +147,7 @@ jobs:
 
       - name: Upload Trivy SARIF
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-${{ matrix.service }}.sarif
           category: trivy-${{ matrix.service }}
