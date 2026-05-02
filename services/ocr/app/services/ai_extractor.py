@@ -39,67 +39,79 @@ from ..metrics import (
 logger = logging.getLogger(__name__)
 
 
-# Per-document-type schemas. Keys here MUST match the canonical
-# field names produced by the regex extractor so the merged output
-# stays consistent for downstream code (orchestrator, reconciler,
-# UI).
+# Per-document-type schemas. Real Lebanese civil-status documents
+# split the holder's name across separate cells (الاسم = first name,
+# الشهرة = surname). We extract those as `first_name_ar` + `surname_ar`
+# and let the OCR router synthesise `full_name_ar` from them. The
+# orchestrator's reconciliation matches against the synthesised join.
+_LEBANESE_ID_SHARED = {
+    "first_name_ar": (
+        "FIRST NAME ONLY of the document holder, in Arabic. Cell labelled الاسم. "
+        "Example: محمد. Do NOT confuse with the mother's name (إسم الأم وشهرتها) "
+        "or the father's name (اسم الأب)."
+    ),
+    "surname_ar":    "Surname (family name) in Arabic. Cell labelled الشهرة. Example: مسلماني.",
+    "father_name":   "Father's first name in Arabic. Cell labelled اسم الأب. Example: علي.",
+    "mother_name":   "Mother's first name + her family name. Cell labelled إسم الأم وشهرتها. Example: زهرة أيوب.",
+    "date_of_birth": "Date of birth as YYYY-MM-DD. Convert from any printed format including Arabic numerals.",
+    "place_of_birth": "Place of birth in Arabic. Cell labelled محل الولادة. Example: صور.",
+    "gender":        "ذكر or أنثى. Cell labelled الجنس.",
+    "id_number":     "Lebanese national-ID number; cell labelled رقم بطاقة الهوية. Digits only — strip dots, spaces, dashes.",
+    "register_place": "Registry place + number from the row labelled محل ورقم القيد. Example: الشعيتية 53.",
+    "district":      "Administrative district (قضاء) in Arabic. Cell labelled القضاء. Example: صور.",
+    "religious_sect": "Religious sect (مذهب) in Arabic. Cell labelled المذهب. Example: شيعي / ماروني / سني / درزي.",
+    "marital_status": "Marital status in Arabic. Cell labelled الوضع العائلي. Example: أعزب / متزوج / مطلق / أرمل.",
+}
+
+_LEBANESE_PASSPORT = {
+    "surname":       "Surname in Latin script as printed on the data page. Example: AYOUB.",
+    "given_names":   "Given names in Latin script. Example: ZAHRA.",
+    "surname_ar":    "Surname in Arabic if printed. Example: أيوب.",
+    "first_name_ar": "Given name in Arabic if printed. Example: زهرة.",
+    "father_name":   "Father's name in Arabic if printed. Example: سعيد.",
+    "mother_name":   "Mother's full name in Arabic if printed. Example: زينب قليط.",
+    "passport_number": "Passport number from the data page. Lebanese biometric passports start with LR. Example: LR3044513.",
+    "nationality":   "Three-letter ISO code (LBN for Lebanese). Example: LBN.",
+    "date_of_birth": "Date of birth as YYYY-MM-DD.",
+    "place_of_birth": "Place of birth as printed (Latin or Arabic). Example: BOUKIE.",
+    "sex":           "M or F.",
+    "date_of_issue": "Issuance date as YYYY-MM-DD.",
+    "date_of_expiry": "Expiry date as YYYY-MM-DD.",
+    "registry_place": "Registry place + number where present. Example: 53.",
+}
+
 _SCHEMAS: dict[str, dict[str, str]] = {
-    "civil_registry_extract": {
-        # Be explicit about WHICH cell to read — earlier responses
-        # confused the mother-name row (إسم الأم وشهرتها) with the
-        # first-name row (الإسم) because both appear near the top.
-        "full_name_ar": (
-            "FIRST NAME ONLY of the document holder, in Arabic. "
-            "Read the value cell to the LEFT of the label الإسم. "
-            "Example: محمد. DO NOT confuse with the mother's name "
-            "(which is on the row labelled إسم الأم وشهرتها) or the "
-            "father's name (إسم الأب)."
-        ),
-        "surname_ar":   "Surname (family name) of the document holder, in Arabic. Row labelled الشهرة. Example: مسلماني.",
-        "father_name":  "Father's first name in Arabic. Row labelled إسم الأب. Example: علي.",
-        "mother_name":  "Mother's first name + her family name. Row labelled إسم الأم وشهرتها. Example: زهرة أيوب.",
-        "date_of_birth": "Date of birth as YYYY-MM-DD. Convert from any printed format including Arabic numerals.",
-        "place_of_birth": "Place of birth in Arabic. Row labelled محل الولادة.",
-        "gender":       "ذكر or أنثى. Row labelled الجنس.",
-        "id_number":    "Lebanese ID-card number; row labelled رقم بطاقة الهوية. Return digits only, strip dots and spaces.",
-        "register_place": "Registry place + number from the row labelled محل ورقم القيد. Example: الشعيتية 53.",
-        "religious_sect": "Religious sect in Arabic. Row labelled المذهب. Example: شيعي / ماروني / سني.",
-        "marital_status": "Marital status in Arabic. Row labelled الوضع العائلي. Example: أعزب / متزوج.",
-        "district":     "Administrative district (قضاء), in Arabic.",
-    },
-    "national_id_front": {
-        "full_name_ar": "Full name in Arabic.",
-        "full_name_en": "Full name in Latin script if printed.",
-        "father_name":  "Father's name in Arabic.",
-        "mother_name":  "Mother's name in Arabic.",
-        "date_of_birth": "Date of birth as YYYY-MM-DD.",
-        "place_of_birth": "Place of birth in Arabic.",
-        "gender":       "ذكر or أنثى.",
-        "id_number":    "Lebanese national ID number, digits only.",
-        "register_place": "Place of registration.",
-    },
+    "civil_registry_extract": _LEBANESE_ID_SHARED,
+    "national_id_front":      _LEBANESE_ID_SHARED,
+    "old_id_front":           _LEBANESE_ID_SHARED,
+    # Back face of either ID generation: issuance date, register
+    # locale, district, sect, marital status, plus the ID number
+    # (printed on both faces). Holder name is NOT on the back.
     "national_id_back": {
-        "id_number":    "ID number, digits only.",
-        "issue_date":   "Date of issue, YYYY-MM-DD.",
-        "expiry_date":  "Date of expiry, YYYY-MM-DD.",
-        "register_place": "Place of registration.",
-    },
-    "old_id_front": {
-        "full_name_ar": "Full name in Arabic.",
-        "full_name_en": "Full name in Latin script if printed.",
-        "father_name":  "Father's name in Arabic.",
-        "mother_name":  "Mother's name in Arabic.",
-        "date_of_birth": "Date of birth as YYYY-MM-DD.",
-        "place_of_birth": "Place of birth in Arabic.",
-        "gender":       "ذكر or أنثى.",
-        "id_number":    "Lebanese national ID number, digits only.",
-        "register_place": "Place of registration.",
+        "id_number":      "Lebanese national-ID number, digits only.",
+        "issue_date":     "Date of issue as YYYY-MM-DD. Cell labelled تاريخ الإصدار.",
+        "expiry_date":    "Date of expiry as YYYY-MM-DD if printed.",
+        "register_place": "Registration locale (محلة أو القرية / محل السجل).",
+        "district":       "Administrative district (قضاء).",
+        "religious_sect": "Religious sect (مذهب) in Arabic.",
+        "marital_status": "Marital status (الوضع العائلي).",
     },
     "old_id_back": {
-        "id_number":    "ID number, digits only.",
-        "issue_date":   "Date of issue, YYYY-MM-DD.",
-        "expiry_date":  "Date of expiry, YYYY-MM-DD.",
+        "id_number":      "Old-format ID number, digits only.",
+        "issue_date":     "Date of issue as YYYY-MM-DD if printed.",
+        "expiry_date":    "Date of expiry as YYYY-MM-DD if printed.",
         "register_place": "Place of registration.",
+    },
+    "passport_data_page":     _LEBANESE_PASSPORT,
+    "old_passport_data_page": _LEBANESE_PASSPORT,
+    "birth_certificate": {
+        "first_name_ar": "First name of the registered person in Arabic.",
+        "surname_ar":    "Surname in Arabic.",
+        "father_name":   "Father's name in Arabic.",
+        "mother_name":   "Mother's full name in Arabic.",
+        "date_of_birth": "Date of birth as YYYY-MM-DD.",
+        "place_of_birth": "Place of birth in Arabic.",
+        "register_number": "Registry / record number from this birth certificate, digits only.",
     },
 }
 
@@ -194,6 +206,31 @@ def extract_with_llm(
         ).inc()
         trace["outcome"] = "skipped_unsupported"
         return {}, trace
+
+    # Mock-mode shortcut. Now that the LLM is the ONLY field
+    # extractor, mock-mode E2E tests must not call OpenAI — they
+    # need a deterministic fixture that returns canonical fields
+    # for each doc type so the orchestrator pipeline runs through
+    # to a final routing decision without an API key.
+    try:
+        from ..config import get_settings
+        if get_settings().mock_mode:
+            from .mock_llm import MOCK_LLM_FIELDS
+            fields = MOCK_LLM_FIELDS.get(document_type, {}).copy()
+            OCR_LLM_CALLS.labels(
+                document_type=document_type, model=model_name, outcome="mock",
+            ).inc()
+            trace.update({
+                "outcome": "mock",
+                "extracted_fields": fields,
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+                "elapsed_ms": 0,
+            })
+            return fields, trace
+    except Exception:  # noqa: BLE001
+        # Mock infrastructure failure must never block the real path.
+        pass
 
     key = api_key or os.getenv("OPENAI_API_KEY")
     if not key:

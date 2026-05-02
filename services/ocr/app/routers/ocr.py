@@ -9,7 +9,9 @@ from shared.model_info import build_model_info, hash_file
 
 from ..services.quality import assess_quality
 from ..services.google_ocr import extract_text
-from ..services.field_extractor import extract_fields
+# field_extractor is no longer used for routing/extraction — the LLM
+# is now the only field extractor. Kept as a module for the MRZ
+# constants and the unit tests that exercise legacy behaviour.
 from ..services.mrz_parser import parse_mrz
 from ..services import ai_extractor
 from ..config import get_settings
@@ -71,75 +73,70 @@ async def process_document(req: ProcessRequest):
             logger.error(f"OCR extraction failed: {e}")
             raise HTTPException(status_code=500, detail=f"OCR extraction failed: {str(e)}")
 
-        try:
-            field_result = extract_fields(
-                ocr_result["full_text"],
-                req.document_type,
-                ocr_result["words"],
-            )
-        except Exception as e:
-            OCR_ERRORS.labels(stage="field_extract").inc()
-            logger.error(f"Field extraction failed: {e}")
-            raise HTTPException(status_code=500, detail=f"Field extraction failed: {str(e)}")
-
-        extracted_fields = field_result["fields"]
-        confidence_scores = field_result["confidence_scores"]
-
+        # Field extraction is now LLM-only. We dropped the regex pass
+        # entirely (services/ocr/app/services/field_extractor.py used to
+        # try Arabic / Latin label patterns first and fall through to
+        # the LLM only when regex came up short). Reasons:
+        #   - Real Lebanese docs are Arabic-only or mixed-direction
+        #     and regex routinely captured the wrong cell when
+        #     label/value pairs landed on different OCR lines.
+        #   - Maintaining per-document-type regex was a tax that the
+        #     LLM extractor's per-doc schemas pay once and re-use.
+        #   - Cost: ~$0.005/call on gpt-4o-mini. ~4 docs/case for
+        #     passport_new = ~$0.02/case. Acceptable tradeoff.
+        # MRZ stays parser-based below (ICAO 9303 is a fixed grammar
+        # with check digits — that's a parser, not text-pattern work).
+        extracted_fields: dict[str, str] = {}
+        confidence_scores: dict[str, float] = {}
         settings = get_settings()
 
-        # ── LLM extraction ──────────────────────────────────────
-        # Lebanese civil-status docs are 3-column tables whose
-        # label/value pairs land on different OCR lines — regex
-        # frequently grabs the wrong cell (e.g. "father_name" picks
-        # up "محل الولادة" because it follows the label spatially
-        # but not by the line-flow regex assumes). For these doc
-        # types we let the LLM extract the canonical truth and
-        # OVERWRITE the regex output rather than treating it as
-        # fallback. Regex is kept ONLY for fixed-grammar docs
-        # (passport MRZ) where it's reliable and cheap.
-        #
-        # For other table-shaped docs (national_id_*, old_id_*) the
-        # LLM still runs but only as a fallback when regex returned
-        # too few fields, so we don't pay LLM cost on every call.
-        ALWAYS_LLM = {"civil_registry_extract"}
-
         llm_trace: dict | None = None
-        if settings.llm_fallback_enabled and ai_extractor.supports(req.document_type):
-            should_call_llm = (
-                req.document_type in ALWAYS_LLM
-                or len(extracted_fields) < settings.llm_fallback_min_fields
-            )
-            if should_call_llm:
-                try:
-                    with open(req.file_path, "rb") as fh:
-                        image_bytes = fh.read()
-                    llm_fields, llm_trace = await asyncio.to_thread(
-                        ai_extractor.extract_with_llm,
-                        req.document_type,
-                        ocr_result["full_text"],
-                        image_bytes,
-                        model=settings.llm_model,
-                    )
-                    if llm_fields:
-                        force_overwrite = req.document_type in ALWAYS_LLM
-                        for k, v in llm_fields.items():
-                            if force_overwrite or k not in extracted_fields or not extracted_fields[k]:
-                                extracted_fields[k] = v
-                                # LLM extraction confidence is opinionated — we use a
-                                # mid-range constant rather than a model-reported
-                                # logprob. Risk scoring downstream weighs all OCR
-                                # confidences uniformly; this keeps the merged
-                                # output comparable.
-                                confidence_scores[k] = 0.85
-                        logger.info(
-                            "LLM extractor produced %d fields for %s (overwrite=%s)",
-                            len(llm_fields), req.document_type, force_overwrite,
-                        )
-                except Exception as exc:  # noqa: BLE001
-                    # LLM is best-effort — never crash the OCR call
-                    # because it failed. The regex-only output stays.
-                    OCR_ERRORS.labels(stage="llm_fallback").inc()
-                    logger.warning("LLM extractor raised: %s", exc)
+        if ai_extractor.supports(req.document_type):
+            try:
+                with open(req.file_path, "rb") as fh:
+                    image_bytes = fh.read()
+                llm_fields, llm_trace = await asyncio.to_thread(
+                    ai_extractor.extract_with_llm,
+                    req.document_type,
+                    ocr_result["full_text"],
+                    image_bytes,
+                    model=settings.llm_model,
+                )
+                for k, v in (llm_fields or {}).items():
+                    extracted_fields[k] = v
+                    # LLM extraction confidence is an opinionated mid-range
+                    # constant. The model doesn't return logprobs in this
+                    # call shape and downstream risk scoring weighs all OCR
+                    # confidences uniformly; a single constant keeps the
+                    # merged output comparable across providers.
+                    confidence_scores[k] = 0.85
+                logger.info(
+                    "LLM extractor produced %d fields for %s (outcome=%s)",
+                    len(llm_fields or {}), req.document_type,
+                    (llm_trace or {}).get("outcome"),
+                )
+            except Exception as exc:  # noqa: BLE001
+                # LLM is best-effort — a transient OpenAI / network
+                # blip must NOT crash the OCR call. The pipeline will
+                # see zero extracted fields, the quality gate will
+                # bounce the case to need_info with a clear retake
+                # reason, and the citizen retries.
+                OCR_ERRORS.labels(stage="llm_extract").inc()
+                logger.warning("LLM extractor raised: %s", exc)
+
+        # Citizens declare a single full name; documents print it as
+        # first_name + surname in two cells. Synthesise the joined
+        # value here so the orchestrator's reconciliation has a
+        # single field to fuzzy-match against the declared full name
+        # instead of partial-matching against half the document.
+        first = (extracted_fields.get("first_name_ar") or "").strip()
+        last = (extracted_fields.get("surname_ar") or "").strip()
+        if first or last:
+            full = f"{first} {last}".strip()
+            if full:
+                extracted_fields["full_name_ar"] = full
+                parts = [confidence_scores.get(k, 0.0) for k in ("first_name_ar", "surname_ar") if extracted_fields.get(k)]
+                confidence_scores["full_name_ar"] = min(parts) if parts else 0.0
 
         OCR_FIELDS_EXTRACTED.observe(len(extracted_fields))
 
