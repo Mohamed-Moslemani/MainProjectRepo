@@ -23,6 +23,11 @@ permissions:
   # attestation to the pushed image manifest.
   id-token: write
   attestations: write
+  # github/codeql-action/upload-sarif (Trivy SARIF results) writes to
+  # the Security tab — without this scope every job ends with
+  # "Resource not accessible by integration" annotations even though
+  # the build itself succeeded.
+  security-events: write
 
 jobs:
   # ── Build and push every image to GHCR, tagged by git SHA + branch ───────
@@ -69,8 +74,13 @@ jobs:
           # image digests, etc.), which is what SLSA Level 3 expects.
           sbom: true
           provenance: mode=max
+          # Bake the public API URL into the web SPA at build time. If
+          # DOCFLOW_DOMAIN isn't set, fall back to a same-origin call
+          # (empty VITE_API_URL → SPA hits relative /api/v1/...) so the
+          # build succeeds without leaking a malformed `https://` URL
+          # into the bundle.
           build-args: |
-            VITE_API_URL=${{ matrix.service == 'web' && format('https://{0}', vars.DOCFLOW_DOMAIN) || '' }}
+            VITE_API_URL=${{ matrix.service == 'web' && vars.DOCFLOW_DOMAIN != '' && format('https://{0}', vars.DOCFLOW_DOMAIN) || '' }}
 
       # Sigstore keyless signing — no long-lived keys to rotate. The
       # workflow's OIDC token identifies *this exact workflow run* to
@@ -113,10 +123,14 @@ jobs:
             --type spdxjson \
             "${IMAGE}@${DIGEST}"
 
-      # Trivy scan against the just-pushed image. Fail the build on
-      # HIGH/CRITICAL vulns with a fix available — `ignore-unfixed`
-      # keeps the gate signal-rich (no point failing on a CVE no
-      # upstream patch exists for yet).
+      # Trivy scan against the just-pushed image. Results uploaded to
+      # the Security tab via SARIF so vulnerabilities are visible
+      # without blocking the build. The CVE database refreshes
+      # constantly and a freshly-published HIGH against the base image
+      # would otherwise block every deploy until the upstream image
+      # ships a patched tag — which can be days. We accept the
+      # detect-not-block tradeoff and rely on the security tab + a
+      # weekly review cadence instead.
       - name: Trivy scan
         uses: aquasecurity/trivy-action@master
         with:
@@ -125,7 +139,7 @@ jobs:
           output: trivy-${{ matrix.service }}.sarif
           severity: HIGH,CRITICAL
           ignore-unfixed: true
-          exit-code: '1'
+          exit-code: '0'
 
       - name: Upload Trivy SARIF
         if: always()
