@@ -240,26 +240,11 @@ export default function CaseDetail() {
     (caseData?.retake_reasons || []).map((r) => r.document_type)
   );
 
-  // Translate the OCR service's free-form English quality reasons
-  // into Arabic so the bilingual <L> on the retake banner shows the
-  // right language. Uses pattern matching because the upstream
-  // strings include numbers (resolution, blur scores, angles) that
-  // we want to preserve verbatim.
-  const localizeReason = (en) => {
-    if (!en) return { ar: '', en: '' };
-    let ar = en;
-    ar = ar.replace(/^Resolution too low \((\d+)x(\d+)\), minimum (\d+)x(\d+)$/,
-      'الدقة منخفضة جداً ($1×$2)، الحد الأدنى $3×$4');
-    ar = ar.replace(/^Image is too blurry \(score: ([\d.]+), min: ([\d.]+)\)$/,
-      'الصورة ضبابية جداً (النتيجة: $1، الحد الأدنى: $2)');
-    ar = ar.replace(/^Glare detected \(([\d.]+)% overexposed\)$/,
-      'انعكاس ضوء قوي ($1٪ مفرط الإضاءة)');
-    ar = ar.replace(/^Document appears skewed \(angle: ([\d.]+) degrees\)$/,
-      'المستند مائل (الزاوية: $1 درجة)');
-    ar = ar.replace(/^Could not extract fields: (.+)$/,
-      'تعذّر استخراج الحقول: $1');
-    return { ar, en };
-  };
+  // All retake / rejection reasons go through the central
+  // localizeTimelineMessage util — single source of truth for backend
+  // English → Arabic mapping (handles quality strings, classifier
+  // verdicts, field-name translation, doc-type slug translation, etc.).
+  const localizeReason = localizeTimelineMessage;
 
   // Liveness: check if already completed via session
   const livenessCompleted = !!(caseData?.liveness_result?.liveness_passed);

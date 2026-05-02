@@ -53,6 +53,55 @@ const DOC_TYPE_EN = {
 const docAr = (slug) => DOC_TYPE_AR[slug] || slug;
 const docEn = (slug) => DOC_TYPE_EN[slug] || slug;
 
+// Field-slug → Arabic / English. Backend retake messages embed the
+// canonical OCR field name ("Could not extract fields: id_number") and
+// the citizen sees that slug verbatim if we don't translate it. Keys
+// MUST match the canonical field names emitted by the OCR + ai_extractor
+// schemas — anything not in this map falls through to the slug (still
+// readable, just not localised).
+const FIELD_AR = {
+  first_name_ar: 'الاسم الأول',
+  surname_ar: 'الشهرة',
+  full_name_ar: 'الاسم الكامل',
+  full_name: 'الاسم الكامل',
+  given_names: 'الاسم الأول (لاتيني)',
+  surname: 'الشهرة (لاتيني)',
+  father_name: 'اسم الأب',
+  mother_name: 'اسم الأم',
+  date_of_birth: 'تاريخ الولادة',
+  place_of_birth: 'محل الولادة',
+  gender: 'الجنس',
+  sex: 'الجنس',
+  id_number: 'رقم بطاقة الهوية',
+  registry_number: 'رقم القيد',
+  registry_place: 'محل القيد',
+  register_place: 'محل القيد',
+  register_number: 'رقم القيد',
+  district: 'القضاء',
+  religious_sect: 'المذهب',
+  marital_status: 'الوضع العائلي',
+  passport_number: 'رقم الجواز',
+  nationality: 'الجنسية',
+  date_of_issue: 'تاريخ الإصدار',
+  issue_date: 'تاريخ الإصدار',
+  date_of_expiry: 'تاريخ الانتهاء',
+  expiry_date: 'تاريخ الانتهاء',
+  mrz_passport_number: 'رقم الجواز (MRZ)',
+  mrz_surname: 'الشهرة (MRZ)',
+  mrz_given_names: 'الاسم الأول (MRZ)',
+  mrz_date_of_birth: 'تاريخ الولادة (MRZ)',
+  mrz_expiry_date: 'تاريخ الانتهاء (MRZ)',
+  mrz_nationality: 'الجنسية (MRZ)',
+  mrz_sex: 'الجنس (MRZ)',
+};
+const fieldsAr = (csv) =>
+  String(csv || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((slug) => FIELD_AR[slug] || slug)
+    .join('، ');
+
 const STATIC = {
   // status_history.message
   "Application submitted for processing":  "تم تقديم الطلب وجارٍ المعالجة",
@@ -92,6 +141,11 @@ const STATIC = {
     "خدمة التحقق من الوجه غير متوفرة",
   "High risk score":
     "درجة المخاطر مرتفعة",
+  // OCR / MRZ retake reasons (services/ocr/app/routers/ocr.py)
+  "Could not parse MRZ from passport":
+    "تعذّر قراءة منطقة QR/MRZ من الجواز",
+  "MRZ check digit validation failed":
+    "فشل التحقق من خانات التحقق في منطقة MRZ",
   "Biometrics captured at GDGS centre — production started":
     "تم أخذ البصمات في مركز الأمن العام — بدأ الإنتاج",
   "Email verified successfully. You can now log in.":
@@ -138,11 +192,30 @@ const PATTERNS = [
   [/^Case transferred to (.+)$/,                'تم تحويل الطلب إلى $1'],
   [/^Transferred from (.+)$/,                   'تم التحويل من $1'],
 
-  // Rejection / issue strings
-  [/^Missing document: (.+)$/,                  'مستند ناقص: $1'],
-  [/^OCR failed for (.+)$/,                     'فشل قراءة المستند: $1'],
-  [/^Could not extract fields: (.+)$/,          'تعذّر استخراج الحقول: $1'],
-  [/^Low confidence on fields: (.+)$/,          'ثقة منخفضة في الحقول: $1'],
+  // Image-quality retake reasons emitted by services/ocr/app/services/quality.py.
+  // Numeric captures (resolution, blur score, glare %, skew angle) are preserved
+  // verbatim — same shape used by the citizen retake banner.
+  [/^Resolution too low \((\d+)x(\d+)\), minimum (\d+)x(\d+)$/,
+    'الدقة منخفضة جداً ($1×$2)، الحد الأدنى $3×$4'],
+  [/^Image is too blurry \(score: ([\d.]+), min: ([\d.]+)\)$/,
+    'الصورة ضبابية جداً (النتيجة: $1، الحد الأدنى: $2)'],
+  [/^Glare detected \(([\d.]+)% overexposed\)$/,
+    'انعكاس ضوء قوي ($1٪ مفرط الإضاءة)'],
+  [/^Document appears skewed \(angle: ([\d.]+) degrees\)$/,
+    'المستند مائل (الزاوية: $1 درجة)'],
+
+  // Note: "Missing document: ...", "OCR failed for ...", "Could not
+  // extract fields: ...", "Low confidence on fields: ...", and the
+  // classifier-rejection patterns are handled by DOC_AWARE / FIELD_AWARE
+  // inside `localizeTimelineMessage` so the captured slug gets translated,
+  // not just the surrounding wrapper.
+
+  // The model returns its own Arabic reasons (see doc_classifier.py
+  // system prompt). The orchestrator surfaces them as
+  // "Classifier note: <arabic text>" — so the prefix is bilingual but
+  // the body stays Arabic verbatim. In RTL (Arabic) UI we drop the
+  // English word entirely; in LTR (English) UI we keep "Classifier note:".
+  [/^Classifier note: (.+)$/,                   'ملاحظة: $1'],
 ];
 
 export function localizeTimelineMessage(en) {
@@ -160,10 +233,36 @@ export function localizeTimelineMessage(en) {
     { re: /^OCR failed for (.+)$/,
       ar: (slug) => `فشل قراءة المستند: ${docAr(slug)}`,
       en: (slug) => `OCR failed for ${docEn(slug)}` },
+    { re: /^Uploaded document does not appear to be a (\S+) \(detected: (.+)\)$/,
+      ar: (expected, detected) =>
+        `المستند المرفوع لا يبدو أنه ${docAr(expected)} (تم التعرّف عليه كـ: ${docAr(detected)})`,
+      en: (expected, detected) =>
+        `Uploaded document does not appear to be a ${docEn(expected)} (detected: ${docEn(detected)})` },
+    { re: /^Uploaded (\S+) does not look authentic — please re-photograph the original document$/,
+      ar: (slug) => `المستند المرفوع (${docAr(slug)}) لا يبدو أصلياً — يرجى إعادة تصوير المستند الأصلي`,
+      en: (slug) => `Uploaded ${docEn(slug)} does not look authentic — please re-photograph the original document` },
   ];
   for (const p of DOC_AWARE) {
     const m = en.match(p.re);
-    if (m) return { ar: p.ar(m[1]), en: p.en(m[1]) };
+    if (m) {
+      const args = m.slice(1);
+      return { ar: p.ar(...args), en: p.en(...args) };
+    }
+  }
+
+  // Field-slug-aware patterns. The CSV captured in $1 is split, each
+  // slug rewritten through FIELD_AR, then re-joined with the Arabic
+  // list separator (،) so "Could not extract fields: id_number, surname_ar"
+  // becomes "تعذّر استخراج الحقول: رقم بطاقة الهوية، الشهرة".
+  const FIELD_AWARE = [
+    { re: /^Could not extract fields: (.+)$/,
+      ar: (csv) => `تعذّر استخراج الحقول: ${fieldsAr(csv)}` },
+    { re: /^Low confidence on fields: (.+)$/,
+      ar: (csv) => `ثقة منخفضة في الحقول: ${fieldsAr(csv)}` },
+  ];
+  for (const p of FIELD_AWARE) {
+    const m = en.match(p.re);
+    if (m) return { ar: p.ar(m[1]), en };
   }
 
   for (const [re, replacement] of PATTERNS) {
