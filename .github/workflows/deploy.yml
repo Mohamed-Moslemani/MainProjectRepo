@@ -97,11 +97,28 @@ jobs:
         with:
           cosign-release: 'v2.4.1'
 
+      # Sigstore's public Rekor/Fulcio occasionally returns
+      # `stream error: stream ID 1; INTERNAL_ERROR` under load — it's
+      # the public-good service flaking, not a config issue. Retry 3x
+      # with backoff, then continue-on-error so a Sigstore outage
+      # doesn't block the deploy. The image is already pushed to GHCR
+      # at this point; signing is supply-chain hardening, not a gate.
       - name: Sign image with cosign (keyless)
+        continue-on-error: true
         env:
           IMAGE: ${{ env.REGISTRY }}/${{ steps.lcowner.outputs.owner }}/docflow-${{ matrix.service }}
           DIGEST: ${{ steps.build.outputs.digest }}
-        run: cosign sign --yes "${IMAGE}@${DIGEST}"
+        run: |
+          for attempt in 1 2 3; do
+            if cosign sign --yes "${IMAGE}@${DIGEST}"; then
+              echo "cosign sign succeeded on attempt ${attempt}"
+              exit 0
+            fi
+            echo "cosign sign failed on attempt ${attempt}, retrying after $((attempt * 5))s"
+            sleep $((attempt * 5))
+          done
+          echo "::warning::cosign sign failed after 3 attempts — image is pushed but unsigned this run"
+          exit 1
 
       # Syft generates an SPDX SBOM that we attach as a workflow
       # artifact and as a cosign attestation on the image. The
@@ -117,15 +134,28 @@ jobs:
           upload-artifact: true
           upload-artifact-retention: 30
 
+      # Same Sigstore-flake guard as the sign step above. Both calls
+      # hit the same Rekor instance so they share the same outage
+      # mode; both are continue-on-error.
       - name: Attest SBOM via cosign
+        continue-on-error: true
         env:
           IMAGE: ${{ env.REGISTRY }}/${{ steps.lcowner.outputs.owner }}/docflow-${{ matrix.service }}
           DIGEST: ${{ steps.build.outputs.digest }}
         run: |
-          cosign attest --yes \
-            --predicate sbom-${{ matrix.service }}.spdx.json \
-            --type spdxjson \
-            "${IMAGE}@${DIGEST}"
+          for attempt in 1 2 3; do
+            if cosign attest --yes \
+                --predicate sbom-${{ matrix.service }}.spdx.json \
+                --type spdxjson \
+                "${IMAGE}@${DIGEST}"; then
+              echo "cosign attest succeeded on attempt ${attempt}"
+              exit 0
+            fi
+            echo "cosign attest failed on attempt ${attempt}, retrying after $((attempt * 5))s"
+            sleep $((attempt * 5))
+          done
+          echo "::warning::cosign attest failed after 3 attempts — SBOM still uploaded as workflow artifact"
+          exit 1
 
       # Trivy scan against the just-pushed image. Results uploaded to
       # the Security tab via SARIF so vulnerabilities are visible
