@@ -55,9 +55,24 @@ Instrumentator(
 settings = get_settings()
 app.add_middleware(RequestIDMiddleware)
 install_telemetry(service_name="docflow-gateway", app=app)
+# CORS: log resolved origins on startup so a misconfigured prod env
+# (typo, missing scheme, accidental trailing-slash) shows up in logs
+# instead of silently 503-ing every browser request. The previous
+# behaviour ate the env var and produced an empty allow-list with no
+# warning, which manifested as a fully working backend that the SPA
+# couldn't talk to.
+import logging as _log
+_resolved_cors = [o.strip() for o in settings.cors_allowed_origins.split(",") if o.strip()]
+if not _resolved_cors:
+    _log.getLogger("app.main").warning(
+        "CORS allow-list is EMPTY — every cross-origin browser request will be blocked. "
+        "Check GATEWAY_CORS_ALLOWED_ORIGINS in the environment."
+    )
+else:
+    _log.getLogger("app.main").info("CORS allow-list resolved to: %s", _resolved_cors)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[o.strip() for o in settings.cors_allowed_origins.split(",") if o.strip()],
+    allow_origins=_resolved_cors,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
