@@ -145,12 +145,28 @@ jobs:
           ignore-unfixed: true
           exit-code: '0'
 
-      - name: Upload Trivy SARIF
+      # SARIF upload to the Security tab is best-effort. It will fail
+      # silently if Code Scanning is disabled in the repo (Settings →
+      # Code security → Code scanning) or if the run is a fork PR
+      # with reduced token perms. Either way we don't want it to fail
+      # the deploy — the SARIF file is also uploaded as a regular
+      # workflow artifact below so findings remain accessible from the
+      # run summary even when the Security tab path is unavailable.
+      - name: Upload Trivy SARIF (Security tab, best-effort)
         if: always()
+        continue-on-error: true
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-${{ matrix.service }}.sarif
           category: trivy-${{ matrix.service }}
+
+      - name: Upload Trivy SARIF (workflow artifact, always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-${{ matrix.service }}-sarif
+          path: trivy-${{ matrix.service }}.sarif
+          retention-days: 30
 
   # ── Deploy to the cluster (only on develop / main) ───────────────────────
   deploy:
