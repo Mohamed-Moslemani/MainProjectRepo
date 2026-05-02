@@ -74,6 +74,24 @@ const STATIC = {
     "السجل المدني يُسجِّل المواطن كمتوفى",
   "Missing selfie or reference document for face verification":
     "صورة شخصية أو مستند مرجعي ناقص للتحقق من الوجه",
+  // Cross-document identity coherence — emitted by orchestrator
+  // when uploaded docs disagree on name / DOB / gender (the
+  // canonical "uploaded mom's passport plus my registry extract"
+  // fraud pattern). The accompanying retake banner is bilingual
+  // already; this localises the case.rejection_reasons entry
+  // surfaced on the case-detail and admin-review screens.
+  "Cross-document identity check failed: uploaded documents do not describe the same person.":
+    "فشل التحقق من تطابق هويّة المستندات: المستندات المرفوعة لا تخصّ نفس الشخص.",
+  "Cross-document identity mismatch":
+    "عدم تطابق الهوية بين المستندات",
+  "Document quality gate failed — citizen must retake":
+    "فشل فحص جودة المستندات — يجب إعادة التصوير وإعادة التقديم",
+  "Lebanese eligibility rule failed":
+    "فشل تطبيق قواعد الأهلية اللبنانية",
+  "Face service unavailable":
+    "خدمة التحقق من الوجه غير متوفرة",
+  "High risk score":
+    "درجة المخاطر مرتفعة",
   "Biometrics captured at GDGS centre — production started":
     "تم أخذ البصمات في مركز الأمن العام — بدأ الإنتاج",
   "Email verified successfully. You can now log in.":
