@@ -3,6 +3,7 @@ import { FaceLivenessDetectorCore } from '@aws-amplify/ui-react-liveness';
 import '@aws-amplify/ui-react/styles.css';
 import { livenessApi } from '@shared/api/liveness';
 import L from '@shared/components/L';
+import '@shared/styles/liveness.css';
 
 /**
  * LivenessCheck component — runs AWS Rekognition Face Liveness challenge.
@@ -138,6 +139,33 @@ export default function LivenessCheck({ caseId, onComplete, onError, onCancel })
 
   if (!sessionId || !credentials) return null;
 
+  // Bilingual instruction list. Renders ABOVE the SDK widget so the
+  // citizen reads what to do before the camera flashes the oval. Each
+  // step has an Arabic primary line + a smaller English secondary line
+  // — RTL/LTR is handled by the parent <html dir>.
+  const INSTRUCTIONS = [
+    {
+      ar: 'كن في غرفة مضاءة جيداً، ووجّه وجهك مباشرةً نحو الكاميرا.',
+      en: 'Stand in a well-lit room, facing the camera directly.',
+    },
+    {
+      ar: 'انزع النظّارات الشمسية والقبعة وأي قناع يغطّي الوجه.',
+      en: 'Remove sunglasses, hats, and anything covering your face.',
+    },
+    {
+      ar: 'أبقِ الجهاز ثابتاً، ووجهك داخل الإطار البيضاوي على الشاشة.',
+      en: 'Hold the device steady and keep your face inside the on-screen oval.',
+    },
+    {
+      ar: 'اتبع التعليمات الصوتية والمرئية: قد يُطلب منك الاقتراب أو الابتعاد قليلاً.',
+      en: 'Follow the audio + visual cues: you may be asked to move closer or further.',
+    },
+    {
+      ar: 'لا تستخدم صورة فوتوغرافية أو شاشة أخرى — لن يقبل النظام إلا وجهاً حياً حقيقياً.',
+      en: 'Do not use a photo or another screen — the system only accepts a real, live face.',
+    },
+  ];
+
   // Mock-mode bypass. The Amplify FaceLivenessDetectorCore SDK opens
   // a WebSocket directly to AWS Rekognition Streaming using a real
   // session ID minted by AWS. In mock mode the gateway returns a
@@ -178,22 +206,47 @@ export default function LivenessCheck({ caseId, onComplete, onError, onCancel })
     <div className="liveness-container">
       <div className="liveness-header">
         <h3>
-          <L ar="التحقق من الهوية" en="Identity Verification" />
+          <L ar="التحقق من الهوية بالكاميرا" en="Identity Verification (Liveness Check)" />
         </h3>
-        <p className="liveness-instructions">
-          <L ar="يرجى اتباع التعليمات على الشاشة. حرّك وجهك داخل الإطار البيضاوي." en="Follow the on-screen instructions. Move your face into the oval frame." />
+        <p className="liveness-lead">
+          <L
+            ar="نتحقّق من أنك أنت فعلاً وليس صورة أو فيديو. تستغرق العملية أقل من دقيقة."
+            en="We verify you are a real, live person — not a photo or recording. The check takes under a minute."
+          />
         </p>
       </div>
-      <FaceLivenessDetectorCore
-        sessionId={sessionId}
-        region={region}
-        onAnalysisComplete={handleAnalysisComplete}
-        onError={handleError}
-        onUserCancel={onCancel}
-        config={{
-          credentialProvider: async () => credentials,
-        }}
-      />
+
+      <ol className="liveness-steps">
+        {INSTRUCTIONS.map((step, i) => (
+          <li className="liveness-step" key={i}>
+            <span className="liveness-step__num">{i + 1}</span>
+            <span className="liveness-step__body">
+              <span className="liveness-step__ar">{step.ar}</span>
+              <span className="liveness-step__en">{step.en}</span>
+            </span>
+          </li>
+        ))}
+      </ol>
+
+      <div className="liveness-tip">
+        <L
+          ar="نصيحة: ضع الجهاز على ارتفاع العين، وتأكد من أن الكاميرا الأمامية نظيفة."
+          en="Tip: hold the device at eye level and make sure the front camera lens is clean."
+        />
+      </div>
+
+      <div className="liveness-widget">
+        <FaceLivenessDetectorCore
+          sessionId={sessionId}
+          region={region}
+          onAnalysisComplete={handleAnalysisComplete}
+          onError={handleError}
+          onUserCancel={onCancel}
+          config={{
+            credentialProvider: async () => credentials,
+          }}
+        />
+      </div>
     </div>
   );
 }

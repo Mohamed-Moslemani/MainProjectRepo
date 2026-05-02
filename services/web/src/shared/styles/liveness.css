@@ -1,0 +1,177 @@
+/* ── DocFlow Lebanon · Liveness Check ──
+ *
+ * Wraps the AWS Amplify FaceLivenessDetectorCore widget. The Amplify
+ * SDK ships its own cropped UI; everything we own here is the
+ * surrounding instructional shell. RTL is inherited from <html dir>.
+ */
+
+.liveness-container {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 1.5rem;
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: 16px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+}
+
+.liveness-header {
+  text-align: center;
+  margin-bottom: 1.25rem;
+}
+
+.liveness-header h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--gray-900);
+}
+
+.liveness-lead {
+  margin: 0;
+  color: var(--gray-600);
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+/* ── Step list ── */
+.liveness-steps {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem;
+  display: grid;
+  gap: 0.6rem;
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+}
+
+.liveness-step {
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+  padding: 0.4rem 0;
+}
+
+.liveness-step + .liveness-step {
+  border-top: 1px dashed var(--gray-200);
+}
+
+.liveness-step__num {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--cedar);
+  color: var(--white);
+  font-weight: 700;
+  font-size: 0.85rem;
+  line-height: 1;
+  margin-top: 0.1rem;
+}
+
+.liveness-step__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.liveness-step__ar {
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: var(--gray-900);
+  line-height: 1.5;
+}
+
+.liveness-step__en {
+  font-size: 0.8rem;
+  color: var(--gray-500);
+  line-height: 1.4;
+}
+
+/* In English UI, swap visual emphasis: English on top, Arabic faded.
+ * dir=ltr is set by react-i18next on <html> when the locale is en. */
+[dir='ltr'] .liveness-step__ar {
+  font-size: 0.8rem;
+  color: var(--gray-500);
+  font-weight: 500;
+  order: 2;
+}
+
+[dir='ltr'] .liveness-step__en {
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: var(--gray-900);
+  order: 1;
+}
+
+/* ── Tip banner ── */
+.liveness-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem;
+  background: var(--green-50);
+  border: 1px solid var(--green-200);
+  border-radius: 10px;
+  color: var(--green-700);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin-bottom: 1.25rem;
+}
+
+.liveness-tip::before {
+  content: '💡';
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
+/* ── SDK widget wrapper ── */
+.liveness-widget {
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--gray-900);
+  /* Amplify renders a 4:3 video; cap width on desktop so it's not huge */
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.liveness-widget > div {
+  width: 100%;
+}
+
+/* ── Loading state ── */
+.liveness-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 3rem 1rem;
+  color: var(--gray-600);
+  font-size: 0.95rem;
+}
+
+/* ── Mock mode panel ── */
+.liveness-container .liveness-header + div {
+  /* Mock-mode action buttons get a top divider */
+  margin-top: 0.5rem;
+}
+
+@media (max-width: 640px) {
+  .liveness-container {
+    padding: 1rem;
+    border-radius: 12px;
+  }
+  .liveness-steps {
+    padding: 0.75rem 0.85rem;
+  }
+  .liveness-step__ar {
+    font-size: 0.92rem;
+  }
+}
