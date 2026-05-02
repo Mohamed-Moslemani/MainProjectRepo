@@ -478,20 +478,40 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
         if case.liveness_result and case.liveness_result.get("status") == "SUCCEEDED":
             liveness_data = case.liveness_result
             liveness_score = liveness_data["confidence"] / 100.0
-            # similarity_score = None means Rekognition couldn't run a
-            # face-to-face comparison (no reference face was extractable
-            # — typical for first-time applicants where the only photo
-            # on file is the civil-registry extract, which Rekognition
-            # may not find a face on). Distinguish that case from a
-            # genuine 0% match. If liveness passed, fall back to the
-            # liveness confidence as the face signal — the alternative
-            # (defaulting to 0) caused id_new + passport_new applicants
-            # to be auto-penalised with 100% face risk despite a
-            # successful liveness check.
+            # similarity_score=None means Rekognition couldn't run a
+            # face-to-face comparison. There are two situations:
+            #
+            # (a) The service legitimately has no reference photo to
+            #     compare against — passport_new and id_new only
+            #     carry a civil-registry extract whose photo cell is
+            #     small and frequently undetectable. There falling
+            #     back to liveness confidence is reasonable: liveness
+            #     proves the person is real, even if we can't prove
+            #     they're the SAME real person.
+            #
+            # (b) A renewal flow uploaded an OLD passport / ID with
+            #     a clean photo cell — Rekognition SHOULD have found
+            #     a face. similarity_score=None there is a signal
+            #     that the face match genuinely failed to land
+            #     (degraded scan, occluded photo) AND the case
+            #     potentially conceals a mismatched-applicant fraud
+            #     attempt. Falling back to liveness confidence here
+            #     would let "uploaded mom's passport + my liveness"
+            #     score artificially high. Set face_similarity = 0
+            #     so the risk component reflects the failure.
             raw_similarity = liveness_data.get("similarity_score")
             liveness_passed = liveness_data.get("liveness_passed", False)
+            renewal_with_existing_doc = case.service_type in (
+                "passport_renewal", "id_renewal"
+            )
             if raw_similarity is None:
-                face_similarity = (liveness_score * 100.0) if liveness_passed else 0.0
+                if renewal_with_existing_doc:
+                    # Renewal: reference doc DOES have a face cell.
+                    # No comparison = comparison failed. Don't paper
+                    # over with liveness confidence.
+                    face_similarity = 0.0
+                else:
+                    face_similarity = (liveness_score * 100.0) if liveness_passed else 0.0
             else:
                 face_similarity = float(raw_similarity)
 
@@ -660,6 +680,53 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
             "declared_fields": declared,
         },
     )
+
+    # ---- Step 3.1: Cross-document identity coherence ----
+    # Reconciliation above only checks declared values vs a *merged*
+    # OCR dict. That misses the canonical fraud case where a citizen
+    # uploads someone else's passport plus their own civil-registry
+    # extract: each doc reconciles against declared_fields fine, but
+    # the docs disagree with each other. Compare every pair of
+    # identity-bearing docs against each other on name + DOB + gender.
+    # Any field divergence below the per-field threshold triggers a
+    # hard reject — a case where the documents describe two different
+    # people must NOT reach the manual_review queue.
+    from .cross_doc_check import check_cross_doc_identity, summarize_for_citizen
+    coherence = check_cross_doc_identity(results["ocr_results"])
+    case.cross_doc_coherence = coherence.to_dict()  # persisted for audit
+    await log_action(
+        db, "cross_doc_check_completed", case_id=case.id,
+        details=coherence.to_dict(),
+    )
+    if not coherence.coherent:
+        ar_msg, en_msg = summarize_for_citizen(coherence)
+        case.retake_reasons = [{
+            "document_type": "_cross_doc_mismatch",
+            "code": "documents_describe_different_people",
+            "reasons": [en_msg],
+            "reasons_ar": [ar_msg],
+            "fields": sorted({d.label for d in coherence.divergences}),
+        }]
+        case.rejection_reasons = [
+            "Cross-document identity check failed: uploaded documents "
+            "do not describe the same person."
+        ]
+        if model_versions:
+            case.model_versions = model_versions
+        CASE_STATUS_TRANSITIONS.labels(
+            from_status="submitted", to_status="rejected",
+        ).inc()
+        _transition(case, "rejected", "Cross-document identity mismatch")
+        await db.commit()
+        await log_action(
+            db, "cross_doc_check_failed", case_id=case.id,
+            details=coherence.to_dict(),
+        )
+        PIPELINE_DURATION.labels(service_type=case.service_type).observe(
+            _time.time() - pipeline_start
+        )
+        PIPELINE_DECISIONS.labels(decision="reject").inc()
+        return results
 
     # If reconciliation flagged any field-level mismatches, surface
     # them on the case so the citizen sees field names — not just

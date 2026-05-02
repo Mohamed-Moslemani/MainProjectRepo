@@ -33,6 +33,12 @@ class Case(Base):
     reconciliation_result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     registry_result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     risk_result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # Cross-document identity coherence: pair-wise reconciliation of
+    # every identity-bearing OCR'd document against every other one.
+    # Catches the canonical "uploaded mom's passport + my civil-
+    # registry extract" fraud pattern that single-doc-vs-declared
+    # reconciliation misses.
+    cross_doc_coherence: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     # Provenance: { "ocr": {...}, "face": {...}, "registry": {...},
     # "risk": {...} } captured from each AI service's model_info dict
     # on every pipeline run. Lets us replay a decision against the
