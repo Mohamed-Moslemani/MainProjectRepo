@@ -17,8 +17,14 @@ export const mukhtarApi = {
   downloadForm: (caseId) =>
     api.get(`/mukhtar/cases/${caseId}/form`, { responseType: 'blob' }),
 
-  decide: (caseId, { decision, notes, rejection_reasons }) =>
-    api.post(`/mukhtar/cases/${caseId}/decide`, { decision, notes, rejection_reasons }),
+  // Forward the full payload — backend requires the three attestation
+  // booleans (residence/photo/presence) on every "approve" decision and
+  // a rejection_reasons array on "reject". Earlier versions destructured
+  // only {decision, notes, rejection_reasons} here, which silently dropped
+  // the attestations and produced a 400 "Approve requires all three
+  // attestations" — i.e. mukhtar approvals were uniformly broken.
+  decide: (caseId, body) =>
+    api.post(`/mukhtar/cases/${caseId}/decide`, body),
 
   getAvailableMukhtars: (caseId) =>
     api.get(`/mukhtar/cases/${caseId}/available-mukhtars`),
