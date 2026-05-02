@@ -12,6 +12,10 @@ COPY services/gateway/app/ ./app/
 COPY services/gateway/alembic.ini ./alembic.ini
 COPY services/gateway/alembic/ ./alembic/
 COPY shared/ ./shared/
+# Sweeper entry points used by the gateway_cron sidecar (mukhtar SLA
+# escalation + email outbox delivery). They import app.* so the cwd
+# must be /app at runtime — both already are because of WORKDIR above.
+COPY scripts/sweep_mukhtar_sla.py scripts/sweep_email_outbox.py ./scripts/
 
 RUN mkdir -p /app/uploads
 

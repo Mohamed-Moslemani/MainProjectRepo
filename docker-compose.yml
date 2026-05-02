@@ -77,6 +77,47 @@ services:
       redis:
         condition: service_healthy
 
+  # Periodic sweepers. Two background loops run inside one container:
+  #   - email outbox: every 60s, picks pending email_outbox rows whose
+  #     next_attempt_at has passed and enqueues an Arq delivery job.
+  #     Without this, status-change emails queue forever and citizens
+  #     never learn their case advanced.
+  #   - mukhtar SLA: every hour, escalates / reassigns cases that have
+  #     been sitting at PENDING_MUKHTAR past their due_at. Without
+  #     this, an absent mukhtar silently blocks every passport flow
+  #     they own.
+  # The loop pattern (sh + while + sleep) avoids a separate cron daemon
+  # while still surviving container restarts via docker's restart policy.
+  gateway_cron:
+    build:
+      context: .
+      dockerfile: services/gateway/Dockerfile
+    # Scripts live at /app/scripts/ and import the gateway app via
+    # `from app.db import …`. Python adds the SCRIPT's directory to
+    # sys.path by default, not the cwd, so the import fails unless
+    # PYTHONPATH includes /app. The same works inside `python -c …`
+    # invocations from elsewhere — keep the env var on the service.
+    command:
+      - sh
+      - -c
+      - |
+        ( while true; do python scripts/sweep_email_outbox.py || true; sleep 60; done ) &
+        while true; do python scripts/sweep_mukhtar_sla.py --pushgateway http://pushgateway:9091 || true; sleep 3600; done
+    env_file:
+      - .env.dev
+    environment:
+      GATEWAY_DATABASE_URL: postgresql+asyncpg://docflow:docflow@db:5432/docflow
+      GATEWAY_REDIS_URL: redis://redis:6379/0
+      PYTHONPATH: /app
+    volumes:
+      - ./shared:/app/shared
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   ocr:
     build:
       context: .
@@ -145,7 +186,13 @@ services:
       context: .
       dockerfile: services/web/Dockerfile
       args:
-        VITE_API_URL: ${VITE_API_URL:-https://localhost}
+        # Defaults to the dev gateway URL the browser hits at
+        # http://localhost:3000. Override with VITE_API_URL=https://api.example.com
+        # for non-dev builds. The previous default (https://localhost) silently
+        # broke the SPA because no TLS terminator listens there in dev — every
+        # API call failed with ERR_CONNECTION_REFUSED and the user only saw
+        # the generic "registration failed" toast.
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
         VITE_SENTRY_DSN: ${VITE_SENTRY_DSN:-}
     ports:
       - "3000:80"
