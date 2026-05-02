@@ -82,6 +82,19 @@ export default function Dashboard() {
   const activeCases = cases.filter((c) => !['closed', 'rejected'].includes(c.status));
   const pastCases = cases.filter((c) => ['closed', 'rejected'].includes(c.status));
 
+  // Click on Track / History was a silent no-op when the page was
+  // already short enough that the target section was in view — the
+  // page didn't visibly move and there was no highlight, so the
+  // citizen thought the button was broken. Pin to viewport top and
+  // briefly flash the section so the click always produces feedback.
+  const scrollAndFlash = (id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    el.classList.add('dashboard-section--flash');
+    setTimeout(() => el.classList.remove('dashboard-section--flash'), 1200);
+  };
+
   return (
     <div className="dashboard">
       <header className="dashboard-header">
@@ -114,11 +127,11 @@ export default function Dashboard() {
             <div className="dashboard-card__icon dashboard-card__icon--green">+</div>
             <h3>{t('dashboard.newApplication')}</h3>
           </div>
-          <div className="dashboard-card" onClick={() => document.getElementById('active-section')?.scrollIntoView({ behavior: 'smooth' })}>
+          <div className="dashboard-card" onClick={() => scrollAndFlash('active-section')}>
             <div className="dashboard-card__icon dashboard-card__icon--red">&#8635;</div>
             <h3>{t('dashboard.trackApplications')}</h3>
           </div>
-          <div className="dashboard-card" onClick={() => document.getElementById('past-section')?.scrollIntoView({ behavior: 'smooth' })}>
+          <div className="dashboard-card" onClick={() => scrollAndFlash('past-section')}>
             <div className="dashboard-card__icon dashboard-card__icon--gray">&#9776;</div>
             <h3>{t('dashboard.history')}</h3>
           </div>
@@ -157,7 +170,12 @@ export default function Dashboard() {
           {loading ? (
             <SkeletonCard rows={3} />
           ) : activeCases.length === 0 ? (
-            <div className="empty-state"><p>{t('dashboard.noActive')}</p></div>
+            <div className="empty-state" style={{ textAlign: 'center', padding: '2rem 1rem' }}>
+              <p style={{ marginBottom: '1rem' }}>{t('dashboard.noActive')}</p>
+              <button className="btn btn--primary btn--sm" onClick={() => setShowNewCase(true)}>
+                {t('dashboard.newApplication')}
+              </button>
+            </div>
           ) : (
             <div className="case-list">
               {activeCases.map((c) => (

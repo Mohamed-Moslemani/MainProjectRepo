@@ -167,6 +167,17 @@ h1 .en, h2 .en { font-size: 0.55em; }
 /* ── Sections ── */
 .dashboard-section {
   margin-bottom: 2.5rem;
+  scroll-margin-top: 1rem; /* keep section header visible after scrollIntoView */
+  border-radius: 8px;
+  transition: background-color 0.4s ease, box-shadow 0.4s ease;
+}
+
+/* Brief highlight applied for ~1.2s when the citizen clicks the
+   Track / History dashboard cards. Provides visual feedback even
+   when the target is already in view. */
+.dashboard-section--flash {
+  background-color: rgba(0, 102, 51, 0.08); /* light Lebanese green */
+  box-shadow: 0 0 0 4px rgba(0, 102, 51, 0.16);
 }
 
 .dashboard-section h2 {
