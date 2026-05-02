@@ -145,7 +145,7 @@ export default function AdminReviewQueue() {
     return (
       <div className="admin-page">
         <button className="btn-back" onClick={() => { setSelectedCase(null); setCaseDetail(null); }}>
-          <L ar="← العودة للقائمة" en="← Back to Queue" />
+          <L ar="→ العودة للقائمة" en="← Back to Queue" />
         </button>
 
         <div className="review-header">
@@ -211,11 +211,11 @@ export default function AdminReviewQueue() {
                 {gov && (
                   <div className="review-dl__row">
                     <dt><L ar="المحافظة" en="Governorate" /></dt>
-                    <dd><L>{{ ar: <>{gov.ar}</>, en: <>({gov.en})</> }}</L></dd>
+                    <dd><L>{{ ar: <>{gov.ar}</>, en: <>{gov.en}</> }}</L></dd>
                   </div>
                 )}
               </dl>
-            ) : <p style={{ color: '#9ca3af' }}>No owner data</p>}
+            ) : <p style={{ color: '#9ca3af' }}><L ar="لا توجد بيانات للمالك" en="No owner data" /></p>}
           </div>
 
           {/* Declared Fields vs OCR */}
@@ -233,13 +233,17 @@ export default function AdminReviewQueue() {
                       <dt><L>{{ ar: <>{fl.ar}</>, en: <>{fl.en}</> }}</L></dt>
                       <dd>
                         {String(val)}
-                        {mismatch && <span className="mismatch-badge">⚠ mismatch</span>}
+                        {mismatch && (
+                          <span className="mismatch-badge">
+                            ⚠ <L ar="عدم تطابق" en="mismatch" />
+                          </span>
+                        )}
                       </dd>
                     </div>
                   );
                 })}
               </dl>
-            ) : <p style={{ color: '#9ca3af' }}>No declared fields</p>}
+            ) : <p style={{ color: '#9ca3af' }}><L ar="لا توجد بيانات مصرّح بها" en="No declared fields" /></p>}
           </div>
 
           {/* Reconciliation */}
@@ -324,7 +328,11 @@ export default function AdminReviewQueue() {
                   <span className="review-doc__type">{doc.document_type}</span>
                   <span className="review-doc__size">{(doc.file_size / 1024).toFixed(0)} KB</span>
                   {doc.ocr_status === 'completed' && <span className="review-doc__badge">OCR ✓</span>}
-                  {doc.retake_required && <span className="review-doc__badge review-doc__badge--warn">Retake</span>}
+                  {doc.retake_required && (
+                    <span className="review-doc__badge review-doc__badge--warn">
+                      <L ar="إعادة تصوير" en="Retake" />
+                    </span>
+                  )}
                 </div>
               ))}
             </div>
@@ -409,7 +417,7 @@ export default function AdminReviewQueue() {
     return (
       <div className="admin-page">
         <button className="btn-back" onClick={() => setSelectedCase(null)}>
-          <L ar="← العودة" en="← Back" />
+          <L ar="→ العودة" en="← Back" />
         </button>
         <div className="admin-loading"><div className="spinner spinner--dark" /></div>
       </div>

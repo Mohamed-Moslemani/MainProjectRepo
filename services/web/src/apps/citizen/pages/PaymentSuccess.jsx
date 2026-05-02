@@ -63,9 +63,18 @@ export default function PaymentSuccess() {
     return (
       <div className="dashboard-page">
         <div className="payment-callback">
-          <h1 className="error-title">Missing case reference</h1>
-          <p>We could not read the case you paid for. Head back to your dashboard — your payment status will show there.</p>
-          <Link to="/dashboard" className="primary-button">Back to dashboard</Link>
+          <h1 className="error-title">
+            <L ar="مرجع الطلب غير متوفر" en="Missing case reference" />
+          </h1>
+          <p>
+            <L
+              ar="لم نتمكن من تحديد الطلب الذي قمت بدفع رسومه. ارجع إلى لوحة التحكم وستظهر حالة الدفع هناك."
+              en="We could not read the case you paid for. Head back to your dashboard — your payment status will show there."
+            />
+          </p>
+          <Link to="/dashboard" className="primary-button">
+            <L ar="العودة إلى لوحة التحكم" en="Back to dashboard" />
+          </Link>
         </div>
       </div>
     );
@@ -80,7 +89,12 @@ export default function PaymentSuccess() {
             <h1>
               <L ar="جاري تأكيد الدفع…" en="Confirming your payment…" />
             </h1>
-            <p>Stripe is notifying our server. This usually takes a few seconds.</p>
+            <p>
+              <L
+                ar="يقوم Stripe بإبلاغ خوادمنا الآن. عادةً ما يستغرق هذا بضع ثوانٍ."
+                en="Stripe is notifying our server. This usually takes a few seconds."
+              />
+            </p>
           </>
         )}
 
@@ -91,10 +105,17 @@ export default function PaymentSuccess() {
               <L ar="تم الدفع بنجاح" en="Payment confirmed" />
             </h1>
             <p>
-              Your application <strong>{caseData?.tracking_id}</strong> is now being produced. We will email you when it's ready for pickup.
+              <L
+                ar={<>طلبك <strong>{caseData?.tracking_id}</strong> قيد التحضير الآن. سنرسل لك بريداً إلكترونياً عندما يصبح جاهزاً للاستلام.</>}
+                en={<>Your application <strong>{caseData?.tracking_id}</strong> is now being produced. We will email you when it's ready for pickup.</>}
+              />
             </p>
-            <p className="muted">Redirecting to your case in a few seconds…</p>
-            <Link to={`/case/${caseId}`} className="primary-button">Go now</Link>
+            <p className="muted">
+              <L ar="جاري تحويلك إلى صفحة الطلب خلال ثوانٍ…" en="Redirecting to your case in a few seconds…" />
+            </p>
+            <Link to={`/case/${caseId}`} className="primary-button">
+              <L ar="اذهب الآن" en="Go now" />
+            </Link>
           </>
         )}
 
@@ -105,13 +126,24 @@ export default function PaymentSuccess() {
               <L ar="الدفع قيد المعالجة" en="Payment received, still processing" />
             </h1>
             <p>
-              Stripe confirms your payment went through, but our server hasn't finished updating your case yet. This can happen briefly during high traffic — come back to your case in a minute and the status will refresh.
+              <L
+                ar="أكد Stripe استلام الدفعة، لكن خوادمنا لم تنتهِ بعد من تحديث طلبك. قد يحدث هذا لفترة قصيرة خلال أوقات الذروة — عُد إلى طلبك بعد دقيقة وستجد الحالة محدّثة."
+                en="Stripe confirms your payment went through, but our server hasn't finished updating your case yet. This can happen briefly during high traffic — come back to your case in a minute and the status will refresh."
+              />
             </p>
             <div className="callback-actions">
-              <Link to={`/case/${caseId}`} className="primary-button">Open my case</Link>
-              <Link to="/dashboard" className="ghost-button">Back to dashboard</Link>
+              <Link to={`/case/${caseId}`} className="primary-button">
+                <L ar="فتح طلبي" en="Open my case" />
+              </Link>
+              <Link to="/dashboard" className="ghost-button">
+                <L ar="العودة إلى لوحة التحكم" en="Back to dashboard" />
+              </Link>
             </div>
-            {sessionId && <p className="muted small">Reference: {sessionId}</p>}
+            {sessionId && (
+              <p className="muted small">
+                <L ar={<>المرجع: {sessionId}</>} en={<>Reference: {sessionId}</>} />
+              </p>
+            )}
           </>
         )}
       </div>

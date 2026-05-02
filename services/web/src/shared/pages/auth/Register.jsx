@@ -7,7 +7,7 @@ import {
   GOVERNORATES, DISTRICTS, MUNICIPALITIES,
   getDistrictsForGovernorate, getMunicipalitiesForDistrict, isSingleDistrictGovernorate,
 } from '@shared/constants/districts';
-import L from '@shared/components/L';
+import L, { useL } from '@shared/components/L';
 
 function getPasswordStrength(pw) {
   let score = 0;
@@ -95,6 +95,7 @@ const initialForm = {
 
 export default function Register() {
   const navigate = useNavigate();
+  const { pick } = useL();
   const [form, setForm] = useState(initialForm);
   const [governorate, setGovernorate] = useState('');
   const [error, setError] = useState('');
@@ -138,7 +139,10 @@ export default function Register() {
     setError('');
 
     if (getPasswordStrength(form.password) < 5) {
-      setError('كلمة المرور يجب أن تحتوي على ٨ أحرف على الأقل، حرف كبير وصغير، رقم، ورمز خاص.');
+      setError(pick({
+        ar: 'كلمة المرور يجب أن تحتوي على ٨ أحرف على الأقل، حرف كبير وصغير، رقم، ورمز خاص.',
+        en: 'Password must be at least 8 characters with upper + lowercase, a digit, and a special character.',
+      }));
       setLoading(false);
       return;
     }
@@ -181,7 +185,7 @@ export default function Register() {
         {field.type === 'select' ? (
           <select {...commonProps}>
             {field.options.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.ar} / {opt.en}</option>
+              <option key={opt.value} value={opt.value}>{pick({ ar: opt.ar, en: opt.en })}</option>
             ))}
           </select>
         ) : field.type === 'password' ? (
@@ -252,9 +256,9 @@ export default function Register() {
               value={governorate}
               onChange={handleGovernorateChange}
             >
-              <option value="">-- اختر المحافظة -- / -- Select Governorate --</option>
+              <option value="">{pick({ ar: '-- اختر المحافظة --', en: '-- Select Governorate --' })}</option>
               {GOVERNORATES.map((g) => (
-                <option key={g.value} value={g.value}>{g.ar} / {g.en}</option>
+                <option key={g.value} value={g.value}>{pick({ ar: g.ar, en: g.en })}</option>
               ))}
             </select>
           </div>
@@ -273,13 +277,13 @@ export default function Register() {
             >
               {isSingleDistrictGovernorate(governorate) ? (
                 availableDistricts.map((d) => (
-                  <option key={d.value} value={d.value}>{d.ar} / {d.en}</option>
+                  <option key={d.value} value={d.value}>{pick({ ar: d.ar, en: d.en })}</option>
                 ))
               ) : (
                 <>
-                  <option value="">-- اختر القضاء -- / -- Select District --</option>
+                  <option value="">{pick({ ar: '-- اختر القضاء --', en: '-- Select District --' })}</option>
                   {availableDistricts.map((d) => (
-                    <option key={d.value} value={d.value}>{d.ar} / {d.en}</option>
+                    <option key={d.value} value={d.value}>{pick({ ar: d.ar, en: d.en })}</option>
                   ))}
                 </>
               )}
@@ -298,7 +302,7 @@ export default function Register() {
               onChange={handleMunicipalityChange}
               disabled={!form.registry_place}
             >
-              <option value="">-- اختر البلدة -- / -- Select Municipality --</option>
+              <option value="">{pick({ ar: '-- اختر البلدة --', en: '-- Select Municipality --' })}</option>
               {availableMunicipalities.map((m) => (
                 <option key={m.value} value={m.value}>{m.en}</option>
               ))}

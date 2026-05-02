@@ -50,7 +50,7 @@ export default function LivenessCheck({ caseId, onComplete, onError, onCancel })
         });
       } catch (err) {
         if (!cancelled) {
-          const msg = err.response?.data?.detail || 'Failed to initialize liveness session';
+          const msg = err.response?.data?.detail || 'فشل في بدء جلسة التحقق من الهوية. Failed to initialize liveness session.';
           setError(msg);
           onError?.(msg);
         }
@@ -68,7 +68,7 @@ export default function LivenessCheck({ caseId, onComplete, onError, onCancel })
       const res = await livenessApi.getResults(caseId, sessionId);
       onComplete?.(res.data);
     } catch (err) {
-      const msg = err.response?.data?.detail || 'Failed to get liveness results';
+      const msg = err.response?.data?.detail || 'تعذّر استرداد نتائج التحقق. Failed to get liveness results.';
       onError?.(msg);
     }
   }, [caseId, sessionId, onComplete, onError]);
@@ -106,7 +106,7 @@ export default function LivenessCheck({ caseId, onComplete, onError, onCancel })
         || e.message
         || (e.state ? `state=${e.state}` : null)
         || (typeof e === 'string' ? e : null)
-        || 'Liveness check encountered an error';
+        || 'حدث خطأ أثناء التحقق من الهوية. Liveness check encountered an error.';
     }
     setError(msg);
     onError?.(msg);

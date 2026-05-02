@@ -3,12 +3,13 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@shared/context/useAuth';
 import flagImg from '@shared/assets/Figure_1.png';
 import '@shared/styles/admin.css';
-import L from '@shared/components/L';
+import L, { useL } from '@shared/components/L';
 
 export default function MukhtarLayout() {
   const { t } = useTranslation();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { pick } = useL();
 
   const handleLogout = () => {
     logout();
@@ -47,7 +48,7 @@ export default function MukhtarLayout() {
           <div className="admin-sidebar__user">
             <div className="admin-sidebar__avatar">M</div>
             <div className="admin-sidebar__user-info">
-              <span className="admin-sidebar__role">{user?.full_name || 'Mukhtar'}</span>
+              <span className="admin-sidebar__role">{user?.full_name || pick({ ar: 'مختار', en: 'Mukhtar' })}</span>
             </div>
           </div>
           <button className="admin-sidebar__logout" onClick={handleLogout}>

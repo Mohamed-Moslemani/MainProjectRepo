@@ -48,7 +48,7 @@ export function SkeletonCard({ rows = 3 }) {
     <div
       className="skeleton-card"
       role="status"
-      aria-label="Loading"
+      aria-label="Loading / جارٍ التحميل"
     >
       <Skeleton width="40%" height="1.2rem" />
       <div style={{ height: '0.75rem' }} />

@@ -3,12 +3,20 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@shared/context/useAuth';
 import flagImg from '@shared/assets/Figure_1.png';
 import '@shared/styles/admin.css';
-import L from '@shared/components/L';
+import L, { useL } from '@shared/components/L';
+
+const ROLE_LABELS = {
+  admin: { ar: 'مسؤول', en: 'Admin' },
+  clerk: { ar: 'موظف', en: 'Clerk' },
+  mukhtar: { ar: 'مختار', en: 'Mukhtar' },
+};
 
 export default function AdminLayout() {
   const { t } = useTranslation();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { pick } = useL();
+  const roleLabel = user?.role ? (ROLE_LABELS[user.role] || { ar: user.role, en: user.role }) : null;
 
   const handleLogout = () => {
     logout();
@@ -67,7 +75,7 @@ export default function AdminLayout() {
               {user?.role?.[0]?.toUpperCase() || 'A'}
             </div>
             <div className="admin-sidebar__user-info">
-              <span className="admin-sidebar__role">{user?.role}</span>
+              <span className="admin-sidebar__role">{roleLabel ? pick(roleLabel) : ''}</span>
             </div>
           </div>
           <button className="admin-sidebar__logout" onClick={handleLogout}>

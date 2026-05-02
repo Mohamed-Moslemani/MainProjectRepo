@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import AuthLayout from '@shared/components/AuthLayout';
 import PasswordInput from '@shared/components/PasswordInput';
 import { authApi } from '@shared/api/auth';
-import L from '@shared/components/L';
+import L, { useL } from '@shared/components/L';
 
 function getPasswordStrength(pw) {
   let score = 0;
@@ -16,6 +16,7 @@ function getPasswordStrength(pw) {
 }
 
 export default function ResetPassword() {
+  const { pick } = useL();
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token') || '';
 
@@ -30,12 +31,15 @@ export default function ResetPassword() {
     setError('');
 
     if (password !== confirm) {
-      setError('كلمات المرور غير متطابقة.');
+      setError(pick({ ar: 'كلمات المرور غير متطابقة.', en: 'Passwords do not match.' }));
       return;
     }
 
     if (getPasswordStrength(password) < 5) {
-      setError('كلمة المرور يجب أن تحتوي على ٨ أحرف على الأقل، حرف كبير وصغير، رقم، ورمز خاص.');
+      setError(pick({
+        ar: 'كلمة المرور يجب أن تحتوي على ٨ أحرف على الأقل، حرف كبير وصغير، رقم، ورمز خاص.',
+        en: 'Password must be at least 8 characters with upper + lowercase, a digit, and a special character.',
+      }));
       return;
     }
 
@@ -44,7 +48,10 @@ export default function ResetPassword() {
       await authApi.resetPassword(token, password);
       setSuccess(true);
     } catch (err) {
-      setError(err.response?.data?.detail || 'رابط غير صالح أو منتهي الصلاحية.');
+      setError(err.response?.data?.detail || pick({
+        ar: 'رابط غير صالح أو منتهي الصلاحية.',
+        en: 'Invalid or expired link.',
+      }));
     } finally {
       setLoading(false);
     }
@@ -89,7 +96,7 @@ export default function ResetPassword() {
               </label>
               <PasswordInput
                 id="password"
-                placeholder="أدخل كلمة المرور الجديدة"
+                placeholder={pick({ ar: 'أدخل كلمة المرور الجديدة', en: 'Enter your new password' })}
                 value={password}
                 onChange={(e) => { setPassword(e.target.value); setError(''); }}
                 required
@@ -106,7 +113,7 @@ export default function ResetPassword() {
               </label>
               <PasswordInput
                 id="confirm"
-                placeholder="أعد إدخال كلمة المرور"
+                placeholder={pick({ ar: 'أعد إدخال كلمة المرور', en: 'Re-enter your new password' })}
                 value={confirm}
                 onChange={(e) => { setConfirm(e.target.value); setError(''); }}
                 required

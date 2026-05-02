@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import AuthLayout from '@shared/components/AuthLayout';
 import { authApi } from '@shared/api/auth';
-import L from '@shared/components/L';
+import L, { useL } from '@shared/components/L';
 
 export default function ForgotPassword() {
+  const { pick } = useL();
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -20,9 +21,15 @@ export default function ForgotPassword() {
       setSent(true);
     } catch (err) {
       if (err.response?.status === 429) {
-        setError(err.response.data.detail || 'محاولات كثيرة. يرجى الانتظار.');
+        setError(err.response.data.detail || pick({
+          ar: 'محاولات كثيرة. يرجى الانتظار.',
+          en: 'Too many attempts. Please wait a moment and try again.',
+        }));
       } else {
-        setError('حدث خطأ. يرجى المحاولة مرة أخرى.');
+        setError(pick({
+          ar: 'حدث خطأ. يرجى المحاولة مرة أخرى.',
+          en: 'Something went wrong. Please try again.',
+        }));
       }
     } finally {
       setLoading(false);

@@ -5,7 +5,7 @@ import { casesApi } from '@shared/api/cases';
 import { useToast } from '@shared/context/useToast';
 import flagImg from '@shared/assets/Figure_1.png';
 import '@shared/styles/dashboard.css';
-import L from '@shared/components/L';
+import L, { useL } from '@shared/components/L';
 
 // Biometric appointment booking. Lebanese passport flow gates on a
 // physical visit to a GDGS centre for fingerprint + signature
@@ -20,6 +20,8 @@ import L from '@shared/components/L';
 export default function BookAppointment() {
   const { caseId } = useParams();
   const toast = useToast();
+  const { pick, lang } = useL();
+  const dateLocale = lang === 'ar' ? 'ar-LB' : 'en-GB';
 
   const [centres, setCentres] = useState([]);
   const [centreId, setCentreId] = useState('');
@@ -53,7 +55,7 @@ export default function BookAppointment() {
     setLoadingSlots(true);
     appointmentsApi.slots(centreId)
       .then(({ data }) => { if (!cancelled) setSlots(data.slots || []); })
-      .catch(() => { if (!cancelled) toast.error('فشل في تحميل المواعيد'); })
+      .catch(() => { if (!cancelled) toast.error(pick({ ar: 'فشل في تحميل المواعيد', en: 'Failed to load appointments' })); })
       .finally(() => { if (!cancelled) setLoadingSlots(false); });
     return () => { cancelled = true; };
   // toast is stable from the provider
@@ -81,26 +83,26 @@ export default function BookAppointment() {
         caseId, centreId, slotStart: slotIso,
       });
       setExisting(data);
-      toast.success('تم تأكيد الموعد');
+      toast.success(pick({ ar: 'تم تأكيد الموعد', en: 'Appointment confirmed' }));
       // Refresh slot list so the booked slot disappears.
       const { data: fresh } = await appointmentsApi.slots(centreId);
       setSlots(fresh.slots || []);
     } catch (err) {
       const msg = err.response?.data?.detail;
       if (err.response?.status === 409) {
-        toast.error('هذا الموعد محجوز — اختر موعداً آخر');
+        toast.error(pick({ ar: 'هذا الموعد محجوز — اختر موعداً آخر', en: 'This slot is taken — pick another time' }));
       } else {
-        toast.error(msg || 'فشل في حجز الموعد');
+        toast.error(msg || pick({ ar: 'فشل في حجز الموعد', en: 'Failed to book appointment' }));
       }
     } finally {
       setBooking(false);
     }
   };
 
-  const fmtLocal = (iso) => new Date(iso).toLocaleTimeString('en-GB', {
+  const fmtLocal = (iso) => new Date(iso).toLocaleTimeString(dateLocale, {
     hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Beirut',
   });
-  const fmtDay = (iso) => new Date(`${iso}T00:00:00`).toLocaleDateString('en-GB', {
+  const fmtDay = (iso) => new Date(`${iso}T00:00:00`).toLocaleDateString(dateLocale, {
     weekday: 'short', day: '2-digit', month: 'short', timeZone: 'Asia/Beirut',
   });
 
@@ -131,9 +133,9 @@ export default function BookAppointment() {
               <L ar="الموعد الحالي" en="Current appointment" />
             </h2>
             <p>
-              <strong>{existing.centre_name_ar} / {existing.centre_name_en}</strong>
+              <strong>{pick({ ar: existing.centre_name_ar, en: existing.centre_name_en })}</strong>
               {' · '}
-              {new Date(existing.slot_start).toLocaleString('en-GB', {
+              {new Date(existing.slot_start).toLocaleString(dateLocale, {
                 timeZone: 'Asia/Beirut',
                 weekday: 'short', day: '2-digit', month: 'short',
                 hour: '2-digit', minute: '2-digit',
@@ -164,10 +166,10 @@ export default function BookAppointment() {
             onChange={(e) => setCentreId(e.target.value)}
             style={{ width: '100%', padding: '0.6rem', fontSize: '1rem' }}
           >
-            <option value="">-- اختر مركزاً / Select a centre --</option>
+            <option value="">{pick({ ar: '-- اختر مركزاً --', en: '-- Select a centre --' })}</option>
             {centres.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.ar} / {c.en} — {c.governorate}
+                {pick({ ar: c.ar, en: c.en })} — {c.governorate}
               </option>
             ))}
           </select>
@@ -179,7 +181,7 @@ export default function BookAppointment() {
               <L ar="٢. اختر الموعد" en="2. Choose a time slot" />
             </h2>
             {loadingSlots ? (
-              <p>Loading slots…</p>
+              <p><L ar="جارٍ تحميل المواعيد…" en="Loading slots…" /></p>
             ) : slots.length === 0 ? (
               <p>
                 <L>{{ ar: <>لا توجد مواعيد متاحة في الأسبوعين القادمين.</>, en: <>No open slots in the next two weeks.</> }}</L>

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { mukhtarApi } from '@shared/api/mukhtar';
 import AuthImage from '@shared/components/AuthImage';
 import AgeBadge from '@shared/components/AgeBadge';
-import L from '@shared/components/L';
+import L, { useL } from '@shared/components/L';
 
 const DOC_TYPE_LABELS = {
   selfie: { ar: 'صورة شخصية (سيلفي)', en: 'Selfie' },
@@ -32,6 +32,7 @@ const SERVICE_LABELS = {
 };
 
 export default function MukhtarCases() {
+  const { pick } = useL();
   const [cases, setCases] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('pending_mukhtar');
@@ -166,7 +167,7 @@ export default function MukhtarCases() {
       return;
     }
     if (decision === 'reject' && !rejectionReasons.trim()) {
-      setAlert({ type: 'error', msg: 'Rejection reasons are required' });
+      setAlert({ type: 'error', msg: pick({ ar: 'يجب إدخال أسباب الرفض', en: 'Rejection reasons are required' }) });
       return;
     }
     setDeciding(true);
@@ -205,7 +206,7 @@ export default function MukhtarCases() {
       {alert && (
         <div className={`alert alert--${alert.type}`} style={{ marginBottom: '1rem' }}>
           {alert.msg}
-          <button onClick={() => setAlert(null)} style={{ marginRight: '1rem', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>x</button>
+          <button onClick={() => setAlert(null)} style={{ marginInlineStart: '1rem', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold' }} aria-label={pick({ ar: 'إغلاق', en: 'Dismiss' })}>×</button>
         </div>
       )}
 
@@ -294,21 +295,21 @@ export default function MukhtarCases() {
                 {detail.applicant && (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '0.75rem' }}>
                     {[
-                      ['Full Name / الاسم الكامل', detail.applicant.full_name],
-                      ['Father / اسم الأب', detail.applicant.father_name],
-                      ['Mother / اسم الأم', detail.applicant.mother_name],
-                      ['DOB / تاريخ الولادة', detail.applicant.date_of_birth],
-                      ['Place of Birth / مكان الولادة', detail.applicant.place_of_birth],
-                      ['Gender / الجنس', detail.applicant.gender],
-                      ['Marital Status / الحالة', detail.applicant.marital_status],
-                      ['Registry # / رقم السجل', detail.applicant.registry_number],
-                      ['Registry Place / محل السجل', detail.applicant.registry_place],
-                      ['Phone / الهاتف', detail.applicant.phone],
-                      ['Address / العنوان', detail.applicant.address],
+                      [{ ar: 'الاسم الكامل', en: 'Full Name' }, detail.applicant.full_name],
+                      [{ ar: 'اسم الأب', en: 'Father' }, detail.applicant.father_name],
+                      [{ ar: 'اسم الأم', en: 'Mother' }, detail.applicant.mother_name],
+                      [{ ar: 'تاريخ الولادة', en: 'DOB' }, detail.applicant.date_of_birth],
+                      [{ ar: 'مكان الولادة', en: 'Place of Birth' }, detail.applicant.place_of_birth],
+                      [{ ar: 'الجنس', en: 'Gender' }, detail.applicant.gender],
+                      [{ ar: 'الحالة الاجتماعية', en: 'Marital Status' }, detail.applicant.marital_status],
+                      [{ ar: 'رقم السجل', en: 'Registry #' }, detail.applicant.registry_number],
+                      [{ ar: 'محل السجل', en: 'Registry Place' }, detail.applicant.registry_place],
+                      [{ ar: 'الهاتف', en: 'Phone' }, detail.applicant.phone],
+                      [{ ar: 'العنوان', en: 'Address' }, detail.applicant.address],
                     ].map(([label, val]) => (
-                      <div key={label} style={{ padding: '0.5rem', background: 'var(--gray-50)', borderRadius: '8px' }}>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--gray-400)' }}>{label}</div>
-                        <div style={{ fontWeight: 500 }}>{val || 'N/A'}</div>
+                      <div key={label.en} style={{ padding: '0.5rem', background: 'var(--gray-50)', borderRadius: '8px' }}>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--gray-400)' }}>{pick(label)}</div>
+                        <div style={{ fontWeight: 500 }}>{val || pick({ ar: 'غير متوفر', en: 'N/A' })}</div>
                       </div>
                     ))}
                   </div>
@@ -360,7 +361,9 @@ export default function MukhtarCases() {
                     })}
                   </div>
                 ) : (
-                  <p style={{ color: 'var(--gray-400)' }}>No documents uploaded</p>
+                  <p style={{ color: 'var(--gray-400)' }}>
+                    <L ar="لم يتم رفع أي مستندات" en="No documents uploaded" />
+                  </p>
                 )}
               </div>
 
@@ -379,7 +382,9 @@ export default function MukhtarCases() {
                       <L ar="التحقق من الهوية" en="Identity Verification" />
                     </div>
                     <div style={{ fontSize: '1.1rem', fontWeight: 700 }}>
-                      {detail.verification_summary?.identity_verified ? 'Verified / تم التحقق' : 'Pending / قيد الانتظار'}
+                      {detail.verification_summary?.identity_verified
+                        ? pick({ ar: 'تم التحقق', en: 'Verified' })
+                        : pick({ ar: 'قيد الانتظار', en: 'Pending' })}
                     </div>
                     {detail.verification_summary?.liveness_confidence != null && (
                       <div style={{ fontSize: '0.75rem', marginTop: '0.25rem' }}>
@@ -431,14 +436,14 @@ export default function MukhtarCases() {
                   <button className="btn btn--warning" onClick={() => setModal('need_info')}>
                     <L ar="طلب معلومات إضافية" en="Request Info" />
                   </button>
-                  <button className="btn btn--ghost" onClick={openTransferModal} style={{ marginRight: 'auto' }}>
+                  <button className="btn btn--ghost" onClick={openTransferModal} style={{ marginInlineStart: 'auto' }}>
                     <L ar="تحويل لمختار آخر" en="Transfer" />
                   </button>
                 </div>
               )}
             </>
           ) : (
-            <div className="alert alert--error">Failed to load case</div>
+            <div className="alert alert--error"><L ar="فشل تحميل الطلب" en="Failed to load case" /></div>
           )}
         </div>
       )}
@@ -475,7 +480,10 @@ export default function MukhtarCases() {
                   onChange={(e) => setResidenceNotes(e.target.value)}
                   rows={2}
                   style={{ width: '100%', padding: '0.5rem', borderRadius: 6, border: '1px solid var(--gray-300)', resize: 'vertical', marginTop: '0.25rem' }}
-                  placeholder="Residence notes, e.g. 'resident for 12+ years, known to me'"
+                  placeholder={pick({
+                    ar: "ملاحظات الإقامة، مثل 'مقيم منذ أكثر من ١٢ سنة، معروف لي'",
+                    en: "Residence notes, e.g. 'resident for 12+ years, known to me'",
+                  })}
                 />
               </div>
             )}
@@ -489,7 +497,7 @@ export default function MukhtarCases() {
                 onChange={(e) => setNotes(e.target.value)}
                 rows={3}
                 style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--gray-300)', resize: 'vertical' }}
-                placeholder="Optional notes..."
+                placeholder={pick({ ar: 'ملاحظات اختيارية…', en: 'Optional notes…' })}
               />
             </div>
 
@@ -503,7 +511,7 @@ export default function MukhtarCases() {
                   onChange={(e) => setRejectionReasons(e.target.value)}
                   rows={3}
                   style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #fca5a5', resize: 'vertical' }}
-                  placeholder="One reason per line..."
+                  placeholder={pick({ ar: 'سبب واحد في كل سطر…', en: 'One reason per line…' })}
                 />
               </div>
             )}
@@ -606,7 +614,7 @@ export default function MukhtarCases() {
             <div style={{ flex: 1, overflow: 'hidden' }}>
               <iframe
                 src={previewUrl}
-                title="Application form"
+                title={pick({ ar: 'استمارة الطلب', en: 'Application form' })}
                 style={{ width: '100%', height: '100%', border: 'none' }}
               />
             </div>

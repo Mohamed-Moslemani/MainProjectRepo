@@ -15,7 +15,7 @@ import flagImg from '@shared/assets/Figure_1.png';
 import { useAuth } from '@shared/context/useAuth';
 import { useToast } from '@shared/context/useToast';
 import '@shared/styles/dashboard.css';
-import L from '@shared/components/L';
+import L, { useL } from '@shared/components/L';
 
 const LIVENESS_DOC_TYPES = ['selfie', 'liveness_capture'];
 
@@ -82,6 +82,7 @@ export default function CaseDetail() {
   const { logout } = useAuth();
   const toast = useToast();
   const confirm = useConfirm();
+  const { pick } = useL();
 
   const [caseData, setCaseData] = useState(null);
   const [requiredDocs, setRequiredDocs] = useState([]);
@@ -142,7 +143,7 @@ export default function CaseDetail() {
       setCompleteness(compRes.data);
       setDeclaredFields(caseRes.data.declared_fields || {});
     } catch {
-      setError('فشل في تحميل بيانات الطلب');
+      setError(pick({ ar: 'فشل في تحميل بيانات الطلب', en: 'Failed to load case data' }));
     } finally {
       setLoading(false);
     }
@@ -168,7 +169,7 @@ export default function CaseDetail() {
       const verdict = await checkImageQuality(file);
       setPendingUpload({ docType, file, verdict });
     } catch {
-      setError('تعذر فحص جودة الصورة');
+      setError(pick({ ar: 'تعذر فحص جودة الصورة', en: 'Could not check image quality' }));
     } finally {
       setCheckingFile(false);
     }
@@ -199,13 +200,13 @@ export default function CaseDetail() {
     setError('');
     try {
       await casesApi.uploadDocument(caseId, file, docType);
-      setSuccess('تم رفع الملف بنجاح');
+      setSuccess(pick({ ar: 'تم رفع الملف بنجاح', en: 'File uploaded successfully' }));
       setTimeout(() => setSuccess(''), 3000);
       if (verdict.previewUrl) URL.revokeObjectURL(verdict.previewUrl);
       setPendingUpload(null);
       await loadCase();
     } catch (err) {
-      setError(err.response?.data?.detail || 'فشل في رفع الملف');
+      setError(err.response?.data?.detail || pick({ ar: 'فشل في رفع الملف', en: 'File upload failed' }));
     } finally {
       setUploading('');
     }
@@ -216,10 +217,10 @@ export default function CaseDetail() {
     setError('');
     try {
       await casesApi.submit(caseId, declaredFields);
-      setSuccess('تم تقديم الطلب بنجاح!');
+      setSuccess(pick({ ar: 'تم تقديم الطلب بنجاح!', en: 'Application submitted successfully!' }));
       await loadCase();
     } catch (err) {
-      setError(err.response?.data?.detail || 'فشل في تقديم الطلب');
+      setError(err.response?.data?.detail || pick({ ar: 'فشل في تقديم الطلب', en: 'Failed to submit case' }));
     } finally {
       setSubmitting(false);
     }
@@ -270,10 +271,13 @@ export default function CaseDetail() {
   const handleLivenessComplete = async (result) => {
     setShowLiveness(false);
     if (result.liveness_passed) {
-      setSuccess('تم التحقق من الهوية بنجاح! / Identity verified successfully!');
+      setSuccess(pick({ ar: 'تم التحقق من الهوية بنجاح!', en: 'Identity verified successfully!' }));
       setTimeout(() => setSuccess(''), 4000);
     } else {
-      setError('فشل التحقق من الهوية / Identity verification failed. ' + (result.reasons?.join(', ') || ''));
+      setError(pick({
+        ar: 'فشل التحقق من الهوية. ' + (result.reasons?.join(', ') || ''),
+        en: 'Identity verification failed. ' + (result.reasons?.join(', ') || ''),
+      }));
     }
     await loadCase();
   };
@@ -292,7 +296,7 @@ export default function CaseDetail() {
         window.location.href = data.checkout_url;
       }
     } catch (err) {
-      setError(err.response?.data?.detail || 'فشل في إنشاء جلسة الدفع / Payment session failed');
+      setError(err.response?.data?.detail || pick({ ar: 'فشل في إنشاء جلسة الدفع', en: 'Failed to create payment session' }));
       setPaying(false);
     }
   };
@@ -394,10 +398,10 @@ export default function CaseDetail() {
                   if (!ok) return;
                   try {
                     await casesApi.discard(caseId);
-                    toast.success('تم حذف المسودة');
+                    toast.success(pick({ ar: 'تم حذف المسودة', en: 'Draft discarded' }));
                     navigate('/dashboard');
                   } catch (err) {
-                    toast.error(err.response?.data?.detail || 'فشل في الحذف');
+                    toast.error(err.response?.data?.detail || pick({ ar: 'فشل في الحذف', en: 'Failed to discard' }));
                   }
                 }}
               >
@@ -450,7 +454,7 @@ export default function CaseDetail() {
         {isNeedInfo && caseData.retake_reasons?.length > 0 && (
           <div className="alert alert--warning">
             <L>{{ ar: <>صور غير واضحة — يرجى إعادة الرفع:</>, en: <>Some uploads couldn't be read. Please retake and re-submit:</> }}</L>
-            <ul style={{ marginTop: '0.5rem', paddingRight: '1.25rem' }}>
+            <ul style={{ marginTop: '0.5rem', paddingInlineStart: '1.25rem' }}>
               {caseData.retake_reasons.map((finding, i) => {
                 const docLabel = DOC_LABELS[finding.document_type];
                 return (
@@ -465,7 +469,7 @@ export default function CaseDetail() {
                       )}
                     </strong>
                     {finding.reasons?.length > 0 && (
-                      <ul style={{ marginTop: '0.25rem', paddingRight: '1rem', fontSize: '0.85rem' }}>
+                      <ul style={{ marginTop: '0.25rem', paddingInlineStart: '1rem', fontSize: '0.85rem' }}>
                         {finding.reasons.map((r, j) => {
                           const loc = localizeReason(r);
                           return (
@@ -492,7 +496,7 @@ export default function CaseDetail() {
         {caseData.rejection_reasons?.length > 0 && (
           <div className="alert alert--error">
             <L ar="أسباب الرفض:" en="Rejection Reasons:" />
-            <ul style={{ marginTop: '0.5rem', paddingRight: '1.25rem' }}>
+            <ul style={{ marginTop: '0.5rem', paddingInlineStart: '1.25rem' }}>
               {caseData.rejection_reasons.map((r, i) => {
                 const m = localizeTimelineMessage(r);
                 return (
@@ -545,7 +549,7 @@ export default function CaseDetail() {
                         {uploaded.mime_type?.startsWith('image/') && (
                           <AuthImage
                             src={casesApi.getDocumentImageUrl(caseId, uploaded.id)}
-                            alt={`Uploaded ${label.en}`}
+                            alt={pick({ ar: `${label.ar} مرفوع`, en: `Uploaded ${label.en}` })}
                             className="doc-card__thumb"
                           />
                         )}
@@ -592,8 +596,9 @@ export default function CaseDetail() {
             {requiresLiveness && (
               <div className={`doc-card ${livenessCompleted ? 'doc-card--uploaded' : ''}`}>
                 <div className="doc-card__info">
-                  <span className="doc-card__label ar">التحقق من الهوية (كاميرا)</span>
-                  <span className="doc-card__label en">Identity Verification (Camera)</span>
+                  <span className="doc-card__label">
+                    <L ar="التحقق من الهوية (كاميرا)" en="Identity Verification (Camera)" />
+                  </span>
                   {livenessCompleted && (
                     <span className="doc-card__filename" style={{ color: '#16a34a' }}>
                       <L ar="تم التحقق بنجاح" en="Verified successfully" />

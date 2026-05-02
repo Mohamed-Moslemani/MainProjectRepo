@@ -96,10 +96,18 @@ export default function Help() {
 
       <main className="dashboard-main" style={{ maxWidth: 760 }}>
         <nav style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
-          <a href="#faq" className="btn btn--ghost btn--sm">FAQ</a>
-          <a href="#terms" className="btn btn--ghost btn--sm">Terms of Use</a>
-          <a href="#privacy" className="btn btn--ghost btn--sm">Privacy</a>
-          <a href="#contact" className="btn btn--ghost btn--sm">Contact</a>
+          <a href="#faq" className="btn btn--ghost btn--sm">
+            <L ar="الأسئلة الشائعة" en="FAQ" />
+          </a>
+          <a href="#terms" className="btn btn--ghost btn--sm">
+            <L ar="شروط الاستخدام" en="Terms of Use" />
+          </a>
+          <a href="#privacy" className="btn btn--ghost btn--sm">
+            <L ar="الخصوصية" en="Privacy" />
+          </a>
+          <a href="#contact" className="btn btn--ghost btn--sm">
+            <L ar="تواصل معنا" en="Contact" />
+          </a>
         </nav>
 
         <section id="faq" className="detail-section">

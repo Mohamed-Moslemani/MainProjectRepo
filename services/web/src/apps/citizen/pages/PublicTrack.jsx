@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { casesApi } from '@shared/api/cases';
 import flagImg from '@shared/assets/Figure_1.png';
 import '@shared/styles/dashboard.css';
-import L from '@shared/components/L';
+import L, { useL } from '@shared/components/L';
 
 const STATUS_MAP = {
   draft: { ar: 'مسودة', en: 'Draft', color: 'gray' },
@@ -38,6 +38,7 @@ export default function PublicTrack() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
+  const { pick } = useL();
   const initialId = routeId || searchParams.get('id') || '';
   const [input, setInput] = useState(initialId);
   const [tracking, setTracking] = useState(null);
@@ -63,9 +64,15 @@ export default function PublicTrack() {
         .catch((err) => {
           if (cancelled) return;
           if (err.response?.status === 404) {
-            setError('لم يتم العثور على طلب بهذا الرقم. تحقق من صحة الرقم وحاول مجدداً.');
+            setError(pick({
+              ar: 'لم يتم العثور على طلب بهذا الرقم. تحقق من صحة الرقم وحاول مجدداً.',
+              en: 'No application found for this tracking ID. Check the number and try again.',
+            }));
           } else {
-            setError('تعذر تحميل بيانات التتبع. حاول لاحقاً.');
+            setError(pick({
+              ar: 'تعذر تحميل بيانات التتبع. حاول لاحقاً.',
+              en: 'Could not load tracking data. Please try again later.',
+            }));
           }
         })
         .finally(() => {
@@ -116,6 +123,7 @@ export default function PublicTrack() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="DFL-XXXXXXXX"
+              aria-label={pick({ ar: 'رقم التتبع', en: 'Tracking ID' })}
               dir="ltr"
               style={{
                 flex: 1,

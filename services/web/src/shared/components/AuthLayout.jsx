@@ -9,7 +9,7 @@ export default function AuthLayout({ children }) {
         <div className="auth-panel__bg-circle auth-panel__bg-circle--1" />
         <div className="auth-panel__bg-circle auth-panel__bg-circle--2" />
         <div className="auth-panel__bg-circle auth-panel__bg-circle--3" />
-        <img src={flagImg} alt="Lebanese flag" className="auth-panel__flag" />
+        <img src={flagImg} alt="" className="auth-panel__flag" />
         <h1 className="auth-panel__title">DocFlow Lebanon</h1>
         <div className="auth-panel__divider" />
         <p className="auth-panel__subtitle">

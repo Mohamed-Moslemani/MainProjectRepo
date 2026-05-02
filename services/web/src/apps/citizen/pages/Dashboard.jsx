@@ -7,6 +7,7 @@ import { useToast } from '@shared/context/useToast';
 import { SkeletonCard } from '@shared/components/Skeleton';
 import flagImg from '@shared/assets/Figure_1.png';
 import '@shared/styles/dashboard.css';
+import { useL } from '@shared/components/L';
 
 // Status enum the backend speaks. Both "color" (visual class) and
 // the i18n key live here so the dashboard never invents copy.
@@ -34,6 +35,7 @@ export default function Dashboard() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
+  const { pick } = useL();
   const [cases, setCases] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showNewCase, setShowNewCase] = useState(false);
@@ -53,7 +55,7 @@ export default function Dashboard() {
       const { data } = await casesApi.list();
       setCases(data.cases || []);
     } catch {
-      setError(t('common.loading'));
+      setError(pick({ ar: 'فشل في تحميل الطلبات', en: 'Failed to load applications' }));
     } finally {
       setLoading(false);
     }
@@ -65,7 +67,7 @@ export default function Dashboard() {
       const { data } = await casesApi.create(serviceType);
       navigate(`/case/${data.id}`);
     } catch (err) {
-      setError(err.response?.data?.detail || t('common.retry'));
+      setError(err.response?.data?.detail || pick({ ar: 'فشل في إنشاء الطلب', en: 'Failed to create case' }));
     } finally {
       setCreating(false);
     }

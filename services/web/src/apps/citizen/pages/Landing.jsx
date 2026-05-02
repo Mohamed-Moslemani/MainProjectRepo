@@ -4,7 +4,7 @@ import { useAuth } from '@shared/context/useAuth';
 import flagImg from '@shared/assets/Figure_1.png';
 import '@shared/styles/dashboard.css';
 import '@shared/styles/landing.css';
-import L from '@shared/components/L';
+import L, { useL } from '@shared/components/L';
 
 /**
  * Public landing page at "/".
@@ -21,9 +21,21 @@ import L from '@shared/components/L';
  */
 
 const HOW = [
-  { icon: '📤', ar: 'ارفع المستندات', en: 'Upload documents', body_en: 'Old passport, civil registry extract, selfie. The app tells you on the spot if a photo is too blurry to use.' },
-  { icon: '🤖', ar: 'تحقق آلي', en: 'Automated check', body_en: 'OCR reads your documents, face match against your selfie, and we cross-check the civil registry.' },
-  { icon: '🪪', ar: 'استلم وثيقتك', en: 'Pay & pick up', body_en: 'Once approved, pay online and collect from the issuing centre — one visit, no queue.' },
+  {
+    icon: '📤', ar: 'ارفع المستندات', en: 'Upload documents',
+    body_ar: 'الجواز القديم، إخراج القيد، صورة شخصية. التطبيق يخبرك فوراً إن كانت الصورة ضبابية بما يكفي لرفضها.',
+    body_en: 'Old passport, civil registry extract, selfie. The app tells you on the spot if a photo is too blurry to use.',
+  },
+  {
+    icon: '🤖', ar: 'تحقق آلي', en: 'Automated check',
+    body_ar: 'يقرأ النظام مستنداتك، ويطابق صورتك الشخصية مع صورة الوثيقة، ويتحقق من السجل المدني.',
+    body_en: 'OCR reads your documents, face match against your selfie, and we cross-check the civil registry.',
+  },
+  {
+    icon: '🪪', ar: 'ادفع واستلم', en: 'Pay & pick up',
+    body_ar: 'بعد الموافقة، ادفع عبر الإنترنت واستلم وثيقتك من مركز الإصدار — زيارة واحدة دون انتظار.',
+    body_en: 'Once approved, pay online and collect from the issuing centre — one visit, no queue.',
+  },
 ];
 
 const FEATURES = [
@@ -92,6 +104,7 @@ const PIPELINE = [
 export default function Landing() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { pick } = useL();
   const [trackId, setTrackId] = useState('');
 
   // Bounce signed-in users to their role home so they never see the
@@ -110,14 +123,16 @@ export default function Landing() {
 
   return (
     <div className="landing">
-      <a className="skip-link" href="#main">Skip to main content</a>
+      <a className="skip-link" href="#main">{pick({ ar: 'تخطي إلى المحتوى الرئيسي', en: 'Skip to main content' })}</a>
 
       <header className="landing__nav">
         <div className="landing__brand">
           <img src={flagImg} alt="" className="dashboard-header__flag" />
           <div>
             <strong>DocFlow Lebanon</strong>
-            <span className="landing__tagline en">Online ID &amp; passport applications</span>
+            <span className="landing__tagline">
+              <L ar="طلبات الهوية وجواز السفر عبر الإنترنت" en="Online ID & passport applications" />
+            </span>
           </div>
         </div>
         <nav className="landing__nav-actions">
@@ -166,7 +181,7 @@ export default function Landing() {
                 onChange={(e) => setTrackId(e.target.value)}
                 placeholder="DFL-XXXXXXXX"
                 dir="ltr"
-                aria-label="Tracking ID"
+                aria-label={pick({ ar: 'رقم التتبع', en: 'Tracking ID' })}
               />
               <button type="submit" className="btn btn--primary" disabled={!trackId.trim()}>
                 <L ar="تتبع" en="· Track" />
@@ -189,7 +204,7 @@ export default function Landing() {
                 <h3>
                   <L>{{ ar: <>{h.ar}</>, en: <>{h.en}</> }}</L>
                 </h3>
-                <p>{h.body_en}</p>
+                <p>{pick({ ar: h.body_ar, en: h.body_en })}</p>
               </div>
             ))}
           </div>
@@ -244,11 +259,13 @@ export default function Landing() {
       </main>
 
       <footer className="landing__footer">
-        <span>© {new Date().getFullYear()} DocFlow Lebanon — demo platform</span>
+        <span>
+          © {new Date().getFullYear()} DocFlow Lebanon — <L ar="منصة تجريبية" en="demo platform" />
+        </span>
         <nav>
-          <Link to="/help">Help</Link>
-          <Link to="/terms">Terms</Link>
-          <Link to="/privacy">Privacy</Link>
+          <Link to="/help"><L ar="مساعدة" en="Help" /></Link>
+          <Link to="/terms"><L ar="الشروط" en="Terms" /></Link>
+          <Link to="/privacy"><L ar="الخصوصية" en="Privacy" /></Link>
         </nav>
       </footer>
     </div>

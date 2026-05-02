@@ -17,6 +17,9 @@ export default function LanguageSwitcher({ inline = false, className = '' }) {
   const current = i18n.resolvedLanguage || 'ar';
   const next = current === 'ar' ? 'en' : 'ar';
   const label = next === 'ar' ? 'العربية' : 'English';
+  const aria = current === 'ar'
+    ? `التبديل إلى ${label}`
+    : `Switch language to ${label}`;
 
   if (inline) {
     return (
@@ -24,7 +27,7 @@ export default function LanguageSwitcher({ inline = false, className = '' }) {
         type="button"
         className={`btn btn--ghost btn--sm ${className}`}
         onClick={() => i18n.changeLanguage(next)}
-        aria-label={`Switch language to ${label}`}
+        aria-label={aria}
       >
         {label}
       </button>
@@ -60,8 +63,8 @@ export default function LanguageSwitcher({ inline = false, className = '' }) {
       type="button"
       style={style}
       onClick={() => i18n.changeLanguage(next)}
-      aria-label={`Switch language to ${label}`}
-      title={`Switch to ${label}`}
+      aria-label={aria}
+      title={aria}
     >
       <span aria-hidden="true">🌐</span>
       <span>{label}</span>

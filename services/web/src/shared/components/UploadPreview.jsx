@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { QUALITY_THRESHOLDS } from '@shared/utils/imageQuality';
 import { useFocusTrap } from '@shared/hooks/useFocusTrap';
-import L from '@shared/components/L';
+import L, { useL } from '@shared/components/L';
 
 /**
  * Pre-flight upload review modal.
@@ -32,6 +32,7 @@ export default function UploadPreview({
   onCancel,
   onRetake,
 }) {
+  const { pick } = useL();
   // Esc closes the modal — keyboard users shouldn't be trapped.
   useEffect(() => {
     const onKey = (e) => {
@@ -82,7 +83,7 @@ export default function UploadPreview({
             ) : verdict.previewUrl ? (
               <img
                 src={verdict.previewUrl}
-                alt={`Preview of ${docLabel.en}`}
+                alt={pick({ ar: `معاينة ${docLabel.ar}`, en: `Preview of ${docLabel.en}` })}
                 className="upload-preview__image"
               />
             ) : null}

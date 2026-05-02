@@ -101,7 +101,7 @@ export default class ErrorBoundary extends Component {
                 fontWeight: 600,
               }}
             >
-              Reload
+              <span lang="ar">إعادة التحميل</span>{' '}<span lang="en">Reload</span>
             </button>
             <button
               type="button"
@@ -115,11 +115,13 @@ export default class ErrorBoundary extends Component {
                 cursor: 'pointer',
               }}
             >
-              Go to dashboard
+              <span lang="ar">العودة للرئيسية</span>{' '}<span lang="en">Go to dashboard</span>
             </button>
           </div>
           <details style={{ marginTop: '1.5rem', fontSize: '0.85rem', color: '#6b7280' }}>
-            <summary style={{ cursor: 'pointer' }}>Technical details</summary>
+            <summary style={{ cursor: 'pointer' }}>
+              <span lang="ar">تفاصيل تقنية</span>{' / '}<span lang="en">Technical details</span>
+            </summary>
             <pre
               style={{
                 whiteSpace: 'pre-wrap',

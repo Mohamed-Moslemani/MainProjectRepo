@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { adminApi } from '@shared/api/admin';
 import { useToast } from '@shared/context/useToast';
 import { useConfirm } from '@shared/components/ConfirmDialog';
+import L, { useL } from '@shared/components/L';
 
 // Stripe webhook ledger + manual replay.
 //
@@ -15,6 +16,7 @@ import { useConfirm } from '@shared/components/ConfirmDialog';
 export default function AdminStripeEvents() {
   const toast = useToast();
   const confirm = useConfirm();
+  const { pick, lang } = useL();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(null);
@@ -28,7 +30,7 @@ export default function AdminStripeEvents() {
       const { data } = await adminApi.listStripeEvents(params);
       setEvents(data.events || []);
     } catch {
-      toast.error('Failed to load Stripe events');
+      toast.error(pick({ ar: 'تعذّر تحميل أحداث Stripe', en: 'Failed to load Stripe events' }));
     } finally {
       setLoading(false);
     }
@@ -55,28 +57,35 @@ export default function AdminStripeEvents() {
     setBusy(eventId);
     try {
       await adminApi.replayStripeEvent(eventId);
-      toast.success(`Replayed ${eventId}`);
+      toast.success(pick({ ar: `أُعيد تشغيل ${eventId}`, en: `Replayed ${eventId}` }));
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Replay failed');
+      toast.error(err.response?.data?.detail || pick({ ar: 'فشلت إعادة التشغيل', en: 'Replay failed' }));
     } finally {
       setBusy(null);
     }
   };
 
-  const fmt = (iso) => new Date(iso).toLocaleString('en-GB', {
-    timeZone: 'Asia/Beirut',
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-  });
+  const fmt = (iso) => new Date(iso).toLocaleString(
+    lang === 'ar' ? 'ar-LB' : 'en-GB',
+    {
+      timeZone: 'Asia/Beirut',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+    },
+  );
 
   return (
     <div className="admin-page">
       <header className="admin-page__header">
         <div>
-          <h1 className="admin-page__title">Stripe events</h1>
+          <h1 className="admin-page__title">
+            <L ar="أحداث Stripe" en="Stripe events" />
+          </h1>
           <p className="admin-page__subtitle">
-            Webhook ledger. Replay re-runs the handler against the stored
-            payload — safe to retry, idempotent against case state.
+            <L
+              ar="سجلّ الإشعارات الواردة من Stripe. تُعيد إعادة التشغيل تنفيذ المعالج على نفس الحمولة المحفوظة — العملية آمنة للتكرار ولا تؤثّر على حالة الطلب."
+              en="Webhook ledger. Replay re-runs the handler against the stored payload — safe to retry, idempotent against case state."
+            />
           </p>
         </div>
         <div className="admin-page__actions" style={{ display: 'flex', gap: '0.5rem' }}>
@@ -84,33 +93,34 @@ export default function AdminStripeEvents() {
             value={filterType}
             onChange={(e) => setFilterType(e.target.value)}
             style={{ padding: '0.4rem 0.6rem' }}
+            aria-label={pick({ ar: 'تصفية حسب نوع الحدث', en: 'Filter by event type' })}
           >
-            <option value="">All event types</option>
+            <option value="">{pick({ ar: 'جميع أنواع الأحداث', en: 'All event types' })}</option>
             <option value="checkout.session.completed">checkout.session.completed</option>
             <option value="checkout.session.expired">checkout.session.expired</option>
             <option value="payment_intent.payment_failed">payment_intent.payment_failed</option>
           </select>
           <button className="btn btn--outline btn--sm" onClick={load}>
-            Refresh
+            <L ar="تحديث" en="Refresh" />
           </button>
         </div>
       </header>
 
       {loading ? (
-        <p>Loading…</p>
+        <p><L ar="جارٍ التحميل…" en="Loading…" /></p>
       ) : events.length === 0 ? (
-        <p>No Stripe events recorded.</p>
+        <p><L ar="لا توجد أحداث Stripe مسجَّلة." en="No Stripe events recorded." /></p>
       ) : (
         <div style={{ overflowX: 'auto' }}>
           <table className="admin-table" style={{ width: '100%', fontSize: '0.85rem' }}>
             <thead>
               <tr>
-                <th>Received</th>
-                <th>Event ID</th>
-                <th>Type</th>
-                <th>Case</th>
-                <th>Amount</th>
-                <th>Payment status</th>
+                <th>{pick({ ar: 'تاريخ الاستلام', en: 'Received' })}</th>
+                <th>{pick({ ar: 'معرّف الحدث', en: 'Event ID' })}</th>
+                <th>{pick({ ar: 'النوع', en: 'Type' })}</th>
+                <th>{pick({ ar: 'الطلب', en: 'Case' })}</th>
+                <th>{pick({ ar: 'المبلغ', en: 'Amount' })}</th>
+                <th>{pick({ ar: 'حالة الدفع', en: 'Payment status' })}</th>
                 <th></th>
               </tr>
             </thead>
@@ -137,9 +147,13 @@ export default function AdminStripeEvents() {
                         className="btn btn--sm btn--outline"
                         disabled={!replayable || busy === e.event_id}
                         onClick={() => onReplay(e.event_id)}
-                        title={replayable ? 'Re-run the handler' : 'No handler registered for this event type'}
+                        title={replayable
+                          ? pick({ ar: 'إعادة تشغيل المعالج', en: 'Re-run the handler' })
+                          : pick({ ar: 'لا يوجد معالج مسجَّل لهذا النوع من الأحداث', en: 'No handler registered for this event type' })}
                       >
-                        {busy === e.event_id ? 'Replaying…' : 'Replay'}
+                        {busy === e.event_id
+                          ? pick({ ar: 'جارٍ الإعادة…', en: 'Replaying…' })
+                          : pick({ ar: 'إعادة', en: 'Replay' })}
                       </button>
                     </td>
                   </tr>
@@ -151,10 +165,10 @@ export default function AdminStripeEvents() {
       )}
 
       <p style={{ marginTop: '1rem', fontSize: '0.85rem', color: '#6b7280' }}>
-        Replay use-cases: the handler errored mid-transition (DB blip,
-        downstream service down) so Stripe sees 200 but our side-effects
-        never ran. Each replay is recorded in the audit log
-        (<code>stripe_event_replayed</code>).
+        <L
+          ar={<>متى تُستخدم إعادة التشغيل: عندما يفشل المعالج في منتصف المعاملة (انقطاع قاعدة البيانات أو خدمة خارجية) فيرى Stripe ردّاً ناجحاً (200) بينما لا تُنفَّذ التأثيرات الجانبية لدينا. كل إعادة تشغيل تُسجَّل في سجل التدقيق (<code>stripe_event_replayed</code>).</>}
+          en={<>Replay use-cases: the handler errored mid-transition (DB blip, downstream service down) so Stripe sees 200 but our side-effects never ran. Each replay is recorded in the audit log (<code>stripe_event_replayed</code>).</>}
+        />
       </p>
     </div>
   );

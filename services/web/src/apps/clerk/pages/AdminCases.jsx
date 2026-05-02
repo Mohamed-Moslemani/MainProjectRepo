@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { adminApi } from '@shared/api/admin';
 import AgeBadge from '@shared/components/AgeBadge';
 import ReconciliationDiff from '@shared/components/ReconciliationDiff';
-import L from '@shared/components/L';
+import L, { useL } from '@shared/components/L';
 import { useAuth } from '@shared/context/useAuth';
 import { useToast } from '@shared/context/useToast';
 import { useConfirm } from '@shared/components/ConfirmDialog';
@@ -47,6 +47,7 @@ export default function AdminCases() {
   const { user } = useAuth();
   const toast = useToast();
   const confirm = useConfirm();
+  const { pick } = useL();
   const [searchParams, setSearchParams] = useSearchParams();
   const filterStatus = searchParams.get('status') || '';
 
@@ -154,7 +155,7 @@ export default function AdminCases() {
       setCases(data.cases);
       setTotal(data.total);
     } catch (err) {
-      setError(err.response?.data?.detail || 'فشل في تحميل الطلبات');
+      setError(err.response?.data?.detail || pick({ ar: 'فشل في تحميل الطلبات', en: 'Failed to load cases' }));
     } finally {
       setLoading(false);
     }
@@ -208,7 +209,7 @@ export default function AdminCases() {
       window.URL.revokeObjectURL(url);
     } catch {
       // Inline alert is enough — no toast wired into this page yet.
-      setError('فشل في تصدير CSV');
+      setError(pick({ ar: 'فشل في تصدير CSV', en: 'Failed to export CSV' }));
     }
   };
 
@@ -265,7 +266,7 @@ export default function AdminCases() {
           type="button"
           className="btn-small btn-small--ghost"
           onClick={handleExportCsv}
-          title="Export current filter to CSV"
+          title={pick({ ar: 'تصدير الفلتر الحالي إلى CSV', en: 'Export current filter to CSV' })}
         >
           ⬇ <L ar="تصدير CSV" en="Export CSV" />
         </button>
@@ -435,10 +436,10 @@ export default function AdminCases() {
                                   if (!ok) return;
                                   try {
                                     await adminApi.deleteCase(c.id);
-                                    toast.success(`Deleted ${c.tracking_id}`);
+                                    toast.success(pick({ ar: `تم حذف ${c.tracking_id}`, en: `Deleted ${c.tracking_id}` }));
                                     loadCases();
                                   } catch (err) {
-                                    toast.error(err.response?.data?.detail || 'Delete failed');
+                                    toast.error(err.response?.data?.detail || pick({ ar: 'فشل في الحذف', en: 'Delete failed' }));
                                   }
                                 }}
                               >

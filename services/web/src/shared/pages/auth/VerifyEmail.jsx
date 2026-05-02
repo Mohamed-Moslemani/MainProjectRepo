@@ -3,9 +3,10 @@ import { Link, useLocation } from 'react-router-dom';
 import AuthLayout from '@shared/components/AuthLayout';
 import { authApi } from '@shared/api/auth';
 import '@shared/styles/verify.css';
-import L from '@shared/components/L';
+import L, { useL } from '@shared/components/L';
 
 export default function VerifyEmail() {
+  const { pick } = useL();
   const location = useLocation();
   const emailFromState = location.state?.email;
 
@@ -68,10 +69,13 @@ export default function VerifyEmail() {
     try {
       await authApi.verifyEmail(codeStr);
       setStatus('success');
-      setMessage('تم التحقق من بريدك الإلكتروني بنجاح!');
+      setMessage(pick({ ar: 'تم التحقق من بريدك الإلكتروني بنجاح!', en: 'Your email has been verified!' }));
     } catch (err) {
       setStatus('error');
-      setMessage(err.response?.data?.detail || 'رمز غير صالح أو منتهي الصلاحية.');
+      setMessage(err.response?.data?.detail || pick({
+        ar: 'رمز غير صالح أو منتهي الصلاحية.',
+        en: 'Invalid or expired code.',
+      }));
     } finally {
       setLoading(false);
     }
@@ -94,7 +98,10 @@ export default function VerifyEmail() {
       setMessage('');
       setTimeout(() => setResendDone(false), 5000);
     } catch {
-      setMessage('فشل في إعادة الإرسال. يرجى المحاولة مرة أخرى.');
+      setMessage(pick({
+        ar: 'فشل في إعادة الإرسال. يرجى المحاولة مرة أخرى.',
+        en: 'Failed to resend. Please try again.',
+      }));
     } finally {
       setResendLoading(false);
     }
@@ -192,7 +199,7 @@ export default function VerifyEmail() {
                   <input
                     type="email"
                     className="form-input"
-                    placeholder="أدخل بريدك الإلكتروني"
+                    placeholder={pick({ ar: 'أدخل بريدك الإلكتروني', en: 'Enter your email' })}
                     value={resendEmail}
                     onChange={(e) => setResendEmail(e.target.value)}
                     style={{ maxWidth: 280, margin: '0 auto', textAlign: 'center' }}

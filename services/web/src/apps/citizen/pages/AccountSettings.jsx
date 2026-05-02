@@ -6,7 +6,7 @@ import { useToast } from '@shared/context/useToast';
 import { isLebanesePhone, normalizeLebanesePhone } from '@shared/utils/lebanesePhone';
 import flagImg from '@shared/assets/Figure_1.png';
 import '@shared/styles/dashboard.css';
-import L from '@shared/components/L';
+import L, { useL } from '@shared/components/L';
 
 /**
  * Citizen account settings: profile edit + password change.
@@ -18,6 +18,7 @@ import L from '@shared/components/L';
  */
 export default function AccountSettings() {
   const toast = useToast();
+  const { pick } = useL();
   const [me, setMe] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -51,7 +52,7 @@ export default function AccountSettings() {
           religious_sect: data.religious_sect || '',
         });
       })
-      .catch(() => toast.error('فشل في تحميل بيانات الحساب'))
+      .catch(() => toast.error(pick({ ar: 'فشل في تحميل بيانات الحساب', en: 'Failed to load account data' })))
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
@@ -65,7 +66,10 @@ export default function AccountSettings() {
   const onProfileSubmit = async (e) => {
     e.preventDefault();
     if (profileDraft.phone && !isLebanesePhone(profileDraft.phone)) {
-      toast.error('رقم الهاتف غير صالح. استخدم صيغة لبنانية (مثال: +961 70 123 456).');
+      toast.error(pick({
+        ar: 'رقم الهاتف غير صالح. استخدم صيغة لبنانية (مثال: +961 70 123 456).',
+        en: 'Invalid phone number. Use Lebanese format (e.g. +961 70 123 456).',
+      }));
       return;
     }
     const patch = {
@@ -79,9 +83,9 @@ export default function AccountSettings() {
     try {
       const { data } = await authApi.updateProfile(patch);
       setMe(data);
-      toast.success('تم حفظ التعديلات');
+      toast.success(pick({ ar: 'تم حفظ التعديلات', en: 'Changes saved' }));
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'فشل في حفظ التعديلات');
+      toast.error(err.response?.data?.detail || pick({ ar: 'فشل في حفظ التعديلات', en: 'Failed to save changes' }));
     } finally {
       setSavingProfile(false);
     }
@@ -90,28 +94,31 @@ export default function AccountSettings() {
   const onPasswordSubmit = async (e) => {
     e.preventDefault();
     if (!pwd.current || !pwd.next) {
-      toast.error('الرجاء إدخال كلمة المرور الحالية والجديدة');
+      toast.error(pick({ ar: 'الرجاء إدخال كلمة المرور الحالية والجديدة', en: 'Please enter both your current and new password' }));
       return;
     }
     if (pwd.next.length < 8) {
-      toast.error('كلمة المرور الجديدة يجب أن تكون 8 أحرف على الأقل');
+      toast.error(pick({ ar: 'كلمة المرور الجديدة يجب أن تكون 8 أحرف على الأقل', en: 'New password must be at least 8 characters' }));
       return;
     }
     if (pwd.next !== pwd.confirm) {
-      toast.error('كلمتا المرور غير متطابقتين');
+      toast.error(pick({ ar: 'كلمتا المرور غير متطابقتين', en: 'Passwords do not match' }));
       return;
     }
     if (pwd.next === pwd.current) {
-      toast.error('كلمة المرور الجديدة يجب أن تختلف عن الحالية');
+      toast.error(pick({ ar: 'كلمة المرور الجديدة يجب أن تختلف عن الحالية', en: 'New password must differ from current' }));
       return;
     }
     setChangingPwd(true);
     try {
       await authApi.changePassword(pwd.current, pwd.next);
-      toast.success('تم تغيير كلمة المرور. سيتم تسجيل خروج باقي الجلسات.');
+      toast.success(pick({
+        ar: 'تم تغيير كلمة المرور. سيتم تسجيل خروج باقي الجلسات.',
+        en: 'Password changed. Other sessions will be logged out.',
+      }));
       setPwd({ current: '', next: '', confirm: '' });
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'فشل في تغيير كلمة المرور');
+      toast.error(err.response?.data?.detail || pick({ ar: 'فشل في تغيير كلمة المرور', en: 'Failed to change password' }));
     } finally {
       setChangingPwd(false);
     }
@@ -154,11 +161,16 @@ export default function AccountSettings() {
             <L>{{ ar: <>لا يمكن تعديل هذه الحقول هنا — تستخدم لمطابقة سجل القيد المدني.</>, en: <>These fields can't be edited here — they're matched against the civil registry.</> }}</L>
           </p>
           <dl className="case-detail__dl" style={{ marginTop: '0.75rem' }}>
-            <dt>Email</dt><dd>{me.email}{me.email_verified ? ' ✓' : ''}</dd>
-            <dt>Full name</dt><dd>{me.full_name}</dd>
-            <dt>Date of birth</dt><dd>{me.date_of_birth || '—'}</dd>
-            <dt>Registry №</dt><dd>{me.registry_number || '—'}</dd>
-            <dt>Registry place</dt><dd>{me.registry_place || '—'}</dd>
+            <dt><L ar="البريد الإلكتروني" en="Email" /></dt>
+            <dd>{me.email}{me.email_verified ? ' ✓' : ''}</dd>
+            <dt><L ar="الاسم الكامل" en="Full name" /></dt>
+            <dd>{me.full_name}</dd>
+            <dt><L ar="تاريخ الولادة" en="Date of birth" /></dt>
+            <dd>{me.date_of_birth || '—'}</dd>
+            <dt><L ar="رقم السجل" en="Registry №" /></dt>
+            <dd>{me.registry_number || '—'}</dd>
+            <dt><L ar="محل السجل" en="Registry place" /></dt>
+            <dd>{me.registry_place || '—'}</dd>
           </dl>
         </section>
 
@@ -201,10 +213,10 @@ export default function AccountSettings() {
                 onChange={(e) => setProfileDraft({ ...profileDraft, marital_status: e.target.value })}
               >
                 <option value="">—</option>
-                <option value="single">Single</option>
-                <option value="married">Married</option>
-                <option value="divorced">Divorced</option>
-                <option value="widowed">Widowed</option>
+                <option value="single">{pick({ ar: 'أعزب/عزباء', en: 'Single' })}</option>
+                <option value="married">{pick({ ar: 'متزوج/ة', en: 'Married' })}</option>
+                <option value="divorced">{pick({ ar: 'مطلّق/ة', en: 'Divorced' })}</option>
+                <option value="widowed">{pick({ ar: 'أرمل/ة', en: 'Widowed' })}</option>
               </select>
             </label>
             <label>
@@ -213,19 +225,19 @@ export default function AccountSettings() {
                 value={profileDraft.religious_sect || ''}
                 onChange={(e) => setProfileDraft({ ...profileDraft, religious_sect: e.target.value })}
               >
-                <option value="">— (declined to state)</option>
+                <option value="">{pick({ ar: '— (يفضّل عدم الإفصاح)', en: '— (declined to state)' })}</option>
                 {sects.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.ar} / {s.en}
+                    {pick({ ar: s.ar, en: s.en })}
                   </option>
                 ))}
               </select>
             </label>
             <button type="submit" className="btn btn--primary" disabled={savingProfile}>
-              {savingProfile ? 'Saving…' : (
-                <>
-                  <L ar="حفظ التعديلات" en="· Save" />
-                </>
+              {savingProfile ? (
+                <L ar="جارٍ الحفظ…" en="Saving…" />
+              ) : (
+                <L ar="حفظ التعديلات" en="· Save" />
               )}
             </button>
           </form>
@@ -267,10 +279,10 @@ export default function AccountSettings() {
               />
             </label>
             <button type="submit" className="btn btn--primary" disabled={changingPwd}>
-              {changingPwd ? 'Changing…' : (
-                <>
-                  <L ar="تغيير كلمة المرور" en="· Change" />
-                </>
+              {changingPwd ? (
+                <L ar="جارٍ التغيير…" en="Changing…" />
+              ) : (
+                <L ar="تغيير كلمة المرور" en="· Change" />
               )}
             </button>
             <p style={{ fontSize: '0.8rem', color: '#6b7280' }}>

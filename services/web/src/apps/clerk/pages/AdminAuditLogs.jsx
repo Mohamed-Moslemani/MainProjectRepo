@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { adminApi } from '@shared/api/admin';
-import L from '@shared/components/L';
+import L, { useL } from '@shared/components/L';
 
 const PAGE_SIZE = 30;
 
@@ -18,9 +18,24 @@ const ACTION_LABELS = {
   payment_created: { ar: 'إنشاء دفعة', en: 'Payment Created' },
   payment_completed: { ar: 'اكتمال الدفعة', en: 'Payment Completed' },
   payment_failed: { ar: 'فشل الدفعة', en: 'Payment Failed' },
+  ocr_completed: { ar: 'اكتمال OCR', en: 'OCR Completed' },
+  llm_extraction_completed: { ar: 'استخراج بالذكاء الاصطناعي', en: 'LLM Extraction' },
+  reconciliation_completed: { ar: 'اكتمال المطابقة', en: 'Reconciliation Completed' },
+  face_verification_completed: { ar: 'اكتمال التحقق من الوجه', en: 'Face Verification' },
+  registry_verification_completed: { ar: 'تحقق السجل المدني', en: 'Registry Verification' },
+  registry_degraded_mode: { ar: 'السجل المدني في وضع التشغيل المنخفض', en: 'Registry Degraded Mode' },
+  manual_review_required: { ar: 'مطلوب مراجعة يدوية', en: 'Manual Review Required' },
+  form_generation_failed: { ar: 'فشل توليد الاستمارة', en: 'Form Generation Failed' },
+  mukhtar_decision: { ar: 'قرار المختار', en: 'Mukhtar Decision' },
+  mukhtar_assigned: { ar: 'تعيين مختار', en: 'Mukhtar Assigned' },
+  mukhtar_jurisdiction_violation: { ar: 'خرق صلاحية المختار', en: 'Mukhtar Jurisdiction Violation' },
+  appointment_booked: { ar: 'حجز موعد', en: 'Appointment Booked' },
+  appointment_rescheduled: { ar: 'إعادة جدولة موعد', en: 'Appointment Rescheduled' },
+  payment_succeeded: { ar: 'نجاح الدفع', en: 'Payment Succeeded' },
 };
 
 export default function AdminAuditLogs() {
+  const { pick, lang } = useL();
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -53,7 +68,7 @@ export default function AdminAuditLogs() {
       setLogs(data.logs);
       setHasMore(data.logs.length === PAGE_SIZE);
     } catch (err) {
-      setError(err.response?.data?.detail || 'فشل في تحميل سجل التدقيق');
+      setError(err.response?.data?.detail || pick({ ar: 'فشل في تحميل سجل التدقيق', en: 'Failed to load audit logs' }));
     } finally {
       setLoading(false);
     }
@@ -104,7 +119,8 @@ export default function AdminAuditLogs() {
         <input
           type="text"
           className="form-input"
-          placeholder="Case ID"
+          placeholder={pick({ ar: 'معرّف الطلب', en: 'Case ID' })}
+          aria-label={pick({ ar: 'تصفية حسب معرّف الطلب', en: 'Filter by case ID' })}
           value={filters.case_id}
           onChange={(e) => setF('case_id', e.target.value)}
           style={{ maxWidth: 200 }}
@@ -113,7 +129,8 @@ export default function AdminAuditLogs() {
         <input
           type="text"
           className="form-input"
-          placeholder="User ID"
+          placeholder={pick({ ar: 'معرّف المستخدم', en: 'User ID' })}
+          aria-label={pick({ ar: 'تصفية حسب معرّف المستخدم', en: 'Filter by user ID' })}
           value={filters.user_id}
           onChange={(e) => setF('user_id', e.target.value)}
           style={{ maxWidth: 200 }}
@@ -122,7 +139,8 @@ export default function AdminAuditLogs() {
         <input
           type="text"
           className="form-input"
-          placeholder="Request ID"
+          placeholder={pick({ ar: 'معرّف الطلب HTTP', en: 'Request ID' })}
+          aria-label={pick({ ar: 'تصفية حسب معرّف الطلب HTTP', en: 'Filter by request ID' })}
           value={filters.request_id}
           onChange={(e) => setF('request_id', e.target.value)}
           style={{ maxWidth: 200 }}
@@ -133,10 +151,11 @@ export default function AdminAuditLogs() {
           value={filters.action}
           onChange={(e) => setF('action', e.target.value)}
           style={{ maxWidth: 220 }}
+          aria-label={pick({ ar: 'تصفية حسب الإجراء', en: 'Filter by action' })}
         >
-          <option value="">All actions</option>
+          <option value="">{pick({ ar: 'جميع الإجراءات', en: 'All actions' })}</option>
           {Object.entries(ACTION_LABELS).map(([key, label]) => (
-            <option key={key} value={key}>{label.en}</option>
+            <option key={key} value={key}>{label[lang] ?? label.en}</option>
           ))}
         </select>
         <input
@@ -144,14 +163,16 @@ export default function AdminAuditLogs() {
           className="form-input"
           value={filters.since}
           onChange={(e) => setF('since', e.target.value)}
-          title="Since (inclusive)"
+          title={pick({ ar: 'من (شامل)', en: 'Since (inclusive)' })}
+          aria-label={pick({ ar: 'تاريخ البداية', en: 'Start date' })}
         />
         <input
           type="datetime-local"
           className="form-input"
           value={filters.until}
           onChange={(e) => setF('until', e.target.value)}
-          title="Until (inclusive)"
+          title={pick({ ar: 'إلى (شامل)', en: 'Until (inclusive)' })}
+          aria-label={pick({ ar: 'تاريخ النهاية', en: 'End date' })}
         />
         <button type="submit" className="btn-small btn-small--primary">
           <L ar="تطبيق" en="· Apply" />
@@ -206,7 +227,7 @@ export default function AdminAuditLogs() {
                           <button
                             type="button"
                             className="btn-link"
-                            title="Filter by this user"
+                            title={pick({ ar: 'تصفية حسب هذا المستخدم', en: 'Filter by this user' })}
                             onClick={() => { setF('user_id', log.user_id); setApplied({ ...applied, user_id: log.user_id }); setPage(0); }}
                           >
                             {log.user_id.slice(0, 8)}…
@@ -218,7 +239,7 @@ export default function AdminAuditLogs() {
                           <button
                             type="button"
                             className="btn-link"
-                            title="Filter by this case"
+                            title={pick({ ar: 'تصفية حسب هذا الطلب', en: 'Filter by this case' })}
                             onClick={() => { setF('case_id', log.case_id); setApplied({ ...applied, case_id: log.case_id }); setPage(0); }}
                           >
                             {log.case_id.slice(0, 8)}…
@@ -230,7 +251,7 @@ export default function AdminAuditLogs() {
                           <button
                             type="button"
                             className="btn-link"
-                            title="Filter by this request"
+                            title={pick({ ar: 'تصفية حسب هذا الطلب HTTP', en: 'Filter by this request' })}
                             onClick={() => { setF('request_id', log.request_id); setApplied({ ...applied, request_id: log.request_id }); setPage(0); }}
                           >
                             {log.request_id.slice(0, 8)}…

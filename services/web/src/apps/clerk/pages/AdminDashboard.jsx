@@ -38,7 +38,7 @@ export default function AdminDashboard() {
   }
 
   if (!stats) {
-    return <div className="admin-page"><div className="alert alert--error">Failed to load stats</div></div>;
+    return <div className="admin-page"><div className="alert alert--error"><L ar="فشل في تحميل الإحصائيات" en="Failed to load stats" /></div></div>;
   }
 
   const byStatus = stats.by_status || {};
