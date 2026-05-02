@@ -182,7 +182,17 @@ async def book_appointment(
         db.add(appointment)
         action = "appointment_booked"
 
-    await db.commit()
+    # The capacity check above is racy under concurrent requests:
+    # two citizens can both pass the check, then both insert. The DB
+    # has a partial unique index on (centre_id, slot_start) for active
+    # appointments — translate the resulting IntegrityError into a
+    # clean 409 instead of bubbling a 500 to the citizen.
+    from sqlalchemy.exc import IntegrityError
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="Slot already taken")
     await db.refresh(appointment)
 
     await log_action(
