@@ -199,10 +199,17 @@ jobs:
           retention-days: 30
 
   # ── Deploy to the cluster (only on develop / main) ───────────────────────
+  # Skipped entirely until DOCFLOW_DOMAIN is set as a repo variable
+  # (Settings → Secrets and variables → Actions → Variables). Until
+  # then every push runs build + sign + scan green and the deploy
+  # job appears as "skipped" in the run summary instead of failing
+  # red on a missing config the developer hasn't decided yet. The
+  # in-step DOCFLOW_DOMAIN check stays as defence-in-depth (catches
+  # the rare case where the variable is set to empty string).
   deploy:
     name: Deploy to cluster
     needs: build
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && vars.DOCFLOW_DOMAIN != ''
     runs-on: ubuntu-latest
     environment: production
     steps:
