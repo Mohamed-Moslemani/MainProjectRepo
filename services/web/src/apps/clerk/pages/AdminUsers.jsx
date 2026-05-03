@@ -39,6 +39,12 @@ export default function AdminUsers() {
   // when open. The shape matches the form payload one-to-one.
   const [modal, setModal] = useState(null);
 
+  // Note: `pick` from useL() returns a fresh function reference on
+  // every render. If we put it in the deps array of useCallback, the
+  // load function rebuilds on every render → useEffect refires →
+  // setState → re-render → infinite loop. Hard-code the fallback
+  // strings here; the error display below will still localize via
+  // pick() at render time using whichever language is current.
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -52,11 +58,11 @@ export default function AdminUsers() {
       setUsers(data.users || []);
       setTotal(data.total || 0);
     } catch (err) {
-      setError(err.response?.data?.detail || pick({ ar: 'فشل في تحميل المستخدمين', en: 'Failed to load users' }));
+      setError(err.response?.data?.detail || 'فشل في تحميل المستخدمين / Failed to load users');
     } finally {
       setLoading(false);
     }
-  }, [roleFilter, search, offset, pick]);
+  }, [roleFilter, search, offset]);
 
   useEffect(() => { load(); }, [load]);
 
