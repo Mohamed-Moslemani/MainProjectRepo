@@ -95,6 +95,10 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
       OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
+      # Kill switch: set to "false" in .env.cloud to disable all
+      # OTel auto-instrumentation. Use when an exporter regression
+      # back-pressures the app via SQLAlchemyInstrumentor.
+      TRACING_ENABLED: ${TRACING_ENABLED:-1}
       SENTRY_DSN: ${SENTRY_DSN:-}
       # Used by the sentry-tunnel router to validate which DSNs it
       # will forward to. Must match the DSN compiled into the React
@@ -126,6 +130,10 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
       OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
+      # Kill switch: set to "false" in .env.cloud to disable all
+      # OTel auto-instrumentation. Use when an exporter regression
+      # back-pressures the app via SQLAlchemyInstrumentor.
+      TRACING_ENABLED: ${TRACING_ENABLED:-1}
       SENTRY_DSN: ${SENTRY_DSN:-}
       STORAGE_S3_ENDPOINT_URL: ${STORAGE_S3_ENDPOINT_URL:-}
       STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-}
@@ -167,6 +175,10 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
       OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
+      # Kill switch: set to "false" in .env.cloud to disable all
+      # OTel auto-instrumentation. Use when an exporter regression
+      # back-pressures the app via SQLAlchemyInstrumentor.
+      TRACING_ENABLED: ${TRACING_ENABLED:-1}
       SENTRY_DSN: ${SENTRY_DSN:-}
       STORAGE_S3_ENDPOINT_URL: ${STORAGE_S3_ENDPOINT_URL:-}
       STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-}
@@ -180,6 +192,10 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
       OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
+      # Kill switch: set to "false" in .env.cloud to disable all
+      # OTel auto-instrumentation. Use when an exporter regression
+      # back-pressures the app via SQLAlchemyInstrumentor.
+      TRACING_ENABLED: ${TRACING_ENABLED:-1}
       SENTRY_DSN: ${SENTRY_DSN:-}
       STORAGE_S3_ENDPOINT_URL: ${STORAGE_S3_ENDPOINT_URL:-}
       STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-}
@@ -193,6 +209,10 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
       OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
+      # Kill switch: set to "false" in .env.cloud to disable all
+      # OTel auto-instrumentation. Use when an exporter regression
+      # back-pressures the app via SQLAlchemyInstrumentor.
+      TRACING_ENABLED: ${TRACING_ENABLED:-1}
       SENTRY_DSN: ${SENTRY_DSN:-}
       STORAGE_S3_ENDPOINT_URL: ${STORAGE_S3_ENDPOINT_URL:-}
       STORAGE_S3_ACCESS_KEY: ${STORAGE_S3_ACCESS_KEY:-}
