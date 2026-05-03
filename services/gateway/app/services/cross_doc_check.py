@@ -70,6 +70,18 @@ class CrossDocCheckResult:
     docs_compared: list[str] = field(default_factory=list)
     skipped_reason: str | None = None
 
+    def doc_vs_doc_divergences(self) -> list[FieldDivergence]:
+        """Only the divergences between two REAL OCR'd docs (excludes
+        the virtual 'declared' side). Used by the orchestrator to
+        decide hard-reject — declared-vs-doc noise comes mostly from
+        OCR misreads, not fraud, and is handled by reconciliation +
+        risk scoring (manual review) instead.
+        """
+        return [
+            d for d in self.divergences
+            if d.doc_a != "declared" and d.doc_b != "declared"
+        ]
+
     def to_dict(self) -> dict:
         return {
             "coherent": self.coherent,

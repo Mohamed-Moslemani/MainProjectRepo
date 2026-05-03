@@ -722,14 +722,24 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
         db, "cross_doc_check_completed", case_id=case.id,
         details=coherence.to_dict(),
     )
-    if not coherence.coherent:
+    # Hard-reject ONLY when two real OCR'd documents disagree with
+    # each other — that's the canonical fraud pattern (mom's ID +
+    # my registry). Declared-vs-doc divergence usually means OCR
+    # misread a single character on the doc OR the citizen typed
+    # their name slightly differently from how it's printed; that
+    # signal already feeds reconciliation's integrity_score and the
+    # risk engine handles it via manual review. Hard-rejecting on
+    # OCR noise was bouncing legitimate id_new flows where the user
+    # had only one identity doc + their declared values.
+    real_divergences = coherence.doc_vs_doc_divergences()
+    if real_divergences:
         ar_msg, en_msg = summarize_for_citizen(coherence)
         case.retake_reasons = [{
             "document_type": "_cross_doc_mismatch",
             "code": "documents_describe_different_people",
             "reasons": [en_msg],
             "reasons_ar": [ar_msg],
-            "fields": sorted({d.label for d in coherence.divergences}),
+            "fields": sorted({d.label for d in real_divergences}),
         }]
         case.rejection_reasons = [
             "Cross-document identity check failed: uploaded documents "
