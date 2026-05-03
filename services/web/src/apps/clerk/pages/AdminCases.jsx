@@ -141,7 +141,7 @@ export default function AdminCases() {
     setSelected(new Set());
     setBulkRunning(false);
     await loadCases();
-    alert(`Bulk transition done: ${okCount} succeeded, ${failCount} failed.`);
+    alert(`اكتمل التحديث الجماعي: نجح ${okCount}، فشل ${failCount}.`);
   };
 
   const loadCases = useCallback(async () => {

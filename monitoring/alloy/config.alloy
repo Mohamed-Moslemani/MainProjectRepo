@@ -1,0 +1,30 @@
+// Grafana Alloy config — scrapes the same /metrics endpoints
+// Prometheus used to scrape, then remote_writes to Grafana Cloud
+// Mimir. Replaces the local prometheus container in cloud mode.
+//
+// Auth uses the Prometheus username (numeric stack ID) + a Grafana
+// Cloud API token with `metrics:write` scope as the password. Find
+// both at https://grafana.com/orgs/<your-org>/stacks/<id> →
+// "Send Metrics" panel.
+
+prometheus.scrape "app_services" {
+  targets = [
+    { __address__ = "gateway:8000",  job = "gateway",  service = "gateway"  },
+    { __address__ = "ocr:8001",      job = "ocr",      service = "ocr"      },
+    { __address__ = "face:8002",     job = "face",     service = "face"     },
+    { __address__ = "registry:8003", job = "registry", service = "registry" },
+  ]
+  metrics_path    = "/metrics"
+  scrape_interval = "15s"
+  forward_to      = [prometheus.remote_write.grafana_cloud.receiver]
+}
+
+prometheus.remote_write "grafana_cloud" {
+  endpoint {
+    url = sys.env("GRAFANA_CLOUD_PROM_URL")
+    basic_auth {
+      username = sys.env("GRAFANA_CLOUD_PROM_USER")
+      password = sys.env("GRAFANA_CLOUD_PROM_API_KEY")
+    }
+  }
+}

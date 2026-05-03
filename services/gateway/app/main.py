@@ -18,6 +18,7 @@ from .middleware.rate_limit import init_redis, close_redis
 from .routers import auth, cases, payments, admin, liveness, mukhtar
 from .routers import appointments as appointments_router
 from .routers import reference as reference_router
+from .routers import sentry_tunnel as sentry_tunnel_router
 
 logging.basicConfig(level=logging.INFO)
 install_logging_filter()
@@ -94,6 +95,9 @@ app.include_router(appointments_router.case_router)
 # Static reference data (sects, centres, validity tiers, renewal
 # reasons) so the React bundle doesn't have to redeclare them.
 app.include_router(reference_router.router)
+# Same-origin Sentry envelope tunnel: bypasses browser ad-blockers
+# that block direct POSTs to *.ingest.sentry.io. See router docstring.
+app.include_router(sentry_tunnel_router.router)
 
 
 @app.get("/health")

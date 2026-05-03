@@ -6,6 +6,6 @@ export const livenessApi = {
   createSession: (caseId) =>
     api.post('/liveness/create-session', { case_id: caseId }),
 
-  getResults: (caseId, sessionId) =>
-    api.post('/liveness/get-results', { case_id: caseId, session_id: sessionId }),
+  getResults: (caseId, sessionId, { signal } = {}) =>
+    api.post('/liveness/get-results', { case_id: caseId, session_id: sessionId }, { signal }),
 };

@@ -89,7 +89,7 @@ export default function MukhtarCases() {
       a.click();
       window.URL.revokeObjectURL(url);
     } catch {
-      setAlert({ type: 'error', msg: 'Failed to download form' });
+      setAlert({ type: 'error', msg: 'تعذر تنزيل الاستمارة' });
     }
   };
 
@@ -104,7 +104,7 @@ export default function MukhtarCases() {
       const url = window.URL.createObjectURL(new Blob([data], { type: 'application/pdf' }));
       setPreviewUrl(url);
     } catch {
-      setAlert({ type: 'error', msg: 'Failed to load form preview' });
+      setAlert({ type: 'error', msg: 'تعذر عرض الاستمارة' });
     }
   };
   const closePreview = () => {
@@ -123,13 +123,13 @@ export default function MukhtarCases() {
       setTransferReason('');
       setTransferModal(true);
     } catch {
-      setAlert({ type: 'error', msg: 'Failed to load available mukhtars' });
+      setAlert({ type: 'error', msg: 'تعذر تحميل قائمة المخاتير المتاحين' });
     }
   };
 
   const handleTransfer = async () => {
     if (!transferTarget) {
-      setAlert({ type: 'error', msg: 'Select a mukhtar to transfer to' });
+      setAlert({ type: 'error', msg: 'اختر مختاراً لتحويل الطلب إليه' });
       return;
     }
     setDeciding(true);
@@ -219,7 +219,7 @@ export default function MukhtarCases() {
             className={`btn btn--sm ${filter === f ? 'btn--primary' : 'btn--ghost'}`}
             onClick={() => setFilter(f)}
           >
-            {f === '' ? 'All' : (STATUS_LABELS[f]?.en || f)}
+            {f === '' ? 'الكل' : (STATUS_LABELS[f]?.ar || f)}
           </button>
         ))}
       </div>
@@ -258,7 +258,7 @@ export default function MukhtarCases() {
                     <td style={{ fontSize: '0.85rem' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                         <AgeBadge createdAt={c.created_at} />
-                        <span style={{ color: '#6b7280' }}>{new Date(c.created_at).toLocaleDateString('en-GB')}</span>
+                        <span style={{ color: '#6b7280' }}>{new Date(c.created_at).toLocaleDateString('ar-LB')}</span>
                       </div>
                     </td>
                     <td>
@@ -335,7 +335,7 @@ export default function MukhtarCases() {
                           {isImage ? (
                             <AuthImage
                               src={imgUrl}
-                              alt={docLabel.en}
+                              alt={docLabel.ar}
                               style={{ width: '100%', height: '180px', objectFit: 'cover', cursor: 'pointer', background: '#f3f4f6' }}
                               onClick={() => {
                                 const token = localStorage.getItem('access_token');
@@ -349,7 +349,7 @@ export default function MukhtarCases() {
                             />
                           ) : (
                             <div style={{ width: '100%', height: '180px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f3f4f6', color: 'var(--gray-400)' }}>
-                              PDF
+                              ملف PDF
                             </div>
                           )}
                           <div style={{ padding: '0.5rem 0.75rem' }}>
@@ -389,8 +389,8 @@ export default function MukhtarCases() {
                     </div>
                     {detail.verification_summary?.liveness_confidence != null && (
                       <div style={{ fontSize: '0.75rem', marginTop: '0.25rem' }}>
-                        Liveness: {detail.verification_summary.liveness_confidence}%
-                        {detail.verification_summary.face_similarity != null && ` | Face match: ${detail.verification_summary.face_similarity}%`}
+                        كشف الحياة: {detail.verification_summary.liveness_confidence}%
+                        {detail.verification_summary.face_similarity != null && ` | تطابق الوجه: ${detail.verification_summary.face_similarity}%`}
                       </div>
                     )}
                   </div>
@@ -401,11 +401,11 @@ export default function MukhtarCases() {
                     <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#1e40af' }}>
                       {detail.verification_summary?.data_integrity != null
                         ? `${(detail.verification_summary.data_integrity * 100).toFixed(0)}%`
-                        : 'N/A'}
+                        : 'غير متوفر'}
                     </div>
                     {detail.verification_summary?.mismatches?.length > 0 && (
                       <div style={{ fontSize: '0.75rem', color: '#dc2626', marginTop: '0.25rem' }}>
-                        Mismatches: {detail.verification_summary.mismatches.join(', ')}
+                        تباينات: {detail.verification_summary.mismatches.join('، ')}
                       </div>
                     )}
                   </div>
@@ -583,7 +583,7 @@ export default function MukhtarCases() {
                     onChange={(e) => setTransferReason(e.target.value)}
                     rows={2}
                     style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--gray-300)', resize: 'vertical' }}
-                    placeholder="e.g. This person is in the other mukhtar's zone..."
+                    placeholder="مثلاً: هذا الشخص يقيم في نطاق المختار الآخر..."
                   />
                 </div>
               </>

@@ -101,7 +101,7 @@ export default function AdminReviewQueue() {
         payload.status = 'need_info';
       }
       await adminApi.updateCaseStatus(selectedCase.id, payload);
-      setSuccess(`Case ${selectedCase.tracking_id} updated to ${payload.status}`);
+      setSuccess(`تم تحديث الطلب ${selectedCase.tracking_id} إلى ${payload.status}`);
       setActionModal(null);
       setNotes('');
       setRejectionReasons('');
@@ -110,7 +110,7 @@ export default function AdminReviewQueue() {
       setTimeout(() => setSuccess(''), 4000);
       loadQueue();
     } catch (err) {
-      alert(err.response?.data?.detail || 'Failed to update');
+      alert(err.response?.data?.detail || 'تعذر تحديث الطلب');
     } finally {
       setSubmitting(false);
     }

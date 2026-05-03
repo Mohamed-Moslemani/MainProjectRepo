@@ -64,7 +64,6 @@ export default function Login() {
             name="email"
             type="email"
             className="form-input"
-            placeholder="you@example.com"
             value={form.email}
             onChange={handleChange}
             required

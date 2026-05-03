@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { FaceLivenessDetectorCore } from '@aws-amplify/ui-react-liveness';
 import '@aws-amplify/ui-react/styles.css';
 import { livenessApi } from '@shared/api/liveness';
@@ -14,15 +14,68 @@ import '@shared/styles/liveness.css';
  *   onError      — callback(errorMessage)
  *   onCancel     — callback when user cancels
  */
+// AWS Rekognition's FaceLivenessDetectorCore refuses to start when
+// the viewport is mobile-sized AND wider-than-tall, but it ALSO mounts
+// its own UI and opens the WebSocket before deciding to bail — leaving
+// the user staring at "Connecting…" for several seconds before the
+// final MOBILE_LANDSCAPE_ERROR. We pre-empt that decision client-side
+// using the same heuristic AWS's SDK uses (window width < 769 px AND
+// width > height). When the heuristic matches, render a rotate-device
+// screen instead of mounting the SDK at all.
+const SDK_MOBILE_BREAKPOINT_PX = 769;
+function detectAwsLandscapeReject() {
+  if (typeof window === 'undefined') return false;
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  return w < SDK_MOBILE_BREAKPOINT_PX && w > h;
+}
+
 export default function LivenessCheck({ caseId, onComplete, onError, onCancel }) {
   const [sessionId, setSessionId] = useState(null);
   const [region, setRegion] = useState(null);
   const [credentials, setCredentials] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [awsLandscapeReject, setAwsLandscapeReject] = useState(detectAwsLandscapeReject);
 
-  // Create session + fetch credentials on mount
+  // Track viewport rotations so the user can recover by simply
+  // rotating their device — no remount, no reload.
   useEffect(() => {
+    const onResize = () => setAwsLandscapeReject(detectAwsLandscapeReject());
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onResize);
+    };
+  }, []);
+
+  // Latest callback refs. The init effect MUST NOT redeclare these as
+  // dependencies — every parent re-render hands in a fresh function
+  // reference, which would re-fire init(), create a brand new AWS
+  // Rekognition session, and overwrite case.liveness_session_id on the
+  // backend. The Amplify SDK is already mounted with the FIRST sessionId
+  // so its onAnalysisComplete fires get-results with the stale id →
+  // gateway returns 400 "Session ID mismatch". Stash the callbacks in a
+  // ref instead so callers can pass inline functions safely.
+  const onErrorRef = useRef(onError);
+  const onCompleteRef = useRef(onComplete);
+  const onCancelRef = useRef(onCancel);
+  useEffect(() => { onErrorRef.current = onError; }, [onError]);
+  useEffect(() => { onCompleteRef.current = onComplete; }, [onComplete]);
+  useEffect(() => { onCancelRef.current = onCancel; }, [onCancel]);
+
+  // Guard against React 18 StrictMode double-mount in dev: a second
+  // effect run would create a duplicate Rekognition session and bring
+  // back the same Session-ID-mismatch race. Inflight ref short-circuits
+  // the second invocation when the first is already in flight or done.
+  const initStartedRef = useRef(false);
+
+  // Create session + fetch credentials on mount. Only re-runs when the
+  // caseId actually changes — callbacks are read via refs above.
+  useEffect(() => {
+    if (initStartedRef.current) return;
+    initStartedRef.current = true;
     let cancelled = false;
 
     async function init() {
@@ -53,7 +106,7 @@ export default function LivenessCheck({ caseId, onComplete, onError, onCancel })
         if (!cancelled) {
           const msg = err.response?.data?.detail || 'فشل في بدء جلسة التحقق من الهوية. Failed to initialize liveness session.';
           setError(msg);
-          onError?.(msg);
+          onErrorRef.current?.(msg);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -62,19 +115,56 @@ export default function LivenessCheck({ caseId, onComplete, onError, onCancel })
 
     init();
     return () => { cancelled = true; };
-  }, [caseId, onError]);
+  }, [caseId]);
 
+  // Amplify can fire onAnalysisComplete more than once on flaky
+  // connections, AND can fire it back-to-back with onError when the
+  // session ends in a failure state (MOBILE_LANDSCAPE_ERROR,
+  // CAMERA_ACCESS_ERROR, …). De-dupe via the ref guard, plus an
+  // AbortController so we can actively cancel an in-flight call when
+  // an error fires — without it, the React state update on error
+  // unmounts the SDK widget, the browser tears the request down
+  // mid-flight, and the console shows a misleading CORS error
+  // (the request actually died as ERR_FAILED before any response).
+  const resultsFetchedRef = useRef(false);
+  const inflightAbortRef = useRef(null);
   const handleAnalysisComplete = useCallback(async () => {
+    if (resultsFetchedRef.current) return;
+    resultsFetchedRef.current = true;
+    const ctrl = new AbortController();
+    inflightAbortRef.current = ctrl;
     try {
-      const res = await livenessApi.getResults(caseId, sessionId);
-      onComplete?.(res.data);
+      const res = await livenessApi.getResults(caseId, sessionId, { signal: ctrl.signal });
+      onCompleteRef.current?.(res.data);
     } catch (err) {
+      // Cancellation by handleError or unmount — silent. The error
+      // path was/will be reported through onErrorRef there.
+      if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED' || ctrl.signal.aborted) {
+        return;
+      }
+      // Allow a retry on transient failure — only one *successful*
+      // fetch should be one-shot.
+      resultsFetchedRef.current = false;
       const msg = err.response?.data?.detail || 'تعذّر استرداد نتائج التحقق. Failed to get liveness results.';
-      onError?.(msg);
+      onErrorRef.current?.(msg);
+    } finally {
+      if (inflightAbortRef.current === ctrl) inflightAbortRef.current = null;
     }
-  }, [caseId, sessionId, onComplete, onError]);
+  }, [caseId, sessionId]);
+
+  // Abort any in-flight get-results on unmount (component leaves the
+  // tree e.g. on route change) so we don't end up with an orphaned
+  // request the browser tears down later.
+  useEffect(() => () => {
+    inflightAbortRef.current?.abort();
+  }, []);
 
   const handleError = useCallback((livenessError) => {
+    // Suppress the spurious onAnalysisComplete the SDK may fire after
+    // onError, AND cancel any get-results that's already in flight.
+    resultsFetchedRef.current = true;
+    inflightAbortRef.current?.abort();
+
     // Amplify wraps the underlying SDK error in different shapes
     // depending on what failed. Translate the well-known states
     // into something a citizen can act on; everything else falls
@@ -109,8 +199,8 @@ export default function LivenessCheck({ caseId, onComplete, onError, onCancel })
         || 'حدث خطأ أثناء التحقق من الهوية. Liveness check encountered an error.';
     }
     setError(msg);
-    onError?.(msg);
-  }, [onError]);
+    onErrorRef.current?.(msg);
+  }, []);
 
   if (loading) {
     return (
@@ -131,6 +221,41 @@ export default function LivenessCheck({ caseId, onComplete, onError, onCancel })
           <p style={{ marginTop: '0.5rem', fontSize: '0.875rem' }}>{error}</p>
           <button className="btn btn--sm btn--outline" style={{ marginTop: '1rem' }} onClick={onCancel}>
             <L ar="رجوع" en="Go Back" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Pre-empt AWS's MOBILE_LANDSCAPE_ERROR. If we render the SDK in a
+  // viewport AWS will reject, the user spends several seconds staring
+  // at "Connecting…" before the SDK finally errors out. We catch it
+  // first and show a clear actionable message immediately.
+  if (awsLandscapeReject) {
+    return (
+      <div className="liveness-container">
+        <div className="alert alert--warning" style={{ textAlign: 'center', padding: '2rem 1rem' }}>
+          <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }} aria-hidden>
+            ↻
+          </div>
+          <h3 style={{ marginTop: 0 }}>
+            <L
+              ar="يرجى تدوير الجهاز عمودياً"
+              en="Please rotate your device to portrait"
+            />
+          </h3>
+          <p style={{ fontSize: '0.9rem', color: 'var(--gray-600)', marginTop: '0.75rem' }}>
+            <L
+              ar="التحقق من الهوية يعمل في الوضع العمودي فقط. إذا كنت على حاسوب، صغّر نافذة المتصفّح حتى تصبح أطول من عرضها."
+              en="The identity check only works in portrait orientation. If you're on a desktop, resize the browser window so it's taller than it is wide."
+            />
+          </p>
+          <button
+            className="btn btn--sm btn--outline"
+            style={{ marginTop: '1.5rem' }}
+            onClick={onCancel}
+          >
+            <L ar="إلغاء" en="Cancel" />
           </button>
         </div>
       </div>

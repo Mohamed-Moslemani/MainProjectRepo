@@ -420,9 +420,18 @@ async def serve_case_document_image(
         raise HTTPException(status_code=404, detail="Document not found")
 
     if doc.storage_key:
-        from ..services.storage import stream_upload
-        return StreamingResponse(
-            stream_upload(doc.storage_key),
+        # Read the whole object into memory and return as a single
+        # Response. We previously streamed via an async generator, but
+        # Cloudflare R2 (and some S3 SDK paths) close the underlying
+        # aiobotocore client before all chunks drain, which manifests
+        # in browsers as ERR_INCOMPLETE_CHUNKED_ENCODING. Document
+        # images are bounded by GATEWAY_MAX_UPLOAD_SIZE_MB (10 MB),
+        # well within memory budget per request.
+        from fastapi.responses import Response
+        from ..services.storage import fetch_upload
+        body = await fetch_upload(doc.storage_key)
+        return Response(
+            content=body,
             media_type=doc.mime_type,
             headers={"Content-Disposition": f'inline; filename="{doc.original_filename}"'},
         )

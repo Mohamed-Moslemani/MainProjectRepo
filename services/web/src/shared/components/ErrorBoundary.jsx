@@ -71,21 +71,10 @@ export default class ErrorBoundary extends Component {
           }}
         >
           <h1 style={{ fontSize: '1.4rem', marginTop: 0 }}>
-            <span lang="ar" style={{ display: 'block' }}>
-              حدث خطأ غير متوقع
-            </span>
-            <span lang="en" style={{ fontSize: '1rem', color: '#6b7280' }}>
-              Something went wrong
-            </span>
+            حدث خطأ غير متوقع
           </h1>
           <p style={{ color: '#374151', lineHeight: 1.6 }}>
-            <span lang="ar" style={{ display: 'block' }}>
-              يمكنك إعادة تحميل الصفحة أو العودة للرئيسية. لم يتم فقدان بياناتك.
-            </span>
-            <span lang="en">
-              You can reload the page or go back to the dashboard. Your data
-              hasn't been lost.
-            </span>
+            يمكنك إعادة تحميل الصفحة أو العودة للرئيسية. لم يتم فقدان بياناتك.
           </p>
           <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem' }}>
             <button
@@ -101,7 +90,7 @@ export default class ErrorBoundary extends Component {
                 fontWeight: 600,
               }}
             >
-              <span lang="ar">إعادة التحميل</span>{' '}<span lang="en">Reload</span>
+              إعادة التحميل
             </button>
             <button
               type="button"
@@ -115,12 +104,12 @@ export default class ErrorBoundary extends Component {
                 cursor: 'pointer',
               }}
             >
-              <span lang="ar">العودة للرئيسية</span>{' '}<span lang="en">Go to dashboard</span>
+              العودة للرئيسية
             </button>
           </div>
           <details style={{ marginTop: '1.5rem', fontSize: '0.85rem', color: '#6b7280' }}>
             <summary style={{ cursor: 'pointer' }}>
-              <span lang="ar">تفاصيل تقنية</span>{' / '}<span lang="en">Technical details</span>
+              تفاصيل تقنية
             </summary>
             <pre
               style={{

@@ -9,10 +9,18 @@ import App from './App.jsx';
 // SDK works against both since GlitchTip implements the Sentry
 // protocol; pointing VITE_SENTRY_DSN at http://localhost:8005/<id>
 // or at a SaaS Sentry project both work without code changes.
+//
+// `tunnel` routes envelopes through our own gateway at
+// /api/v1/sentry-tunnel instead of hitting *.ingest.sentry.io
+// directly. ~30 % of users run an ad-blocker that drops Sentry
+// requests on sight; same-origin POSTs go through. The gateway
+// validates the envelope's DSN against an allowlist before forwarding.
 const dsn = import.meta.env.VITE_SENTRY_DSN;
 if (dsn) {
+  const apiBase = import.meta.env.VITE_API_URL || '';
   Sentry.init({
     dsn,
+    tunnel: `${apiBase}/api/v1/sentry-tunnel`,
     environment: import.meta.env.MODE,
     release: import.meta.env.VITE_GIT_SHA || 'dev',
     // Don't double-cost on traces — backend OTel already covers

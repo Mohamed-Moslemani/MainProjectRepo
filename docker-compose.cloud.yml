@@ -1,0 +1,207 @@
+# Cloud override.
+#
+# Layered on top of docker-compose.yml. Disables the local
+# observability + storage + error-tracking stack and re-points the app
+# services at managed cloud endpoints:
+#
+#   Grafana Cloud   ←  prometheus, grafana, jaeger, alertmanager,
+#                       alertmanager_sink, pushgateway, postgres-exporter,
+#                       redis-exporter
+#   Sentry          ←  glitchtip, glitchtip_db, glitchtip_worker,
+#                       glitchtip_migrate
+#   Langfuse Cloud  ←  (already cloud-pointing in .env.dev — preserved)
+#   Cloudflare R2   ←  minio, minio_init
+#   Neon (optional) ←  db   (commented out by default; Postgres stays
+#                            local for dev parity unless you uncomment)
+#
+# Usage:
+#
+#   # Local-only (default):
+#   docker compose up -d
+#
+#   # Cloud-everything:
+#   docker compose --env-file .env.cloud \
+#     -f docker-compose.yml -f docker-compose.cloud.yml up -d
+#
+# The disabled services use the "off" profile, which is never selected
+# in normal `up` invocations — Compose silently skips them.
+
+services:
+  # ── Disabled in cloud mode ──────────────────────────────────────
+  # All replaced by Grafana Cloud (metrics, dashboards, traces, alerts).
+  prometheus:
+    profiles: ["off"]
+  alertmanager:
+    profiles: ["off"]
+  alertmanager_sink:
+    profiles: ["off"]
+  grafana:
+    profiles: ["off"]
+  jaeger:
+    profiles: ["off"]
+  pushgateway:
+    profiles: ["off"]
+  postgres-exporter:
+    profiles: ["off"]
+  redis-exporter:
+    profiles: ["off"]
+
+  # Replaced by Sentry SaaS.
+  glitchtip:
+    profiles: ["off"]
+  glitchtip_db:
+    profiles: ["off"]
+  glitchtip_worker:
+    profiles: ["off"]
+  glitchtip_migrate:
+    profiles: ["off"]
+
+  # Replaced by Cloudflare R2 (S3-compatible).
+  minio:
+    profiles: ["off"]
+  minio_init:
+    profiles: ["off"]
+
+  # Optional: Neon-hosted Postgres for the gateway DB. Uncomment to
+  # disable the local Postgres container — but for dev iteration speed
+  # we recommend keeping db local and only flipping db→Neon for
+  # public deploys.
+  # db:
+  #   profiles: ["off"]
+
+  # ── App services: re-point to cloud endpoints ───────────────────
+  # Each service inherits its base config from docker-compose.yml; we
+  # only override env vars that need to differ in cloud mode. Values
+  # come from .env.cloud (loaded via --env-file).
+
+  gateway:
+    environment:
+      # Optional Neon override — set GATEWAY_DATABASE_URL in .env.cloud
+      # only if you also disabled the `db` service above. Otherwise
+      # this resolves to the .env.cloud value if present, else falls
+      # back to the local-Postgres URL inherited from the base file.
+      GATEWAY_DATABASE_URL: ${GATEWAY_DATABASE_URL:-postgresql+asyncpg://docflow:docflow@db:5432/docflow}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      # Used by the sentry-tunnel router to validate which DSNs it
+      # will forward to. Must match the DSN compiled into the React
+      # bundle — same value supplied as build arg below.
+      VITE_SENTRY_DSN: ${VITE_SENTRY_DSN:-}
+      STORAGE_S3_ENDPOINT_URL: ${STORAGE_S3_ENDPOINT_URL:-}
+      STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-}
+      STORAGE_S3_REGION: ${STORAGE_S3_REGION:-auto}
+      STORAGE_S3_ACCESS_KEY: ${STORAGE_S3_ACCESS_KEY:-}
+      STORAGE_S3_SECRET_KEY: ${STORAGE_S3_SECRET_KEY:-}
+      STORAGE_S3_FORCE_PATH_STYLE: ${STORAGE_S3_FORCE_PATH_STYLE:-false}
+    # !reset replaces the base file's depends_on (which includes
+    # minio_init) — minio_init is disabled in cloud mode.
+    depends_on: !reset
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  gateway_worker:
+    environment:
+      GATEWAY_DATABASE_URL: ${GATEWAY_DATABASE_URL:-postgresql+asyncpg://docflow:docflow@db:5432/docflow}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      STORAGE_S3_ENDPOINT_URL: ${STORAGE_S3_ENDPOINT_URL:-}
+      STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-}
+      STORAGE_S3_REGION: ${STORAGE_S3_REGION:-auto}
+      STORAGE_S3_ACCESS_KEY: ${STORAGE_S3_ACCESS_KEY:-}
+      STORAGE_S3_SECRET_KEY: ${STORAGE_S3_SECRET_KEY:-}
+      STORAGE_S3_FORCE_PATH_STYLE: ${STORAGE_S3_FORCE_PATH_STYLE:-false}
+
+  # The cron command in the base file hard-codes `--pushgateway
+  # http://pushgateway:9091`, but pushgateway is disabled in cloud
+  # mode. Override the command to drop that flag — the script falls
+  # back to logging the metrics instead of pushing.
+  gateway_cron:
+    command:
+      - sh
+      - -c
+      - |
+        ( while true; do python scripts/sweep_email_outbox.py || true; sleep 60; done ) &
+        while true; do python scripts/sweep_mukhtar_sla.py || true; sleep 3600; done
+    environment:
+      GATEWAY_DATABASE_URL: ${GATEWAY_DATABASE_URL:-postgresql+asyncpg://docflow:docflow@db:5432/docflow}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
+      # Cron doesn't use S3 directly but inherits these from .env.dev
+      # (which still points at the disabled MinIO). Blank them to avoid
+      # confusing error logs if any code path lazy-loads the client.
+      STORAGE_S3_ENDPOINT_URL: ${STORAGE_S3_ENDPOINT_URL:-}
+      STORAGE_S3_ACCESS_KEY: ${STORAGE_S3_ACCESS_KEY:-}
+      STORAGE_S3_SECRET_KEY: ${STORAGE_S3_SECRET_KEY:-}
+
+  ocr:
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      STORAGE_S3_ENDPOINT_URL: ${STORAGE_S3_ENDPOINT_URL:-}
+      STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-}
+      STORAGE_S3_REGION: ${STORAGE_S3_REGION:-auto}
+      STORAGE_S3_ACCESS_KEY: ${STORAGE_S3_ACCESS_KEY:-}
+      STORAGE_S3_SECRET_KEY: ${STORAGE_S3_SECRET_KEY:-}
+      STORAGE_S3_FORCE_PATH_STYLE: ${STORAGE_S3_FORCE_PATH_STYLE:-false}
+
+  face:
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      STORAGE_S3_ENDPOINT_URL: ${STORAGE_S3_ENDPOINT_URL:-}
+      STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-}
+      STORAGE_S3_REGION: ${STORAGE_S3_REGION:-auto}
+      STORAGE_S3_ACCESS_KEY: ${STORAGE_S3_ACCESS_KEY:-}
+      STORAGE_S3_SECRET_KEY: ${STORAGE_S3_SECRET_KEY:-}
+      STORAGE_S3_FORCE_PATH_STYLE: ${STORAGE_S3_FORCE_PATH_STYLE:-false}
+
+  registry:
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      STORAGE_S3_ENDPOINT_URL: ${STORAGE_S3_ENDPOINT_URL:-}
+      STORAGE_S3_ACCESS_KEY: ${STORAGE_S3_ACCESS_KEY:-}
+      STORAGE_S3_SECRET_KEY: ${STORAGE_S3_SECRET_KEY:-}
+
+  web:
+    build:
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+        VITE_SENTRY_DSN: ${VITE_SENTRY_DSN:-}
+
+  # ── Grafana Alloy: ships /metrics from local app services to ────
+  # Grafana Cloud's Mimir endpoint via remote_write. One small
+  # container that replaces the 8 we just disabled. Comment out if
+  # you don't need cloud metrics — traces still go direct via OTLP.
+  alloy:
+    image: grafana/alloy:v1.4.2
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - /etc/alloy/config.alloy
+    volumes:
+      - ./monitoring/alloy/config.alloy:/etc/alloy/config.alloy:ro
+    environment:
+      GRAFANA_CLOUD_PROM_URL: ${GRAFANA_CLOUD_PROM_URL:-}
+      GRAFANA_CLOUD_PROM_USER: ${GRAFANA_CLOUD_PROM_USER:-}
+      GRAFANA_CLOUD_PROM_API_KEY: ${GRAFANA_CLOUD_PROM_API_KEY:-}
+    ports:
+      - "12345:12345"  # Alloy debug UI
+    depends_on:
+      - gateway
+      - ocr
+      - face
+      - registry

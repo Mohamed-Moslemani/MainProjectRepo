@@ -5,6 +5,7 @@ import flagImg from '@shared/assets/Figure_1.png';
 import '@shared/styles/dashboard.css';
 import L from '@shared/components/L';
 import { useL } from '@shared/hooks/useL';
+import { useTranslation } from 'react-i18next';
 
 const STATUS_MAP = {
   draft: { ar: 'مسودة', en: 'Draft', color: 'gray' },
@@ -40,6 +41,7 @@ export default function PublicTrack() {
   const navigate = useNavigate();
 
   const { pick } = useL();
+  const { t } = useTranslation();
   const initialId = routeId || searchParams.get('id') || '';
   const [input, setInput] = useState(initialId);
   const [tracking, setTracking] = useState(null);
@@ -169,7 +171,7 @@ export default function PublicTrack() {
                   </p>
                   <p style={{ fontSize: '0.85rem', color: '#6b7280', margin: '0.5rem 0 0' }}>
                     <L ar="نوع الخدمة:" en="· Service:" />
-                    <strong>{tracking.service_type.replace('_', ' ')}</strong>
+                    <strong>{t(`service.${tracking.service_type}`, tracking.service_type)}</strong>
                   </p>
                 </div>
                 <span className={`status-badge status-badge--${st.color} status-badge--lg`}>

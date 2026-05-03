@@ -5,7 +5,6 @@ import ProtectedRoute from '@shared/components/ProtectedRoute';
 import RoleRoute from '@shared/components/RoleRoute';
 import ErrorBoundary from '@shared/components/ErrorBoundary';
 import IdleLogout from '@shared/components/IdleLogout';
-import LanguageSwitcher from '@shared/components/LanguageSwitcher';
 import { ConfirmProvider } from '@shared/components/ConfirmDialog';
 
 import Login from '@shared/pages/auth/Login';
@@ -42,10 +41,6 @@ export default function App() {
         <AuthProvider>
           <ConfirmProvider>
           <IdleLogout />
-          {/* Floating language toggle — fixed top-corner, always
-              rendered regardless of route. Inline placements inside
-              individual layouts were removed. */}
-          <LanguageSwitcher />
           <Routes>
             {/* Public — no auth required */}
             <Route path="/" element={<Landing />} />

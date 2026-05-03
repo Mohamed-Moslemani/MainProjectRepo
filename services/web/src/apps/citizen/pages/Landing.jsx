@@ -42,7 +42,7 @@ const HOW = [
 const FEATURES = [
   { ar: 'تتبع علني للطلب برقم التتبع', en: 'Public tracking by reference ID' },
   { ar: 'سجل تدقيق لكل قرار آلي', en: 'Audit log on every automated decision' },
-  { ar: 'دعم العربية والإنجليزية', en: 'Arabic + English throughout' },
+  { ar: 'واجهة عربية كاملة', en: 'Fully Arabic interface' },
   { ar: 'موافقة المختار رقمياً للجوازات', en: 'Digital mukhtar attestation for passports' },
 ];
 

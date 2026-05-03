@@ -13,6 +13,7 @@ services/web/dist/
 .env
 .env.dev
 .env.prod
+.env.cloud
 
 credentials/
 **/google-vision.json

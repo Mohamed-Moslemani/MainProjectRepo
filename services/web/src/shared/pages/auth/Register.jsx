@@ -305,7 +305,7 @@ export default function Register() {
             >
               <option value="">{pick({ ar: '-- اختر البلدة --', en: '-- Select Municipality --' })}</option>
               {availableMunicipalities.map((m) => (
-                <option key={m.value} value={m.value}>{m.en}</option>
+                <option key={m.value} value={m.value}>{m.ar || m.value}</option>
               ))}
             </select>
           </div>
