@@ -88,8 +88,50 @@ subs = {
 }
 for key, val in subs.items():
     if not val:
-        print(f"⚠ {key} is empty — receiver using it will fail to send until set.")
+        print(f"⚠ {key} is empty — receiver using it will be replaced with a no-op.")
 config_yaml = template.safe_substitute(subs)
+
+# Mimir's alertmanager validator rejects empty routing_key /
+# api_url. When the user hasn't set those secrets yet, surgically
+# rewrite the config so empty receivers become a no-op `null`
+# receiver instead of failing the whole upload. Alerts still fire
+# server-side and surface in Grafana → Alerting → Active alerts;
+# they just don't notify externally until the secrets are added.
+import yaml as _yaml  # PyYAML — listed in requirements above
+
+cfg = _yaml.safe_load(config_yaml)
+if isinstance(cfg, dict):
+    receivers = cfg.get("receivers") or []
+    healthy_names: set[str] = set()
+    for r in receivers:
+        # Drop pagerduty entries with empty routing_key
+        pd = [x for x in (r.get("pagerduty_configs") or [])
+              if (x.get("routing_key") or "").strip()]
+        if pd:
+            r["pagerduty_configs"] = pd
+        else:
+            r.pop("pagerduty_configs", None)
+
+        # Drop slack entries with empty api_url
+        sl = [x for x in (r.get("slack_configs") or [])
+              if (x.get("api_url") or "").strip()]
+        if sl:
+            r["slack_configs"] = sl
+        else:
+            r.pop("slack_configs", None)
+
+        if any(k.endswith("_configs") and r.get(k) for k in list(r.keys())):
+            healthy_names.add(r["name"])
+
+    # Replace any receiver that lost all of its sub-configs with a
+    # null receiver (Alertmanager treats `name` alone as a no-op).
+    for r in receivers:
+        if r["name"] not in healthy_names:
+            for k in list(r.keys()):
+                if k.endswith("_configs"):
+                    r.pop(k, None)
+
+    config_yaml = _yaml.safe_dump(cfg, sort_keys=False)
 
 payload = json.dumps({
     "template_files": {},
