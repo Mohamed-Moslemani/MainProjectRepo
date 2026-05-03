@@ -829,6 +829,31 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
         if all_confidence_scores else 0.0
     )
 
+    # Highest spoof score across all uploaded documents. We take the
+    # max (not the mean) because a single screen-captured doc is
+    # enough to invalidate the case, and a clean second doc shouldn't
+    # dilute the signal.
+    spoof_score_max = 0.0
+    spoof_offender: str | None = None
+    for doc_type_val, ocr_data in (results.get("ocr_results") or {}).items():
+        spoof_data = (ocr_data or {}).get("spoof") or {}
+        s = float(spoof_data.get("spoof_score") or 0.0)
+        if s > spoof_score_max:
+            spoof_score_max = s
+            spoof_offender = doc_type_val
+    if spoof_score_max > 0:
+        await log_action(
+            db, "spoof_check_completed", case_id=case.id,
+            details={
+                "max_score": round(spoof_score_max, 4),
+                "max_score_doc": spoof_offender,
+                "decisions_by_doc": {
+                    dt: ((d or {}).get("spoof") or {}).get("decision")
+                    for dt, d in (results.get("ocr_results") or {}).items()
+                },
+            },
+        )
+
     risk_result = compute_risk_score(
         ocr_avg_confidence=avg_confidence,
         face_similarity=face_similarity,
@@ -838,6 +863,7 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
         mismatch_count=len(recon_result["mismatch_flags"]),
         registry_match_score=registry_confidence,
         registry_deceased=registry_deceased,
+        spoof_score_max=spoof_score_max,
     )
     case.risk_result = risk_result
     results["risk"] = risk_result
@@ -885,6 +911,7 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
                 "registry_match_score": registry_confidence,
                 "registry_status": registry_status,
                 "registry_deceased": registry_deceased,
+                "spoof_score_max": spoof_score_max,
             },
         },
     )

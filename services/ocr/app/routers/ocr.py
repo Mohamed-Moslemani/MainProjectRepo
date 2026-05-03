@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from shared.model_info import build_model_info, hash_file
 
 from ..services.quality import assess_quality
+from ..services.spoof_detector import detect_spoof
 from ..services.google_ocr import extract_text
 # field_extractor is no longer used for routing/extraction — the LLM
 # is now the only field extractor. Kept as a module for the MRZ
@@ -76,6 +77,19 @@ async def process_document(req: ProcessRequest):
             raise HTTPException(status_code=500, detail=f"Quality assessment failed: {str(e)}")
 
         _record_quality_issues(quality)
+
+        # Document presentation-attack detection (moiré FFT, screen
+        # banding, chromatic fringing). Fails open — any exception
+        # logs and returns a clean verdict so a detector bug doesn't
+        # block a legitimate citizen. The gateway feeds spoof_score
+        # into risk scoring and routes borderline cases to manual
+        # review rather than hard-rejecting on a single signal.
+        try:
+            spoof = await asyncio.to_thread(detect_spoof, req.file_path)
+        except Exception as e:  # noqa: BLE001
+            OCR_ERRORS.labels(stage="spoof").inc()
+            logger.warning(f"spoof detector raised, defaulting to clean: {e}")
+            spoof = {"spoof_score": 0.0, "decision": "clean", "components": {}, "errors": [str(e)]}
 
         retake_reasons = []
         if not quality["is_readable"]:
@@ -301,6 +315,10 @@ async def process_document(req: ProcessRequest):
             "extracted_fields": extracted_fields,
             "confidence_scores": confidence_scores,
             "quality": quality,
+            # Presentation-attack detection: combined score + per-detector
+            # breakdown. Consumed by gateway risk scoring; never used
+            # for hard-reject (false positives on textured paper exist).
+            "spoof": spoof,
             "mrz": mrz_result,
             "retake_required": retake_required,
             "retake_reasons": retake_reasons,

@@ -54,6 +54,12 @@ def compute_risk_score(
     registry_match_score: float = 1.0,  # 0-1 from civil registry verification
     registry_deceased: bool = False,
     document_quality_avg: float | None = None,  # deprecated; retained for callers
+    # Max presentation-attack score across this case's documents
+    # (0 = clean, 1 = clearly captured from a screen). We treat it as
+    # an additive penalty rather than a sixth weighted input because
+    # spoofing is a categorical fraud signal, not a "quality of
+    # evidence" gradient — even one spoofed doc invalidates the case.
+    spoof_score_max: float = 0.0,
 ) -> dict:
     """Compute weighted risk score.
 
@@ -90,6 +96,19 @@ def compute_risk_score(
     if duplicate_detected:
         raw_score += 30
 
+    # Spoof penalty. A `likely_spoof` doc (combined detector score
+    # >= 0.75) lands +35 on the risk total, virtually guaranteeing
+    # manual review (>=60 with anything else off-baseline). A merely
+    # `suspicious` doc (>=0.55, <0.75) adds +15, which usually keeps
+    # the case in manual_review territory but doesn't auto-reject —
+    # false positives on textured paper / hologram glare are real.
+    spoof_penalty = 0.0
+    if spoof_score_max >= 0.75:
+        spoof_penalty = 35.0
+    elif spoof_score_max >= 0.55:
+        spoof_penalty = 15.0
+    raw_score += spoof_penalty
+
     # Deceased override — always reject
     if registry_deceased:
         raw_score = 100
@@ -118,6 +137,8 @@ def compute_risk_score(
             "severity": round(severity, 2),
             "mismatch_penalty": mismatch_count * 8,
             "duplicate_penalty": 30 if duplicate_detected else 0,
+            "spoof_score_max": round(float(spoof_score_max), 4),
+            "spoof_penalty": round(spoof_penalty, 2),
             "registry_deceased_override": registry_deceased,
         },
     }
