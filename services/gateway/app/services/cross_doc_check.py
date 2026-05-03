@@ -155,17 +155,28 @@ def _declared_to_identity_fields(declared: dict | None) -> dict[str, str]:
     if not declared:
         return {}
     out: dict[str, str] = {}
-    full = (declared.get("full_name") or "").strip()
-    if full:
-        # Lebanese citizen accounts store full_name in Arabic. Only
-        # project onto the *_ar keys — mapping it onto the Latin
-        # `surname`/`given_names` keys would compare Arabic vs Latin
-        # transliteration on docs that print both, causing false
-        # rejections of legitimate cases. _value()'s candidate-key
-        # order [surname_ar, surname] / [first_name_ar, given_names]
-        # already prefers Arabic when both sides have it.
-        out["surname_ar"] = full
-        out["first_name_ar"] = full
+
+    # New shape: declared_fields carries `first_name` + `surname`
+    # separately (matches Lebanese ID's الاسم / الشهرة cells and
+    # the OCR field names directly). Map onto the OCR field-name
+    # space so cross-doc comparison can reuse _value() lookups.
+    first = (declared.get("first_name") or "").strip()
+    surname = (declared.get("surname") or "").strip()
+    if first:
+        out["first_name_ar"] = first
+    if surname:
+        out["surname_ar"] = surname
+
+    # Back-compat: cases created before the split still carry
+    # `full_name` in declared_fields. If neither first nor surname
+    # is set, fall back to projecting full_name onto both Arabic
+    # cells the way the old code did.
+    if not first and not surname:
+        full = (declared.get("full_name") or "").strip()
+        if full:
+            out["surname_ar"] = full
+            out["first_name_ar"] = full
+
     for src, dst in (
         ("father_name", "father_name"),
         ("mother_name", "mother_name"),

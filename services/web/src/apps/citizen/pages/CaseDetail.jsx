@@ -45,6 +45,11 @@ const DOC_LABELS = {
 };
 
 const FIELD_LABELS = {
+  first_name: { ar: 'الاسم', en: 'First Name' },
+  surname: { ar: 'الشهرة', en: 'Surname' },
+  // Legacy: cases created before the first/surname split carry
+  // declared_fields["full_name"]. Keep the label so pre-split
+  // cases still display correctly on the read-only view.
   full_name: { ar: 'الاسم الكامل', en: 'Full Name' },
   father_name: { ar: 'اسم الأب', en: "Father's Name" },
   mother_name: { ar: 'اسم الأم', en: "Mother's Name" },
@@ -807,29 +812,48 @@ export default function CaseDetail() {
           </section>
         )}
 
-        {/* Submit Button */}
-        {canEdit && (
-          <div className="submit-section">
-            <button
-              className={`btn btn--primary btn--lg ${submitting ? 'btn--loading' : ''}`}
-              onClick={handleSubmit}
-              disabled={submitting || !completeness?.complete}
-            >
-              {submitting ? (
-                <L ar="جارٍ التقديم..." en="Submitting..." />
-              ) : (
-                <>
+        {/* Submit Button — gated on docs + declared fields together so
+            the citizen can't tap and bounce off a 400 from the backend.
+            Mirrors the same checks the backend enforces; treat this
+            block as UX, not security. */}
+        {canEdit && (() => {
+          const docsReady = !!completeness?.complete;
+          const missingDeclared = (requiredFields || []).filter((f) => {
+            const v = declaredFields[f];
+            if (typeof v === 'string') return v.trim() === '';
+            return v === undefined || v === null || v === '';
+          });
+          const declaredReady = missingDeclared.length === 0;
+          const ready = docsReady && declaredReady;
+          return (
+            <div className="submit-section">
+              <button
+                className={`btn btn--primary btn--lg ${submitting ? 'btn--loading' : ''}`}
+                onClick={handleSubmit}
+                disabled={submitting || !ready}
+              >
+                {submitting ? (
+                  <L ar="جارٍ التقديم..." en="Submitting..." />
+                ) : (
                   <L ar="تقديم الطلب" en="Submit Application" />
-                </>
+                )}
+              </button>
+              {!docsReady && completeness?.missing_documents?.length > 0 && (
+                <p className="submit-hint">
+                  <L ar="يرجى رفع جميع المستندات المطلوبة قبل التقديم" en="Please upload all required documents before submitting" />
+                </p>
               )}
-            </button>
-            {!completeness?.complete && completeness?.missing_documents?.length > 0 && (
-              <p className="submit-hint">
-                <L ar="يرجى رفع جميع المستندات المطلوبة قبل التقديم" en="Please upload all required documents before submitting" />
-              </p>
-            )}
-          </div>
-        )}
+              {docsReady && !declaredReady && (
+                <p className="submit-hint">
+                  <L
+                    ar={`يرجى تعبئة جميع البيانات الشخصية: ${missingDeclared.map((f) => FIELD_LABELS[f]?.ar || f).join('، ')}`}
+                    en={`Please fill all personal info fields: ${missingDeclared.map((f) => FIELD_LABELS[f]?.en || f).join(', ')}`}
+                  />
+                </p>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Biometric appointment CTA — passport flow gates here. */}
         {caseData?.status === 'biometric_appointment_required' && (

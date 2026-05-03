@@ -49,7 +49,7 @@ SERVICE_POLICIES = {
         "face_match_required": True,
         "needs_mrz": False,
         "declared_fields": [
-            "full_name", "father_name", "mother_name", "date_of_birth",
+            "first_name", "surname", "father_name", "mother_name", "date_of_birth",
             "registry_number", "address", "marital_status", "reason_for_renewal",
         ],
     },
@@ -76,7 +76,7 @@ SERVICE_POLICIES = {
         "face_match_required": True,
         "needs_mrz": False,
         "declared_fields": [
-            "full_name", "father_name", "mother_name", "date_of_birth",
+            "first_name", "surname", "father_name", "mother_name", "date_of_birth",
             "place_of_birth", "registry_number", "address", "marital_status",
         ],
     },
@@ -110,7 +110,7 @@ SERVICE_POLICIES = {
         "needs_mrz": True,
         "mukhtar_required": True,
         "declared_fields": [
-            "full_name", "father_name", "mother_name", "date_of_birth",
+            "first_name", "surname", "father_name", "mother_name", "date_of_birth",
             "place_of_birth", "old_passport_number", "passport_type",
             "registry_number", "registry_place",
             # GDGS form fields the citizen must pick on renewal:
@@ -151,7 +151,7 @@ SERVICE_POLICIES = {
         "needs_mrz": False,
         "mukhtar_required": True,
         "declared_fields": [
-            "full_name", "father_name", "mother_name", "date_of_birth",
+            "first_name", "surname", "father_name", "mother_name", "date_of_birth",
             "place_of_birth", "registry_number", "registry_place",
             # Validity tier drives the fee on passport_new (1y/3y/5y/10y).
             "passport_validity_years",
