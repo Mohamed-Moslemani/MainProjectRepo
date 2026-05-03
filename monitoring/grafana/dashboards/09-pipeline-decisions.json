@@ -1,0 +1,112 @@
+{
+  "id": null,
+  "uid": "docflow-pipeline-decisions",
+  "title": "DocFlow — Pipeline Decisions & Throughput",
+  "tags": ["docflow", "ai", "decisions", "production"],
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "id": 1, "type": "row", "title": "Decision composition",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }, "collapsed": false
+    },
+    {
+      "id": 2, "title": "Pipeline decisions / sec (stacked)",
+      "type": "timeseries",
+      "description": "Rate of automated routing outcomes. A spike in 'reject' or 'manual_review' relative to baseline is the earliest signal of a fraud campaign or AI regression.",
+      "gridPos": { "h": 9, "w": 16, "x": 0, "y": 1 },
+      "targets": [
+        { "expr": "sum(rate(docflow_pipeline_decisions_total[5m])) by (decision)", "legendFormat": "{{decision}}", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "custom": { "drawStyle": "line", "fillOpacity": 30, "stacking": { "mode": "normal" } } }
+      }
+    },
+    {
+      "id": 3, "title": "Decision share — last 1h",
+      "type": "piechart",
+      "gridPos": { "h": 9, "w": 8, "x": 16, "y": 1 },
+      "targets": [
+        { "expr": "sum(increase(docflow_pipeline_decisions_total[1h])) by (decision)", "legendFormat": "{{decision}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 4, "type": "row", "title": "Latency",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 10 }, "collapsed": false
+    },
+    {
+      "id": 5, "title": "End-to-end pipeline duration — p50 / p95 / p99",
+      "type": "timeseries",
+      "description": "Time from case submit → final decision (validated/risk_evaluated/approved/rejected). p95 sustained > 30s = orchestrator slow path; investigate OCR / face / registry timings individually.",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 11 },
+      "targets": [
+        { "expr": "histogram_quantile(0.5, sum(rate(docflow_pipeline_duration_seconds_bucket[5m])) by (le, service_type))",  "legendFormat": "p50 {{service_type}}", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum(rate(docflow_pipeline_duration_seconds_bucket[5m])) by (le, service_type))", "legendFormat": "p95 {{service_type}}", "refId": "B" },
+        { "expr": "histogram_quantile(0.99, sum(rate(docflow_pipeline_duration_seconds_bucket[5m])) by (le, service_type))", "legendFormat": "p99 {{service_type}}", "refId": "C" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "id": 6, "title": "OCR per-call latency — p95",
+      "type": "timeseries",
+      "description": "OCR service /process duration p95 by document type. Spike on a specific doc_type usually means a layout regression in either GCV or our LLM extractor.",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 11 },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum(rate(docflow_ocr_duration_seconds_bucket[5m])) by (le, document_type))", "legendFormat": "p95 {{document_type}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "id": 7, "type": "row", "title": "Throughput & flow",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 20 }, "collapsed": false
+    },
+    {
+      "id": 8, "title": "Cases submitted / hr — by service type",
+      "type": "timeseries",
+      "description": "Hourly submission volume per service type. Use to spot abuse campaigns (sudden spike) or upstream issues (sudden drop).",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 21 },
+      "targets": [
+        { "expr": "sum(increase(docflow_cases_submitted_total[1h])) by (service_type)", "legendFormat": "{{service_type}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "id": 9, "title": "Status transitions / sec",
+      "type": "timeseries",
+      "description": "All case-status edges. The 'submitted→validated' line is the front of the funnel; 'risk_evaluated→rejected' / 'risk_evaluated→approved' are the auto-decision splits.",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 21 },
+      "targets": [
+        { "expr": "sum(rate(docflow_case_status_transitions_total[5m])) by (from_status, to_status)", "legendFormat": "{{from_status}} → {{to_status}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "id": 10, "type": "row", "title": "Errors",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 30 }, "collapsed": false
+    },
+    {
+      "id": 11, "title": "OCR errors by stage — rate",
+      "type": "timeseries",
+      "description": "OCR pipeline-stage error counter. Each stage (quality, extract_text, classifier, llm_extract, spoof, read_image) fails differently — separate failures lets us pinpoint the broken component.",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 31 },
+      "targets": [
+        { "expr": "sum(rate(docflow_ocr_errors_total[5m])) by (stage)", "legendFormat": "{{stage}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" } }
+    },
+    {
+      "id": 12, "title": "Face errors / sec",
+      "type": "timeseries",
+      "description": "AWS Rekognition operation errors split by op (compare / liveness / liveness_results).",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 31 },
+      "targets": [
+        { "expr": "sum(rate(docflow_face_errors_total[5m])) by (operation)", "legendFormat": "{{operation}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" } }
+    }
+  ],
+  "schemaVersion": 39,
+  "version": 1
+}

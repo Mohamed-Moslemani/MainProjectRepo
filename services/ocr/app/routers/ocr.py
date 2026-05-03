@@ -25,6 +25,9 @@ from ..metrics import (
     OCR_ERRORS,
     OCR_MRZ_RESULTS,
     OCR_FIELDS_EXTRACTED,
+    OCR_SPOOF_SCORE,
+    OCR_SPOOF_COMPONENT_SCORE,
+    OCR_SPOOF_DECISIONS,
 )
 
 logger = logging.getLogger(__name__)
@@ -90,6 +93,24 @@ async def process_document(req: ProcessRequest):
             OCR_ERRORS.labels(stage="spoof").inc()
             logger.warning(f"spoof detector raised, defaulting to clean: {e}")
             spoof = {"spoof_score": 0.0, "decision": "clean", "components": {}, "errors": [str(e)]}
+
+        # Surface the spoof verdict on Prometheus so the AI dashboards
+        # can graph distributions, decision rates, and per-component
+        # contributions over time.
+        try:
+            OCR_SPOOF_SCORE.labels(document_type=req.document_type).observe(
+                float(spoof.get("spoof_score") or 0.0)
+            )
+            OCR_SPOOF_DECISIONS.labels(
+                document_type=req.document_type,
+                decision=spoof.get("decision") or "clean",
+            ).inc()
+            for cname, cdata in (spoof.get("components") or {}).items():
+                OCR_SPOOF_COMPONENT_SCORE.labels(component=cname).observe(
+                    float((cdata or {}).get("score") or 0.0)
+                )
+        except Exception:  # pragma: no cover — metrics must never crash request
+            pass
 
         retake_reasons = []
         if not quality["is_readable"]:

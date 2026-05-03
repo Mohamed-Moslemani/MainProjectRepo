@@ -1,0 +1,114 @@
+{
+  "id": null,
+  "uid": "docflow-anti-spoof",
+  "title": "DocFlow — Anti-Spoof Detection",
+  "tags": ["docflow", "ai", "spoof", "fraud", "production"],
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": { "from": "now-24h", "to": "now" },
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "id": 1, "type": "row", "title": "Decision rate",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }, "collapsed": false
+    },
+    {
+      "id": 2, "title": "Spoof decisions / sec (clean / suspicious / likely_spoof)",
+      "type": "timeseries",
+      "description": "Per-document presentation-attack verdict from spoof_detector.py. A sustained lift in 'suspicious' or 'likely_spoof' = active fraud campaign. False positives on textured paper or hologram glare exist; threshold tuning lives in services/ocr/app/services/spoof_detector.py.",
+      "gridPos": { "h": 9, "w": 16, "x": 0, "y": 1 },
+      "targets": [
+        { "expr": "sum(rate(docflow_ocr_spoof_decisions_total[5m])) by (decision)", "legendFormat": "{{decision}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "drawStyle": "line", "fillOpacity": 30, "stacking": { "mode": "normal" } } } }
+    },
+    {
+      "id": 3, "title": "Decision share — last 1h",
+      "type": "piechart",
+      "gridPos": { "h": 9, "w": 8, "x": 16, "y": 1 },
+      "targets": [
+        { "expr": "sum(increase(docflow_ocr_spoof_decisions_total[1h])) by (decision)", "legendFormat": "{{decision}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 4, "type": "row", "title": "Score distributions",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 10 }, "collapsed": false
+    },
+    {
+      "id": 5, "title": "Combined spoof score — heatmap",
+      "type": "heatmap",
+      "description": "Bucket histogram of the combined spoof score (0=clean, 1=likely screen capture). Drift toward higher buckets = either real attacks landing OR detector mis-firing on a recent capture style.",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 11 },
+      "targets": [
+        { "expr": "sum(rate(docflow_ocr_spoof_score_bucket[5m])) by (le)", "format": "heatmap", "legendFormat": "{{le}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 6, "title": "Spoof score — p50 / p95 / p99",
+      "type": "timeseries",
+      "description": "Quantiles of the combined spoof score over time.",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 11 },
+      "targets": [
+        { "expr": "histogram_quantile(0.5, sum(rate(docflow_ocr_spoof_score_bucket[5m])) by (le))",  "legendFormat": "p50", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum(rate(docflow_ocr_spoof_score_bucket[5m])) by (le))", "legendFormat": "p95", "refId": "B" },
+        { "expr": "histogram_quantile(0.99, sum(rate(docflow_ocr_spoof_score_bucket[5m])) by (le))", "legendFormat": "p99", "refId": "C" }
+      ],
+      "fieldConfig": { "defaults": { "min": 0, "max": 1, "unit": "none" } }
+    },
+    {
+      "id": 7, "type": "row", "title": "Per-detector breakdown",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 20 }, "collapsed": false
+    },
+    {
+      "id": 8, "title": "Per-detector score p95 — moiré / banding / chromatic",
+      "type": "timeseries",
+      "description": "Each spoof detector reports independently. If one component runs hot while the others stay flat, the issue is detector-specific (e.g. moiré FFT mis-firing on textured paper).",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 21 },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum(rate(docflow_ocr_spoof_component_score_bucket[5m])) by (le, component))", "legendFormat": "p95 {{component}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "min": 0, "max": 1, "unit": "none" } }
+    },
+    {
+      "id": 9, "title": "Per-detector score p50",
+      "type": "timeseries",
+      "description": "Median per-detector. The healthy steady-state is all three near 0; sustained median > 0.3 on any one means it's flagging real captures as suspicious.",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 21 },
+      "targets": [
+        { "expr": "histogram_quantile(0.5, sum(rate(docflow_ocr_spoof_component_score_bucket[5m])) by (le, component))", "legendFormat": "p50 {{component}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "min": 0, "max": 1, "unit": "none" } }
+    },
+    {
+      "id": 10, "type": "row", "title": "By document type",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 30 }, "collapsed": false
+    },
+    {
+      "id": 11, "title": "Suspicious-or-spoof rate by document type — last 1h",
+      "type": "bargauge",
+      "description": "Fraction of submissions per doc_type flagged 'suspicious' or 'likely_spoof' over the last hour. id-card-front routinely trips moiré on hologram glare; if civil_registry_extract spikes, that's the real fraud signal.",
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 31 },
+      "targets": [
+        {
+          "expr": "(sum(increase(docflow_ocr_spoof_decisions_total{decision!=\"clean\"}[1h])) by (document_type)) / clamp_min(sum(increase(docflow_ocr_spoof_decisions_total[1h])) by (document_type), 1)",
+          "legendFormat": "{{document_type}}", "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "min": 0, "max": 1, "unit": "percentunit" } }
+    },
+    {
+      "id": 12, "title": "Decision counts by doc_type — last 24h",
+      "type": "table",
+      "description": "Raw counts of clean / suspicious / likely_spoof per document type over the last 24 hours.",
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 31 },
+      "targets": [
+        {
+          "expr": "sum(increase(docflow_ocr_spoof_decisions_total[24h])) by (document_type, decision)",
+          "format": "table", "instant": true, "refId": "A"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "version": 1
+}

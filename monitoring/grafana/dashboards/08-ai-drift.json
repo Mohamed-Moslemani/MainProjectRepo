@@ -1,0 +1,117 @@
+{
+  "id": null,
+  "uid": "docflow-ai-drift",
+  "title": "DocFlow — AI Score Drift",
+  "tags": ["docflow", "ai", "drift", "production"],
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": { "from": "now-24h", "to": "now" },
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "id": 1, "type": "row", "title": "Score distributions — current vs trailing baseline",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }, "collapsed": false
+    },
+    {
+      "id": 2, "title": "Risk score — p50 / p95 / p99",
+      "type": "timeseries",
+      "description": "Per-case risk score quantiles over time. A sustained shift (e.g. p50 drifting from 25 to 50) means the population's overall fraud signal changed — investigate cohort, OCR provider, doc-type mix.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+      "targets": [
+        { "expr": "histogram_quantile(0.5, sum(rate(docflow_risk_score_bucket[5m])) by (le))",  "legendFormat": "p50", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum(rate(docflow_risk_score_bucket[5m])) by (le))", "legendFormat": "p95", "refId": "B" },
+        { "expr": "histogram_quantile(0.99, sum(rate(docflow_risk_score_bucket[5m])) by (le))", "legendFormat": "p99", "refId": "C" }
+      ],
+      "fieldConfig": { "defaults": { "min": 0, "max": 100, "unit": "none" } }
+    },
+    {
+      "id": 3, "title": "Risk score distribution (heatmap)",
+      "type": "heatmap",
+      "description": "Bucket histogram of risk scores over time. Vertical drift = score distribution changing.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
+      "targets": [
+        { "expr": "sum(rate(docflow_risk_score_bucket[5m])) by (le)", "format": "heatmap", "legendFormat": "{{le}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 4, "title": "OCR confidence — p50 / p95",
+      "type": "timeseries",
+      "description": "OCR per-field confidence quantiles. A drop in p50 confidence means the OCR provider's quality degraded OR the citizen population shifted to lower-quality captures.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
+      "targets": [
+        { "expr": "histogram_quantile(0.5, sum(rate(docflow_ocr_confidence_bucket[5m])) by (le, document_type))",  "legendFormat": "p50 {{document_type}}", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum(rate(docflow_ocr_confidence_bucket[5m])) by (le, document_type))", "legendFormat": "p95 {{document_type}}", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "min": 0, "max": 1, "unit": "percentunit" } }
+    },
+    {
+      "id": 5, "title": "Face similarity — p50 / p95",
+      "type": "timeseries",
+      "description": "AWS Rekognition CompareFaces similarity across all submissions. p50 < 70 sustained = either reference-photo quality dropped OR a fraud cohort is in flight.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
+      "targets": [
+        { "expr": "histogram_quantile(0.5, sum(rate(docflow_face_similarity_score_bucket[5m])) by (le))",  "legendFormat": "p50", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum(rate(docflow_face_similarity_score_bucket[5m])) by (le))", "legendFormat": "p95", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "min": 0, "max": 100, "unit": "none" } }
+    },
+    {
+      "id": 6, "title": "Reconciliation integrity — p50",
+      "type": "timeseries",
+      "description": "How well OCR'd fields match what citizens declared. Sustained drop = either users are typing more sloppily, OR OCR is misreading more.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 17 },
+      "targets": [
+        { "expr": "histogram_quantile(0.5, sum(rate(docflow_reconciliation_integrity_bucket[5m])) by (le))", "legendFormat": "p50", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum(rate(docflow_reconciliation_integrity_bucket[5m])) by (le))", "legendFormat": "p95", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "min": 0, "max": 1, "unit": "percentunit" } }
+    },
+    {
+      "id": 7, "title": "Liveness confidence — p50",
+      "type": "timeseries",
+      "description": "AWS Rekognition Face Liveness confidence. Below 90 sustained = ambient conditions degraded OR a presentation-attack pattern.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 17 },
+      "targets": [
+        { "expr": "histogram_quantile(0.5, sum(rate(docflow_face_liveness_score_bucket[5m])) by (le))",  "legendFormat": "p50", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum(rate(docflow_face_liveness_score_bucket[5m])) by (le))", "legendFormat": "p95", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "min": 0, "max": 1, "unit": "percentunit" } }
+    },
+    {
+      "id": 8, "type": "row", "title": "Drift indicators (current vs baseline)",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 25 }, "collapsed": false
+    },
+    {
+      "id": 9, "title": "Risk p50 — current vs 7-day baseline",
+      "type": "stat",
+      "description": "Δ between the last hour's risk-score median and the trailing 7-day median. > 5pt sustained drift warrants attention.",
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 26 },
+      "targets": [
+        { "expr": "histogram_quantile(0.5, sum(rate(docflow_risk_score_bucket[1h])) by (le)) - histogram_quantile(0.5, sum(rate(docflow_risk_score_bucket[7d])) by (le))", "legendFormat": "Δ p50", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "decimals": 2, "unit": "none" } }
+    },
+    {
+      "id": 10, "title": "Face similarity p50 — current vs 7-day baseline",
+      "type": "stat",
+      "description": "Δ on face-similarity p50. Negative = matches getting worse.",
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 26 },
+      "targets": [
+        { "expr": "histogram_quantile(0.5, sum(rate(docflow_face_similarity_score_bucket[1h])) by (le)) - histogram_quantile(0.5, sum(rate(docflow_face_similarity_score_bucket[7d])) by (le))", "legendFormat": "Δ p50", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "decimals": 2, "unit": "none" } }
+    },
+    {
+      "id": 11, "title": "OCR confidence p50 — current vs 7-day baseline",
+      "type": "stat",
+      "description": "Δ on OCR p50 confidence. Negative = OCR quality regressing.",
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 26 },
+      "targets": [
+        { "expr": "histogram_quantile(0.5, sum(rate(docflow_ocr_confidence_bucket[1h])) by (le)) - histogram_quantile(0.5, sum(rate(docflow_ocr_confidence_bucket[7d])) by (le))", "legendFormat": "Δ p50", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "decimals": 3, "unit": "percentunit" } }
+    }
+  ],
+  "schemaVersion": 39,
+  "version": 1
+}

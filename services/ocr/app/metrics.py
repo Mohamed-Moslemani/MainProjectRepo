@@ -100,3 +100,25 @@ OCR_CLASSIFIER_REJECTED = Counter(
     "Uploads the classifier flagged as wrong-type or not-authentic",
     ["expected_type", "reason"],  # reason: type_mismatch, not_authentic
 )
+
+# ── Document presentation-attack detection (spoof_detector.py) ────
+# Combined score is in [0, 1] — higher = more screen-capture-like.
+# Per-component score lets us see which detector fired (moiré, banding,
+# chromatic). Decision counter feeds the pipeline-decision dashboards.
+OCR_SPOOF_SCORE = Histogram(
+    "docflow_ocr_spoof_score",
+    "Combined presentation-attack score per document (0=clean, 1=likely screen capture)",
+    ["document_type"],
+    buckets=[0.05, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95],
+)
+OCR_SPOOF_COMPONENT_SCORE = Histogram(
+    "docflow_ocr_spoof_component_score",
+    "Per-detector spoof component score (moire / banding / chromatic)",
+    ["component"],
+    buckets=[0.05, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95],
+)
+OCR_SPOOF_DECISIONS = Counter(
+    "docflow_ocr_spoof_decisions_total",
+    "Document presentation-attack decision counter",
+    ["document_type", "decision"],  # decision: clean | suspicious | likely_spoof
+)
