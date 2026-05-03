@@ -64,10 +64,11 @@ services:
 
   # ── nginx: swap to cloud config (docflows.cc + Let's Encrypt) ────
   # Dev mounts nginx/nginx.conf with self-signed certs for localhost;
-  # cloud needs a public hostname and real certs. !reset wipes the dev
-  # volumes list so we don't accidentally mount both configs.
+  # cloud needs a public hostname and real certs. Use !override (not
+  # !reset) for the volumes list — !reset works for maps like
+  # depends_on but drops the new list value for sequence fields.
   nginx:
-    volumes: !reset
+    volumes: !override
       - ./nginx/nginx.cloud.conf:/etc/nginx/conf.d/default.conf:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
       - /var/www/certbot:/var/www/certbot:ro
