@@ -83,12 +83,24 @@ if not CONFIG_PATH.exists():
 raw = CONFIG_PATH.read_text()
 template = string.Template(raw)
 subs = {
-    "SLACK_WEBHOOK_URL": os.environ.get("SLACK_WEBHOOK_URL", ""),
+    # Email-only delivery. Reuse the same Gmail credentials the app
+    # itself was configured for (cloud-mode app uses Resend HTTP API
+    # because DO blocks outbound SMTP, but Alertmanager runs in
+    # Grafana Cloud where SMTP is fine, so SMTP works there).
+    "SMTP_SMARTHOST":     os.environ.get("SMTP_SMARTHOST",     "smtp.gmail.com:587"),
+    "SMTP_FROM":          os.environ.get("SMTP_FROM",          os.environ.get("GATEWAY_SMTP_FROM_EMAIL", "")),
+    "SMTP_AUTH_USERNAME": os.environ.get("SMTP_AUTH_USERNAME", os.environ.get("GATEWAY_SMTP_USER", "")),
+    "SMTP_AUTH_PASSWORD": os.environ.get("SMTP_AUTH_PASSWORD", os.environ.get("GATEWAY_SMTP_PASSWORD", "")),
+    "ALERT_EMAIL_TO":     os.environ.get("ALERT_EMAIL_TO", ""),
+    # Kept for back-compat with the old Slack/PD config; will be
+    # ignored by the new email-only template.
+    "SLACK_WEBHOOK_URL":  os.environ.get("SLACK_WEBHOOK_URL", ""),
     "PAGERDUTY_ROUTING_KEY": os.environ.get("PAGERDUTY_ROUTING_KEY", ""),
 }
-for key, val in subs.items():
-    if not val:
-        print(f"⚠ {key} is empty — receiver using it will be replaced with a no-op.")
+required = ("SMTP_SMARTHOST", "SMTP_FROM", "SMTP_AUTH_USERNAME", "SMTP_AUTH_PASSWORD", "ALERT_EMAIL_TO")
+for key in required:
+    if not subs.get(key):
+        print(f"⚠ {key} is empty — alert email won't deliver until set.")
 config_yaml = template.safe_substitute(subs)
 
 # Mimir's alertmanager validator rejects empty routing_key /

@@ -2,63 +2,78 @@
 #
 # This is the version that gets POSTed to Grafana Cloud's Mimir
 # Alertmanager via scripts/import_grafana_cloud_alertmanager.py.
-# The on-prem alertmanager.yml stays around for local mode; this
-# file diverges from it because:
 #
-#   - `alertmanager_sink` no longer exists in cloud mode. The
-#     local-only echo webhook is removed; alerts land at the real
-#     destinations instead.
-#   - `routing_key_file` / `api_url_file` are replaced by
-#     `routing_key` / `api_url` (inline). The importer substitutes
-#     ${PAGERDUTY_ROUTING_KEY} and ${SLACK_WEBHOOK_URL} from the
-#     environment at upload time, so secrets stay out of git.
+# Notification strategy: email-only via Gmail SMTP. PagerDuty is
+# intentionally NOT configured — pager-style on-call paging is
+# overkill for a thesis-scale deployment with no on-call rotation.
+# Slack is also dropped; if we want chat alerts later, add a
+# slack_configs block alongside email_configs in the receiver.
 #
-# Routing strategy is unchanged from on-prem:
-#   - severity=critical → PagerDuty
-#   - severity=warning  → Slack
-#   - everything else   → Slack (fallback)
+# DigitalOcean's outbound-SMTP block does NOT affect us here —
+# Alertmanager runs inside Grafana Cloud, not on our droplet, so
+# its outbound to smtp.gmail.com:587 sails through.
+#
+# Routing strategy: severity=critical and severity=warning both go
+# to the same email receiver (most thesis-scale ops won't have a
+# separate on-call vs ops channel). Tweak `routes:` below to split
+# into multiple email aliases if you want that.
 
 global:
   resolve_timeout: 5m
+  # Gmail SMTP. The app password is a 16-char token from Google's
+  # "App Passwords" page — works from anywhere with the right auth,
+  # so Alertmanager → smtp.gmail.com:587 from Grafana Cloud's egress
+  # works the same as it would from your laptop.
+  smtp_smarthost: ${SMTP_SMARTHOST}
+  smtp_from: ${SMTP_FROM}
+  smtp_auth_username: ${SMTP_AUTH_USERNAME}
+  smtp_auth_password: ${SMTP_AUTH_PASSWORD}
+  # Gmail rejects plaintext on 587; require STARTTLS.
+  smtp_require_tls: true
 
 route:
-  receiver: warning_route
+  receiver: docflow_email
   group_by: ['alertname', 'service']
+  # Wait 30s after the first alert in a group before sending so
+  # related alerts get bundled in one email rather than spammed
+  # individually.
   group_wait: 30s
+  # New alerts in an existing group go out at most every 5min.
   group_interval: 5m
+  # Re-send the SAME alert no more than once every 4 hours so a
+  # persistent failure doesn't flood the inbox.
   repeat_interval: 4h
   routes:
     - matchers:
         - severity = critical
-      receiver: critical_route
-      continue: true
+      receiver: docflow_email
     - matchers:
         - severity = warning
-      receiver: warning_route
+      receiver: docflow_email
 
 receivers:
-  - name: critical_route
-    pagerduty_configs:
-      - routing_key: ${PAGERDUTY_ROUTING_KEY}
+  - name: docflow_email
+    email_configs:
+      - to: ${ALERT_EMAIL_TO}
         send_resolved: true
-        severity: 'critical'
-        details:
-          firing: '{{ .Alerts.Firing | len }}'
-          resolved: '{{ .Alerts.Resolved | len }}'
-          summary: '{{ .CommonAnnotations.summary }}'
-          runbook: '{{ .CommonAnnotations.runbook_url }}'
-
-  - name: warning_route
-    slack_configs:
-      - api_url: ${SLACK_WEBHOOK_URL}
-        channel: '#docflow-alerts'
-        send_resolved: true
-        title: '{{ .CommonAnnotations.summary }}'
-        text: |-
-          *Severity:* `{{ .CommonLabels.severity }}`
-          *Service:* `{{ .CommonLabels.service }}`
-          *Description:* {{ .CommonAnnotations.description }}
-          {{ if .CommonAnnotations.runbook_url }}*Runbook:* <{{ .CommonAnnotations.runbook_url }}>{{ end }}
+        # Inline HTML for the alert email. Subject mirrors the
+        # severity for inbox triage; body lists firing + resolved
+        # alerts with annotations the rules already populate.
+        headers:
+          Subject: '[DocFlow {{ .CommonLabels.severity | toUpper }}] {{ .CommonAnnotations.summary }}'
+        html: |-
+          <h2>{{ .CommonAnnotations.summary }}</h2>
+          <p>
+            <b>Severity:</b> {{ .CommonLabels.severity }}<br/>
+            <b>Service:</b> {{ .CommonLabels.service }}<br/>
+            <b>Status:</b> {{ .Status }}
+          </p>
+          <p>{{ .CommonAnnotations.description }}</p>
+          {{ if .CommonAnnotations.runbook_url }}
+          <p><a href="{{ .CommonAnnotations.runbook_url }}">Runbook</a></p>
+          {{ end }}
+          <hr/>
+          <p>Firing: {{ .Alerts.Firing | len }} · Resolved: {{ .Alerts.Resolved | len }}</p>
 
 inhibit_rules:
   - source_matchers:
