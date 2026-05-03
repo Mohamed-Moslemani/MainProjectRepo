@@ -41,10 +41,16 @@ services:
     profiles: ["off"]
   pushgateway:
     profiles: ["off"]
-  postgres-exporter:
-    profiles: ["off"]
-  redis-exporter:
-    profiles: ["off"]
+  # postgres-exporter + redis-exporter are KEPT in cloud mode. They're
+  # tiny (~10MB RAM each) sidecars that translate native protocol
+  # stats into Prometheus metrics. The Redis & PostgreSQL dashboards
+  # query their output directly — without these the dashboards render
+  # entirely as "No data". Alloy scrapes them at exporter:port via the
+  # same scrape config that handles the app services.
+  # postgres-exporter:
+  #   profiles: ["off"]
+  # redis-exporter:
+  #   profiles: ["off"]
 
   # Replaced by Sentry SaaS.
   glitchtip:

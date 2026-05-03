@@ -19,6 +19,22 @@ prometheus.scrape "app_services" {
   forward_to      = [prometheus.remote_write.grafana_cloud.receiver]
 }
 
+// Sidecars that translate native protocol stats to Prometheus
+// metrics. The Redis + PostgreSQL dashboards (05-redis, 04-postgresql)
+// read directly from these — without scraping them every panel reads
+// "No data". Both exporters listen on their library defaults
+// (9121 for redis-exporter, 9187 for postgres-exporter) inside the
+// docflow_default network and aren't exposed on the host.
+prometheus.scrape "exporters" {
+  targets = [
+    { __address__ = "redis-exporter:9121",    job = "redis",    service = "redis"    },
+    { __address__ = "postgres-exporter:9187", job = "postgres", service = "postgres" },
+  ]
+  metrics_path    = "/metrics"
+  scrape_interval = "15s"
+  forward_to      = [prometheus.remote_write.grafana_cloud.receiver]
+}
+
 prometheus.remote_write "grafana_cloud" {
   endpoint {
     url = sys.env("GRAFANA_CLOUD_PROM_URL")
