@@ -721,6 +721,47 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
         },
         metadata={"step": "reconciliation"},
     )
+
+    # ── Continuous extraction eval ─────────────────────────────────
+    # The citizen's declared values are a free, real-time ground
+    # truth for the LLM extractor's output: every legitimate
+    # submission tells us what the doc SHOULD say. Emit a per-field
+    # numeric score (similarity 0-1) and a categorical status score
+    # (exact_match / close_match / partial_match / mismatch /
+    # not_found_in_ocr) on the case trace. Langfuse aggregates these
+    # by name across all cases — so over time you get a free
+    # production dashboard of "first_name extraction quality",
+    # "date_of_birth extraction quality", etc., per service_type tag.
+    #
+    # Filter: skip free-form fields like 'address' and 'notes' —
+    # those legitimately diverge between declared and OCR (a citizen
+    # types "Hamra St 12" while the doc shows "12 Hamra St, Beirut")
+    # and would bias every aggregate score downward.
+    _SKIP_FOR_EVAL = {"address", "notes", "renewal_reason", "passport_validity_years", "marital_status"}
+    field_results = recon_result.get("field_results") or {}
+    for fname, fres in list(field_results.items())[:20]:  # bound to keep traces small
+        if fname in _SKIP_FOR_EVAL:
+            continue
+        try:
+            sim = float(fres.get("similarity") or 0.0)
+        except (TypeError, ValueError):
+            continue
+        _lf.log_score(
+            case_trace,
+            name=f"extraction.{fname}",
+            value=sim,
+            comment=(
+                f"declared={fres.get('declared')!r} | "
+                f"extracted={fres.get('extracted')!r} | "
+                f"status={fres.get('status')}"
+            )[:480],
+        )
+        _lf.log_score(
+            case_trace,
+            name=f"extraction_status.{fname}",
+            value=str(fres.get("status") or "unknown"),
+            data_type="CATEGORICAL",
+        )
     await log_action(
         db, "reconciliation_completed", case_id=case.id,
         details={
