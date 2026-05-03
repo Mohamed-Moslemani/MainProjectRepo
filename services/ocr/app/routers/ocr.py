@@ -38,6 +38,13 @@ class ProcessRequest(BaseModel):
     document_id: str
     file_path: str
     document_type: str
+    # Optional — when the gateway passes its case_id, OCR sets it as
+    # the Langfuse session_id so this trace groups under the same
+    # session as the gateway's case.evaluation trace. Lets a Langfuse
+    # reviewer see the entire pipeline (gateway scoring + per-doc OCR
+    # generations) in one timeline. Back-compat default keeps OCR
+    # working for any older clients (or unit tests) that don't pass it.
+    case_id: str | None = None
 
 
 def _record_quality_issues(quality: dict) -> None:
@@ -61,12 +68,19 @@ async def process_document(req: ProcessRequest):
     # named after the document type so Langfuse's UI can group runs by
     # doc type out of the box. trace_handle is None when Langfuse is
     # unconfigured — every downstream call site no-ops cleanly.
+    # session_id pivots Langfuse's "Sessions" view: when the gateway
+    # passes case_id, OCR groups under it so all docs of one case land
+    # in one session timeline next to the case-level evaluation trace.
+    # When case_id is missing, fall back to per-document grouping (the
+    # original behaviour) so OCR still works standalone in tests.
+    session_id = req.case_id or req.document_id
     trace_handle = langfuse_client.start_trace(
         name=f"ocr.process.{req.document_type}",
-        session_id=req.document_id,
+        session_id=session_id,
         metadata={
             "document_type": req.document_type,
             "document_id": req.document_id,
+            "case_id": req.case_id,
         },
         tags=["ocr", req.document_type],
     )

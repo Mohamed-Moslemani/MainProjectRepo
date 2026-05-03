@@ -122,6 +122,10 @@ async def call_ocr_service(document: Document) -> dict:
                     "document_id": document.id,
                     "file_path": document.file_path,
                     "document_type": document.document_type,
+                    # case_id lets OCR's Langfuse trace use the same
+                    # session_id as the gateway's case.evaluation trace
+                    # so both timelines collapse into one Langfuse session.
+                    "case_id": document.case_id,
                 },
             )
             response.raise_for_status()

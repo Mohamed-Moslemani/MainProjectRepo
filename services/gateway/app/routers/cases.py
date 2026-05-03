@@ -598,6 +598,56 @@ async def update_case_status(
     await log_action(db, "case_status_updated", user_id=user.id, case_id=case_id,
                      details={"new_status": case.status})
 
+    # ── Langfuse: clerk feedback as ground-truth on AI routing ──
+    # Like mukhtar feedback, but for the manual_review path: when a
+    # clerk acts on a case the AI deferred for review, their decision
+    # is the closest thing we have to a correct label. Emit a score
+    # on the original case-evaluation trace so Langfuse aggregates
+    # AI/clerk agreement rate over time. Skip when the new status
+    # isn't a terminal AI-relevant decision (e.g. "in_production"
+    # is workflow logistics, not an AI judgement).
+    _AI_RELEVANT = {"approved", "rejected", "need_info"}
+    if req.status in _AI_RELEVANT:
+        try:
+            from ..services import langfuse_client as _lf
+            trace_id = ((case.model_versions or {}).get("langfuse") or {}).get("trace_id")
+            if trace_id:
+                # The AI's original routing for this case (auto_approve
+                # / manual_review / reject) lives on case.risk_result.
+                ai_routing = ((case.risk_result or {}).get("routing")) or "unknown"
+                clerk_decision_norm = (
+                    "approve" if req.status == "approved"
+                    else "reject" if req.status == "rejected"
+                    else "need_info"
+                )
+                # Agreement: clerk's call should align with AI's
+                # routing intent. AI auto_approve + clerk approve = 1,
+                # AI reject + clerk reject = 1, AI manual_review +
+                # clerk approve OR reject = the manual_review routing
+                # was the right choice (1) — clerk made A decision
+                # rather than overriding to a different category.
+                ai_agreed = (
+                    (ai_routing == "auto_approve" and clerk_decision_norm == "approve") or
+                    (ai_routing == "reject" and clerk_decision_norm == "reject") or
+                    (ai_routing == "manual_review")
+                )
+                _lf.log_score(
+                    trace_id=trace_id,
+                    name="clerk_decision",
+                    value=clerk_decision_norm,
+                    data_type="CATEGORICAL",
+                    comment=f"actor={user.role} ai_routing={ai_routing}",
+                )
+                _lf.log_score(
+                    trace_id=trace_id,
+                    name="ai_clerk_agreement",
+                    value=1.0 if ai_agreed else 0.0,
+                    data_type="BOOLEAN",
+                )
+        except Exception:
+            # Fail-OPEN — observability never blocks a clerk decision.
+            pass
+
     # Send email notification to the case owner
     try:
         from ..services.email import send_case_status_email
