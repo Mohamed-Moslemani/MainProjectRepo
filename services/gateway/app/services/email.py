@@ -1,10 +1,19 @@
-"""Async SMTP email service — all emails use a unified DocFlow Lebanon template."""
+"""Async email service — sends via Resend HTTP API or SMTP based on
+GATEWAY_EMAIL_PROVIDER. All emails share the unified DocFlow Lebanon
+template.
+
+Cloud mode uses Resend because DigitalOcean blocks all outbound SMTP
+ports on new droplets (25/465/587/2525), which would otherwise hang
+register/reset endpoints until nginx 504s. Resend uses HTTPS:443 which
+is never blocked.
+"""
 
 import logging
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 import aiosmtplib
+import httpx
 
 from ..config import get_settings
 from ..metrics import EMAILS_SENT, EMAILS_FAILED
@@ -66,29 +75,70 @@ def _wrap_email(content_html: str, footer_note: str = "") -> str:
     """
 
 
-async def _send_email(to: str, subject: str, html_body: str, email_type: str = "other"):
-    """Send an email via SMTP. Logs and swallows errors so callers don't fail."""
-    settings = get_settings()
+async def _send_via_resend(to: str, subject: str, html_body: str, email_type: str) -> None:
+    """POST one message to Resend's HTTP API.
 
-    if not settings.smtp_user:
-        logger.warning(f"SMTP not configured. Would have sent to {to}: {subject}")
+    Resend free tier: 3000 emails/mo, 100/day. Custom domain must be
+    verified via DNS (SPF + DKIM + DMARC TXT records) before sends from
+    that domain are accepted — until then sends from `noreply@docflow.lb`
+    or whatever's configured will fail with 422.
+    """
+    settings = get_settings()
+    if not settings.resend_api_key:
+        logger.warning(f"Resend not configured. Would have sent to {to}: {subject}")
         return
 
-    msg = MIMEMultipart("alternative")
-    msg["From"] = f"{settings.smtp_from_name} <{settings.smtp_from_email}>"
-    msg["To"] = to
-    msg["Subject"] = subject
-    msg.attach(MIMEText(html_body, "html"))
+    payload = {
+        "from": f"{settings.smtp_from_name} <{settings.smtp_from_email}>",
+        "to": [to],
+        "subject": subject,
+        "html": html_body,
+    }
+    headers = {
+        "Authorization": f"Bearer {settings.resend_api_key}",
+        "Content-Type": "application/json",
+    }
+
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        resp = await client.post(
+            "https://api.resend.com/emails",
+            json=payload,
+            headers=headers,
+        )
+
+    if resp.status_code >= 400:
+        # Surface Resend's error body in logs so domain-verification or
+        # rate-limit failures are diagnosable without API access.
+        raise RuntimeError(f"Resend HTTP {resp.status_code}: {resp.text[:300]}")
+    EMAILS_SENT.labels(type=email_type).inc()
+    logger.info(f"Email sent to {to} via Resend: {subject}")
+
+
+async def _send_email(to: str, subject: str, html_body: str, email_type: str = "other"):
+    """Send an email via the configured provider. Logs and swallows
+    errors so callers (register, password reset, etc.) don't fail when
+    the email transport is misconfigured or temporarily unreachable."""
+    settings = get_settings()
 
     try:
-        # 10s cap so a blocked egress (DigitalOcean blocks outbound SMTP
-        # by default on new droplets — 25/465/587/2525 all rejected at
-        # the network edge) fails fast instead of hanging until nginx's
-        # 60s upstream timeout kills the whole HTTP request and returns
-        # a 504. Caller already swallows the exception, so the user
-        # record + verification token still land in the DB; the citizen
-        # can be re-emailed via /auth/resend-verification once SMTP is
-        # unblocked or swapped for a transactional API (Resend / SendGrid).
+        if settings.email_provider == "resend":
+            await _send_via_resend(to, subject, html_body, email_type)
+            return
+
+        # SMTP path (default). 10s cap so a blocked egress (e.g. DO's
+        # default outbound-SMTP block on new droplets) fails fast
+        # instead of hanging until nginx's 60s upstream timeout kills
+        # the request with a 504.
+        if not settings.smtp_user:
+            logger.warning(f"SMTP not configured. Would have sent to {to}: {subject}")
+            return
+
+        msg = MIMEMultipart("alternative")
+        msg["From"] = f"{settings.smtp_from_name} <{settings.smtp_from_email}>"
+        msg["To"] = to
+        msg["Subject"] = subject
+        msg.attach(MIMEText(html_body, "html"))
+
         await aiosmtplib.send(
             msg,
             hostname=settings.smtp_host,

@@ -56,7 +56,12 @@ class Settings:
         # Email verification
         self.verification_token_expiry_hours = int(get_env("GATEWAY_VERIFICATION_TOKEN_EXPIRY_HOURS", "24"))
 
-        # SMTP
+        # Email provider — "smtp" (gmail/anywhere with port 587) or
+        # "resend" (HTTPS API, used in cloud-mode because DigitalOcean
+        # blocks all outbound SMTP ports).
+        self.email_provider = get_env("GATEWAY_EMAIL_PROVIDER", "smtp").strip().lower()
+
+        # SMTP (used when email_provider == "smtp")
         self.smtp_host = get_env("GATEWAY_SMTP_HOST", "localhost")
         self.smtp_port = int(get_env("GATEWAY_SMTP_PORT", "587"))
         self.smtp_user = get_env("GATEWAY_SMTP_USER", "")
@@ -64,6 +69,11 @@ class Settings:
         self.smtp_from_email = get_env("GATEWAY_SMTP_FROM_EMAIL", "noreply@docflow.lb")
         self.smtp_from_name = get_env("GATEWAY_SMTP_FROM_NAME", "DocFlow Lebanon")
         self.smtp_use_tls = get_env("GATEWAY_SMTP_USE_TLS", "true").lower() in ("true", "1", "yes")
+
+        # Resend (used when email_provider == "resend"). From-name and
+        # from-email are reused from the SMTP block above so the same
+        # template lands in inboxes regardless of transport.
+        self.resend_api_key = get_env("GATEWAY_RESEND_API_KEY", "").strip()
         self.app_base_url = get_env("GATEWAY_APP_BASE_URL", "http://localhost:8000")
 
         # CORS
