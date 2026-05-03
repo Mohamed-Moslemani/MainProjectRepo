@@ -78,3 +78,165 @@ groups:
           sum(rate(docflow_ocr_retake_required_total[1h]))
           /
           (sum(rate(docflow_ocr_requests_total[1h])) > 0)
+
+  # ── PSI drift score ───────────────────────────────────────────
+  # Population Stability Index over rolling-window distributions.
+  # For each score-bearing histogram (risk_score, OCR confidence,
+  # face similarity) we compute three band fractions over a 1h
+  # current window and a 7d baseline window, then materialize the
+  # per-band PSI term: (cur - base) * ln(cur / base). The dashboard
+  # sums these terms across bands at query time to produce the
+  # final PSI value.
+  #
+  # Interpretation (industry standard):
+  #   PSI < 0.10  → stable (no action)
+  #   PSI 0.10-0.25 → moderate shift (investigate)
+  #   PSI > 0.25  → significant drift (intervene)
+  #
+  # ε floor: ln(0) is undefined and PSI rewards non-zero buckets,
+  # so we clamp_min the fractions at 0.0001 so an empty band
+  # contributes a finite (large) penalty instead of a NaN.
+  - name: ai_drift_psi
+    interval: 60s
+    rules:
+      # Risk-score: 3 bands matching the routing thresholds.
+      - record: docflow:risk_psi_term:1h_vs_7d
+        labels: { band: "auto_approve" }
+        expr: |
+          (
+            clamp_min(histogram_fraction(0,  25,  sum by (le) (rate(docflow_risk_score_bucket[1h]))), 0.0001)
+            -
+            clamp_min(histogram_fraction(0,  25,  sum by (le) (rate(docflow_risk_score_bucket[7d]))), 0.0001)
+          )
+          *
+          ln(
+            clamp_min(histogram_fraction(0,  25,  sum by (le) (rate(docflow_risk_score_bucket[1h]))), 0.0001)
+            /
+            clamp_min(histogram_fraction(0,  25,  sum by (le) (rate(docflow_risk_score_bucket[7d]))), 0.0001)
+          )
+      - record: docflow:risk_psi_term:1h_vs_7d
+        labels: { band: "manual_review" }
+        expr: |
+          (
+            clamp_min(histogram_fraction(25, 60,  sum by (le) (rate(docflow_risk_score_bucket[1h]))), 0.0001)
+            -
+            clamp_min(histogram_fraction(25, 60,  sum by (le) (rate(docflow_risk_score_bucket[7d]))), 0.0001)
+          )
+          *
+          ln(
+            clamp_min(histogram_fraction(25, 60,  sum by (le) (rate(docflow_risk_score_bucket[1h]))), 0.0001)
+            /
+            clamp_min(histogram_fraction(25, 60,  sum by (le) (rate(docflow_risk_score_bucket[7d]))), 0.0001)
+          )
+      - record: docflow:risk_psi_term:1h_vs_7d
+        labels: { band: "reject" }
+        expr: |
+          (
+            clamp_min(histogram_fraction(60, 100, sum by (le) (rate(docflow_risk_score_bucket[1h]))), 0.0001)
+            -
+            clamp_min(histogram_fraction(60, 100, sum by (le) (rate(docflow_risk_score_bucket[7d]))), 0.0001)
+          )
+          *
+          ln(
+            clamp_min(histogram_fraction(60, 100, sum by (le) (rate(docflow_risk_score_bucket[1h]))), 0.0001)
+            /
+            clamp_min(histogram_fraction(60, 100, sum by (le) (rate(docflow_risk_score_bucket[7d]))), 0.0001)
+          )
+
+      # Face similarity: low / medium / high bands matching the
+      # face-decision tiers in services/face/app/routers/liveness.py
+      # (default thresholds: review<70 ≤ similarity < pass=90).
+      - record: docflow:face_psi_term:1h_vs_7d
+        labels: { band: "low" }
+        expr: |
+          (
+            clamp_min(histogram_fraction(0,  70,  sum by (le) (rate(docflow_face_similarity_score_bucket[1h]))), 0.0001)
+            -
+            clamp_min(histogram_fraction(0,  70,  sum by (le) (rate(docflow_face_similarity_score_bucket[7d]))), 0.0001)
+          )
+          *
+          ln(
+            clamp_min(histogram_fraction(0,  70,  sum by (le) (rate(docflow_face_similarity_score_bucket[1h]))), 0.0001)
+            /
+            clamp_min(histogram_fraction(0,  70,  sum by (le) (rate(docflow_face_similarity_score_bucket[7d]))), 0.0001)
+          )
+      - record: docflow:face_psi_term:1h_vs_7d
+        labels: { band: "medium" }
+        expr: |
+          (
+            clamp_min(histogram_fraction(70, 90,  sum by (le) (rate(docflow_face_similarity_score_bucket[1h]))), 0.0001)
+            -
+            clamp_min(histogram_fraction(70, 90,  sum by (le) (rate(docflow_face_similarity_score_bucket[7d]))), 0.0001)
+          )
+          *
+          ln(
+            clamp_min(histogram_fraction(70, 90,  sum by (le) (rate(docflow_face_similarity_score_bucket[1h]))), 0.0001)
+            /
+            clamp_min(histogram_fraction(70, 90,  sum by (le) (rate(docflow_face_similarity_score_bucket[7d]))), 0.0001)
+          )
+      - record: docflow:face_psi_term:1h_vs_7d
+        labels: { band: "high" }
+        expr: |
+          (
+            clamp_min(histogram_fraction(90, 100, sum by (le) (rate(docflow_face_similarity_score_bucket[1h]))), 0.0001)
+            -
+            clamp_min(histogram_fraction(90, 100, sum by (le) (rate(docflow_face_similarity_score_bucket[7d]))), 0.0001)
+          )
+          *
+          ln(
+            clamp_min(histogram_fraction(90, 100, sum by (le) (rate(docflow_face_similarity_score_bucket[1h]))), 0.0001)
+            /
+            clamp_min(histogram_fraction(90, 100, sum by (le) (rate(docflow_face_similarity_score_bucket[7d]))), 0.0001)
+          )
+
+      # OCR confidence: bins by quality (poor / ok / good).
+      - record: docflow:ocr_psi_term:1h_vs_7d
+        labels: { band: "poor" }
+        expr: |
+          (
+            clamp_min(histogram_fraction(0,    0.5,  sum by (le) (rate(docflow_ocr_confidence_bucket[1h]))), 0.0001)
+            -
+            clamp_min(histogram_fraction(0,    0.5,  sum by (le) (rate(docflow_ocr_confidence_bucket[7d]))), 0.0001)
+          )
+          *
+          ln(
+            clamp_min(histogram_fraction(0,    0.5,  sum by (le) (rate(docflow_ocr_confidence_bucket[1h]))), 0.0001)
+            /
+            clamp_min(histogram_fraction(0,    0.5,  sum by (le) (rate(docflow_ocr_confidence_bucket[7d]))), 0.0001)
+          )
+      - record: docflow:ocr_psi_term:1h_vs_7d
+        labels: { band: "ok" }
+        expr: |
+          (
+            clamp_min(histogram_fraction(0.5,  0.85, sum by (le) (rate(docflow_ocr_confidence_bucket[1h]))), 0.0001)
+            -
+            clamp_min(histogram_fraction(0.5,  0.85, sum by (le) (rate(docflow_ocr_confidence_bucket[7d]))), 0.0001)
+          )
+          *
+          ln(
+            clamp_min(histogram_fraction(0.5,  0.85, sum by (le) (rate(docflow_ocr_confidence_bucket[1h]))), 0.0001)
+            /
+            clamp_min(histogram_fraction(0.5,  0.85, sum by (le) (rate(docflow_ocr_confidence_bucket[7d]))), 0.0001)
+          )
+      - record: docflow:ocr_psi_term:1h_vs_7d
+        labels: { band: "good" }
+        expr: |
+          (
+            clamp_min(histogram_fraction(0.85, 1.0,  sum by (le) (rate(docflow_ocr_confidence_bucket[1h]))), 0.0001)
+            -
+            clamp_min(histogram_fraction(0.85, 1.0,  sum by (le) (rate(docflow_ocr_confidence_bucket[7d]))), 0.0001)
+          )
+          *
+          ln(
+            clamp_min(histogram_fraction(0.85, 1.0,  sum by (le) (rate(docflow_ocr_confidence_bucket[1h]))), 0.0001)
+            /
+            clamp_min(histogram_fraction(0.85, 1.0,  sum by (le) (rate(docflow_ocr_confidence_bucket[7d]))), 0.0001)
+          )
+
+      # Final aggregated PSI per metric — dashboard reads these.
+      - record: docflow:risk_psi:1h_vs_7d
+        expr: sum(docflow:risk_psi_term:1h_vs_7d)
+      - record: docflow:face_psi:1h_vs_7d
+        expr: sum(docflow:face_psi_term:1h_vs_7d)
+      - record: docflow:ocr_psi:1h_vs_7d
+        expr: sum(docflow:ocr_psi_term:1h_vs_7d)

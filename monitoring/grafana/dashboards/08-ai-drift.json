@@ -78,14 +78,109 @@
       "fieldConfig": { "defaults": { "min": 0, "max": 1, "unit": "percentunit" } }
     },
     {
-      "id": 8, "type": "row", "title": "Drift indicators (current vs baseline)",
+      "id": 20, "type": "row", "title": "PSI — Population Stability Index (1h vs 7-day baseline)",
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 25 }, "collapsed": false
+    },
+    {
+      "id": 21, "title": "Risk score PSI",
+      "type": "stat",
+      "description": "Population Stability Index for risk-score band fractions (auto_approve <25, manual_review 25-60, reject >60). PSI < 0.10 = stable; 0.10-0.25 = moderate shift; > 0.25 = significant drift requiring intervention.",
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 26 },
+      "targets": [
+        { "expr": "docflow:risk_psi:1h_vs_7d", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 3, "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green",  "value": null },
+              { "color": "orange", "value": 0.10 },
+              { "color": "red",    "value": 0.25 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 22, "title": "Face similarity PSI",
+      "type": "stat",
+      "description": "PSI for face-similarity bands (low <70 / medium 70-90 / high >90, matching the face-decision tiers).",
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 26 },
+      "targets": [
+        { "expr": "docflow:face_psi:1h_vs_7d", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 3, "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green",  "value": null },
+              { "color": "orange", "value": 0.10 },
+              { "color": "red",    "value": 0.25 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 23, "title": "OCR confidence PSI",
+      "type": "stat",
+      "description": "PSI for OCR per-field confidence bands (poor <0.5 / ok 0.5-0.85 / good >0.85).",
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 26 },
+      "targets": [
+        { "expr": "docflow:ocr_psi:1h_vs_7d", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 3, "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green",  "value": null },
+              { "color": "orange", "value": 0.10 },
+              { "color": "red",    "value": 0.25 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 24, "title": "PSI over time — risk / face / OCR",
+      "type": "timeseries",
+      "description": "Trend of all three PSI scores. A spike that returns to baseline = transient (one bad cohort); sustained high PSI = real distribution shift.",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 32 },
+      "targets": [
+        { "expr": "docflow:risk_psi:1h_vs_7d", "legendFormat": "risk PSI",  "refId": "A" },
+        { "expr": "docflow:face_psi:1h_vs_7d", "legendFormat": "face PSI",  "refId": "B" },
+        { "expr": "docflow:ocr_psi:1h_vs_7d",  "legendFormat": "OCR PSI",   "refId": "C" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 3, "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green",  "value": null },
+              { "color": "orange", "value": 0.10 },
+              { "color": "red",    "value": 0.25 }
+            ]
+          },
+          "custom": { "thresholdsStyle": { "mode": "line+area" } }
+        }
+      }
+    },
+    {
+      "id": 8, "type": "row", "title": "Mean-shift indicators (current vs baseline)",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 40 }, "collapsed": false
     },
     {
       "id": 9, "title": "Risk p50 — current vs 7-day baseline",
       "type": "stat",
-      "description": "Δ between the last hour's risk-score median and the trailing 7-day median. > 5pt sustained drift warrants attention.",
-      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 26 },
+      "description": "Δ between the last hour's risk-score median and the trailing 7-day median. > 5pt sustained drift warrants attention. Pairs with PSI above — PSI tells you the WHOLE distribution shifted, this tells you the median did.",
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 41 },
       "targets": [
         { "expr": "histogram_quantile(0.5, sum(rate(docflow_risk_score_bucket[1h])) by (le)) - histogram_quantile(0.5, sum(rate(docflow_risk_score_bucket[7d])) by (le))", "legendFormat": "Δ p50", "refId": "A" }
       ],
@@ -95,7 +190,7 @@
       "id": 10, "title": "Face similarity p50 — current vs 7-day baseline",
       "type": "stat",
       "description": "Δ on face-similarity p50. Negative = matches getting worse.",
-      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 26 },
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 41 },
       "targets": [
         { "expr": "histogram_quantile(0.5, sum(rate(docflow_face_similarity_score_bucket[1h])) by (le)) - histogram_quantile(0.5, sum(rate(docflow_face_similarity_score_bucket[7d])) by (le))", "legendFormat": "Δ p50", "refId": "A" }
       ],
@@ -105,7 +200,7 @@
       "id": 11, "title": "OCR confidence p50 — current vs 7-day baseline",
       "type": "stat",
       "description": "Δ on OCR p50 confidence. Negative = OCR quality regressing.",
-      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 26 },
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 41 },
       "targets": [
         { "expr": "histogram_quantile(0.5, sum(rate(docflow_ocr_confidence_bucket[1h])) by (le)) - histogram_quantile(0.5, sum(rate(docflow_ocr_confidence_bucket[7d])) by (le))", "legendFormat": "Δ p50", "refId": "A" }
       ],
