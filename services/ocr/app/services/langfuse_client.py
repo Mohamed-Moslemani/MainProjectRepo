@@ -302,3 +302,89 @@ def log_generation(
             pass
     except Exception as exc:  # noqa: BLE001
         logger.warning("langfuse: log_generation(%s) failed: %s", name, exc)
+
+
+def log_span(
+    trace_handle: Any | None,
+    *,
+    name: str,
+    input: Any | None = None,
+    output: Any | None = None,
+    metadata: dict | None = None,
+    level: str = "DEFAULT",
+) -> None:
+    """Record a non-LLM observation under a Langfuse trace.
+
+    Use this for decision points that aren't model calls — cross-doc
+    identity check, spoof detector, reconciliation, risk scoring, etc.
+    Each one gets its own row in the Langfuse trace tree alongside the
+    LLM generations, so a reviewer can see the full pipeline reasoning
+    in one place. Fail-OPEN on any error; observability must never
+    interrupt the pipeline.
+
+    `level` accepts Langfuse's standard severities (DEFAULT / DEBUG /
+    WARNING / ERROR) — set ERROR when the span represents a failed
+    decision (e.g. cross-doc check rejected the case).
+    """
+    if trace_handle is None:
+        return
+    try:
+        span = trace_handle.span(
+            name=name,
+            input=input,
+            output=output,
+            metadata=metadata or {},
+            level=level,
+        )
+        try:
+            span.end()
+        except Exception:  # noqa: BLE001
+            pass
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("langfuse: log_span(%s) failed: %s", name, exc)
+
+
+def log_score(
+    trace_handle: Any | None,
+    *,
+    name: str,
+    value: float,
+    comment: str | None = None,
+    data_type: str = "NUMERIC",
+) -> None:
+    """Attach a Langfuse score to a trace.
+
+    Scores are how Langfuse aggregates evaluation results across many
+    runs — useful for both automatic continuous eval (e.g. compare
+    extracted fields to citizen-declared values, score the field-match
+    rate) and human feedback (e.g. mukhtar approves/rejects → score
+    the AI's auto-decision binary).
+
+    `data_type`: "NUMERIC" (default) | "BOOLEAN" | "CATEGORICAL".
+    BOOLEAN expects 0.0 or 1.0; CATEGORICAL takes a string value.
+    """
+    if trace_handle is None:
+        return
+    try:
+        # Some SDK versions accept the score on the trace handle
+        # directly; others require client.score(trace_id=...). Try
+        # the handle first, fall back to the client for max
+        # compatibility across langfuse versions.
+        if hasattr(trace_handle, "score"):
+            trace_handle.score(name=name, value=value, comment=comment, data_type=data_type)
+            return
+        client = get_client()
+        if client is None:
+            return
+        trace_id = getattr(trace_handle, "id", None) or getattr(trace_handle, "trace_id", None)
+        if not trace_id:
+            return
+        client.score(
+            trace_id=trace_id,
+            name=name,
+            value=value,
+            comment=comment,
+            data_type=data_type,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("langfuse: log_score(%s) failed: %s", name, exc)

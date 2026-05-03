@@ -213,11 +213,35 @@ def _transition(case: Case, new_status: str, message: str):
 async def process_case(db: AsyncSession, case: Case) -> dict:
     """Run full processing pipeline on a submitted case."""
     import time as _time
+    from . import langfuse_client as _lf
+
     pipeline_start = _time.time()
     policy = get_policy(case.service_type)
     if not policy:
         logger.error(f"No policy for service type: {case.service_type}")
         return {"error": "Unknown service type"}
+
+    # Case-level Langfuse trace. Every Mimir-style audit log we already
+    # write also gets a Langfuse span/score so a reviewer can replay
+    # the entire AI pipeline from one place. session_id=case.id ties
+    # this trace to OCR sub-traces (which use the same session_id),
+    # so Langfuse groups them under one timeline. Persisted onto the
+    # case so a later mukhtar decision can score the same trace.
+    case_trace = _lf.start_trace(
+        name=f"case.evaluation.{case.service_type}",
+        user_id=case.user_id,
+        session_id=case.id,
+        metadata={
+            "case_id": case.id,
+            "tracking_id": case.tracking_id,
+            "service_type": case.service_type,
+        },
+        tags=["docflow", "case", case.service_type],
+    )
+    case_trace_id = (
+        getattr(case_trace, "id", None) or getattr(case_trace, "trace_id", None)
+        if case_trace is not None else None
+    )
 
     docs_result = await db.execute(
         select(Document).where(Document.case_id == case.id)
@@ -685,6 +709,18 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
         # cardinality is bounded by the declared-field schema.
         RECONCILIATION_MISMATCHES.labels(field=str(flag)).inc()
 
+    _lf.log_span(
+        case_trace, name="reconciliation",
+        input={"declared_fields": declared, "extracted_fields": all_extracted_fields},
+        output={
+            "integrity_score": recon_result["integrity_score"],
+            "validation_result": recon_result["validation_result"],
+            "matched_fields": recon_result["matched_fields"],
+            "total_fields": recon_result["total_fields"],
+            "mismatch_flags": recon_result["mismatch_flags"],
+        },
+        metadata={"step": "reconciliation"},
+    )
     await log_action(
         db, "reconciliation_completed", case_id=case.id,
         details={
@@ -718,6 +754,12 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
         results["ocr_results"], declared_fields=case.declared_fields or {},
     )
     case.cross_doc_coherence = coherence.to_dict()  # persisted for audit
+    _lf.log_span(
+        case_trace, name="cross_doc_identity_check",
+        output=coherence.to_dict(),
+        metadata={"step": "cross_doc"},
+        level="ERROR" if not coherence.coherent else "DEFAULT",
+    )
     await log_action(
         db, "cross_doc_check_completed", case_id=case.id,
         details=coherence.to_dict(),
@@ -897,6 +939,11 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
             "manual_review_threshold": MANUAL_REVIEW_THRESHOLD,
         },
     }
+    # Stash the case-trace ID on model_versions so out-of-band events
+    # (e.g. mukhtar decision hours later) can find this trace and
+    # attach a feedback score without re-creating it.
+    if case_trace_id:
+        model_versions["langfuse"] = {"trace_id": case_trace_id}
     case.model_versions = model_versions
 
     # ---- Transition: VALIDATED -> RISK_EVALUATED ----
@@ -904,6 +951,41 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
     RISK_SCORE.observe(risk_result["risk_score"])
     _transition(case, "risk_evaluated", f"Risk score: {risk_result['risk_score']}")
     await db.commit()
+
+    # ── Langfuse: span + summary scores for this case ──────────
+    # The span captures the risk-engine inputs+outputs in one place;
+    # the scores are individually aggregable in Langfuse so trends
+    # ("median risk_score by week", "auto_approve rate", "p95 face
+    # similarity") build automatically.
+    _lf.log_span(
+        case_trace, name="risk_scoring",
+        input={
+            "ocr_avg_confidence": avg_confidence,
+            "face_similarity": face_similarity,
+            "liveness_score": liveness_score,
+            "reconciliation_integrity": recon_result["integrity_score"],
+            "registry_match_score": registry_confidence,
+            "spoof_score_max": spoof_score_max,
+        },
+        output=risk_result,
+        metadata={"step": "risk"},
+    )
+    _lf.log_score(case_trace, name="recon_integrity",   value=float(recon_result["integrity_score"]))
+    _lf.log_score(case_trace, name="ocr_confidence",    value=float(avg_confidence))
+    _lf.log_score(case_trace, name="face_similarity",   value=float(face_similarity))
+    _lf.log_score(case_trace, name="liveness_score",    value=float(liveness_score))
+    _lf.log_score(case_trace, name="risk_score",        value=float(risk_result["risk_score"]))
+    _lf.log_score(case_trace, name="spoof_score_max",   value=float(spoof_score_max))
+    _lf.log_score(
+        case_trace, name="cross_doc_coherent",
+        value=1.0 if coherence.coherent else 0.0,
+        data_type="BOOLEAN",
+    )
+    _lf.log_score(
+        case_trace, name="ai_decision",
+        value=str(risk_result["routing"]),
+        data_type="CATEGORICAL",
+    )
 
     await log_action(
         db, "risk_evaluated", case_id=case.id,

@@ -406,6 +406,46 @@ async def mukhtar_decide(
         },
     )
 
+    # ── Langfuse: human-ground-truth feedback ──────────────────
+    # The mukhtar is the legal authority on identity for passport
+    # cases — their approve/reject is the closest thing we have to
+    # a correct label for the AI's pre-mukhtar risk decision. Emit
+    # a score on the case's earlier evaluation trace so Langfuse
+    # tracks AI-vs-mukhtar agreement over time. The trace ID was
+    # stashed in case.model_versions["langfuse"] when the orchestrator
+    # ran the case.
+    try:
+        from ..services import langfuse_client as _lf
+        trace_id = ((case.model_versions or {}).get("langfuse") or {}).get("trace_id")
+        if trace_id:
+            _lf.log_score(
+                trace_id=trace_id,
+                name="mukhtar_decision",
+                value=1.0 if body.decision == "approve" else 0.0,
+                data_type="BOOLEAN",
+                comment=(
+                    f"residence={attestations['residence_verified']}; "
+                    f"photo={attestations['photo_verified']}; "
+                    f"presence={attestations['presence_verified']}"
+                ),
+            )
+            # Agreement with the AI: AI sent this case to pending_mukhtar
+            # because it lacked confidence. If mukhtar approves, AI was
+            # right to defer (1.0 — the manual_review routing was
+            # correct). If mukhtar rejects, the AI under-flagged risk
+            # (0.0 — should have rejected directly). This is the
+            # signal you want a model-eval dashboard tracking.
+            _lf.log_score(
+                trace_id=trace_id,
+                name="ai_mukhtar_agreement",
+                value=1.0 if body.decision == "approve" else 0.0,
+                data_type="BOOLEAN",
+            )
+    except Exception:
+        # Fail-OPEN: feedback is best-effort, never fails a mukhtar
+        # decision over an observability hiccup.
+        pass
+
     # Notify citizen
     try:
         citizen_result = await db.execute(select(User).where(User.id == case.user_id))
