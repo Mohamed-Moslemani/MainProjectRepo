@@ -72,18 +72,51 @@ def _setup_tracing(*, service_name: str, app=None) -> None:
     from opentelemetry.sdk.resources import Resource
     from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.trace.export import BatchSpanProcessor
-    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 
     endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", "http://jaeger:4317")
+    # Two transports — gRPC (default for local Jaeger) and HTTP/protobuf
+    # (default for Grafana Cloud Tempo). When the wrong one is used,
+    # exports fail in a background thread, the BatchSpanProcessor buffer
+    # fills up, and the NEXT span the SQLAlchemyInstrumentor wraps blocks
+    # waiting for room — which manifests as a hard hang in alembic
+    # upgrade right after "Will assume transactional DDL". Pick the
+    # exporter from the protocol env var to avoid that cliff.
+    protocol = os.environ.get("OTEL_EXPORTER_OTLP_PROTOCOL", "grpc").lower()
+    headers_raw = os.environ.get("OTEL_EXPORTER_OTLP_HEADERS", "").strip()
+    headers: dict[str, str] | None = None
+    if headers_raw:
+        # Format: "Authorization=Basic%20...,Other-Header=value"
+        from urllib.parse import unquote
+        headers = {}
+        for pair in headers_raw.split(","):
+            if "=" in pair:
+                k, v = pair.split("=", 1)
+                headers[k.strip()] = unquote(v.strip())
+
+    if protocol in ("http/protobuf", "http"):
+        from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+        # Grafana Cloud expects spans at <base>/v1/traces. Be lenient
+        # in case the configured endpoint already has the suffix.
+        ep = endpoint.rstrip("/")
+        if not ep.endswith("/v1/traces"):
+            ep = ep + "/v1/traces"
+        exporter = OTLPSpanExporter(endpoint=ep, headers=headers or {})
+    else:
+        from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+        # insecure only for plaintext gRPC (e.g. local jaeger:4317).
+        is_insecure = endpoint.startswith("http://") or "://" not in endpoint
+        exporter = OTLPSpanExporter(
+            endpoint=endpoint,
+            insecure=is_insecure,
+            headers=headers or None,
+        )
     resource = Resource.create({
         "service.name": service_name,
         "service.version": os.environ.get("GIT_SHA") or os.environ.get("DOCFLOW_VERSION") or "dev",
         "deployment.environment": os.environ.get("DEPLOY_ENV", "dev"),
     })
     provider = TracerProvider(resource=resource)
-    provider.add_span_processor(
-        BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint, insecure=True)),
-    )
+    provider.add_span_processor(BatchSpanProcessor(exporter))
     trace.set_tracer_provider(provider)
 
     # Auto-instrument the libraries we actually use. Each .instrument()
