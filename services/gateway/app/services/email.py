@@ -162,7 +162,6 @@ async def _send_email(to: str, subject: str, html_body: str, email_type: str = "
 async def send_verification_email(to: str, code: str):
     """Send 6-digit email verification code."""
     settings = get_settings()
-    spaced_code = " ".join(code)
 
     content = f"""
     <h2 style="margin: 0 0 8px; color: #1f2937; font-size: 20px; font-weight: 700;">
@@ -179,11 +178,10 @@ async def send_verification_email(to: str, code: str):
 
     <div style="text-align: center; margin: 28px 0;">
       <div style="display: inline-block; background: #f0fdf4; border: 2px dashed #00a651;
-                  border-radius: 12px; padding: 20px 40px;">
-        <span style="font-size: 36px; font-weight: 800; letter-spacing: 10px;
-                     color: #006633; font-family: 'Courier New', monospace;">
-          {spaced_code}
-        </span>
+                  border-radius: 12px; padding: 18px 28px;">
+        <span style="font-size: 32px; font-weight: 800; letter-spacing: 6px;
+                     color: #006633; font-family: 'Courier New', monospace;
+                     white-space: nowrap; display: inline-block;">{code}</span>
       </div>
     </div>
 
