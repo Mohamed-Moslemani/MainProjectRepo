@@ -14,6 +14,7 @@ from ..services.rekognition import (
     get_liveness_session_results,
     compare_faces_bytes,
 )
+from ..services.face_extractor import crop_principal_face
 from ..config import get_settings
 from ..metrics import (
     FACE_LIVENESS_SESSIONS,
@@ -109,6 +110,10 @@ class SessionResultResponse(BaseModel):
     similarity_score: float | None = None
     face_comparison_decision: str | None = None
     reference_image_path: str | None = None
+    # Audit metadata for the document-side face crop the comparison
+    # was scored on (bbox + confidence + face count). None when no
+    # crop was attempted (no reference face / no liveness ref image).
+    reference_crop: dict | None = None
     reasons: list[str] = []
 
 
@@ -181,28 +186,46 @@ async def get_results(req: SessionResultRequest):
         [req.reference_doc_path] + (req.fallback_doc_paths or [])
     ) if p]
 
+    reference_crop_audit = None
     if candidate_paths and result.get("reference_image"):
-        def _read_doc(path: str) -> bytes:
-            with open(path, "rb") as f:
-                return f.read()
-
         for ref_path in candidate_paths:
             try:
-                doc_bytes = await asyncio.to_thread(_read_doc, ref_path)
-                comparison = await asyncio.to_thread(
-                    compare_faces_bytes,
-                    result["reference_image"],
-                    doc_bytes,
-                )
-                if not comparison.get("face_detected_reference"):
-                    # No face on this reference — try the next one.
+                # Crop the principal face out of the reference doc
+                # before comparison. crop_principal_face returns None
+                # when DetectFaces saw nothing — that's the same
+                # signal the previous compare_faces_bytes path used
+                # to decide "try next fallback", so the loop semantics
+                # are preserved.
+                crop = await asyncio.to_thread(crop_principal_face, ref_path)
+                if crop is None:
                     logger.info(
                         "No face detected on reference %s, trying next fallback",
                         ref_path,
                     )
                     continue
+                comparison = await asyncio.to_thread(
+                    compare_faces_bytes,
+                    result["reference_image"],
+                    crop.bytes,
+                )
+                if not comparison.get("face_detected_reference"):
+                    # The crop bytes had a face per DetectFaces but
+                    # CompareFaces still couldn't anchor — rare; treat
+                    # the same as "try next fallback" rather than
+                    # silently scoring 0.
+                    logger.info(
+                        "Cropped face on %s did not match in CompareFaces, trying next fallback",
+                        ref_path,
+                    )
+                    continue
                 similarity_score = comparison["similarity_score"]
                 matched_reference_path = ref_path
+                reference_crop_audit = crop.to_audit_dict()
+                if crop.face_count > 1:
+                    reasons.append(
+                        f"Reference {ref_path} has {crop.face_count} faces — "
+                        "principal photo selected by largest bbox"
+                    )
                 FACE_SIMILARITY_SCORE.observe(similarity_score)
                 break
             except FileNotFoundError:
@@ -240,5 +263,6 @@ async def get_results(req: SessionResultRequest):
         similarity_score=similarity_score,
         face_comparison_decision=face_comparison_decision,
         reference_image_path=reference_image_path,
+        reference_crop=reference_crop_audit,
         reasons=reasons,
     )

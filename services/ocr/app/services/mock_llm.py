@@ -68,6 +68,26 @@ _ID_BACK_FIELDS = {
     "marital_status": "أعزب",
 }
 
+_LEBANESE_PASSPORT_TOP_FIELDS = {
+    k: v for k, v in _LEBANESE_PASSPORT_FIELDS.items()
+    # Top half carries everything *except* the MRZ-derived block.
+    # We keep all the printed visual fields here so reconciliation
+    # has plenty to match against from a single half.
+}
+
+_LEBANESE_PASSPORT_BOTTOM_FIELDS = {
+    "mrz_line_1": "P<LBNSAAD<<MOHAMED<<<<<<<<<<<<<<<<<<<<<<<<<<",
+    "mrz_line_2": "LR12345678LBN9506157M3001017<<<<<<<<<<<<<<00",
+    "mrz_llm_passport_number": "LR1234567",
+    "mrz_llm_surname":         "SAAD",
+    "mrz_llm_given_names":     "MOHAMED",
+    "mrz_llm_date_of_birth":   "1995-06-15",
+    "mrz_llm_date_of_expiry":  "2030-01-01",
+    "mrz_llm_nationality":     "LBN",
+    "mrz_llm_sex":             "M",
+    "issuing_authority":       "GENERAL DIRECTORATE OF GENERAL SECURITY",
+}
+
 _BIRTH_CERT_FIELDS = {
     "first_name_ar":   "محمد",
     "surname_ar":      "سعد",
@@ -84,7 +104,11 @@ MOCK_LLM_FIELDS: dict[str, dict[str, str]] = {
     "old_id_front":            _LEBANESE_ID_FIELDS,
     "national_id_back":        _ID_BACK_FIELDS,
     "old_id_back":             _ID_BACK_FIELDS,
-    "passport_data_page":      _LEBANESE_PASSPORT_FIELDS,
-    "old_passport_data_page":  _LEBANESE_PASSPORT_FIELDS,
-    "birth_certificate":       _BIRTH_CERT_FIELDS,
+    "passport_data_page":              _LEBANESE_PASSPORT_FIELDS,
+    "old_passport_data_page":          _LEBANESE_PASSPORT_FIELDS,
+    "passport_data_page_top":          _LEBANESE_PASSPORT_TOP_FIELDS,
+    "passport_data_page_bottom":       _LEBANESE_PASSPORT_BOTTOM_FIELDS,
+    "old_passport_data_page_top":      _LEBANESE_PASSPORT_TOP_FIELDS,
+    "old_passport_data_page_bottom":   _LEBANESE_PASSPORT_BOTTOM_FIELDS,
+    "birth_certificate":               _BIRTH_CERT_FIELDS,
 }

@@ -209,6 +209,12 @@ async def get_liveness_results(
         "similarity_score": data.get("similarity_score"),
         "face_comparison_decision": data.get("face_comparison_decision"),
         "reference_image_path": data.get("reference_image_path"),
+        # Audit metadata for the document-side face crop the
+        # comparison was scored on. Persisted onto the case so the
+        # downstream face-verification audit log + manual review UI
+        # can show "the model saw this bbox" without the face service
+        # having to re-detect.
+        "reference_crop": data.get("reference_crop"),
         "reasons": data.get("reasons", []),
     }
     await db.commit()

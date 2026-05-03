@@ -20,8 +20,16 @@ export const CAPTURE_SPECS = {
   old_id_back:       { aspect: 1.586, orientation: 'landscape', labelAr: 'البطاقة القديمة - الخلف', labelEn: 'Old ID – Back' },
 
   // Passport biometric data page: ~88 × 125 mm → 1.42:1, portrait.
+  // Captured as two separate photos so each half is shot at full
+  // sensor resolution. Top = photo + visual fields. Bottom = MRZ
+  // + signature/authority. Each half is roughly square, so we use
+  // a 1.4 aspect (the visible page width) × half height ≈ 0.7 ratio.
   passport_data_page:     { aspect: 1.42, orientation: 'portrait', labelAr: 'صفحة جواز السفر', labelEn: 'Passport Data Page' },
   old_passport_data_page: { aspect: 1.42, orientation: 'portrait', labelAr: 'جواز السفر القديم', labelEn: 'Old Passport Data Page' },
+  passport_data_page_top:        { aspect: 2.0, orientation: 'landscape', labelAr: 'الجواز - النصف العلوي (الصورة)', labelEn: 'Passport – Top Half (Photo)' },
+  passport_data_page_bottom:     { aspect: 2.0, orientation: 'landscape', labelAr: 'الجواز - النصف السفلي (MRZ)', labelEn: 'Passport – Bottom Half (MRZ)' },
+  old_passport_data_page_top:    { aspect: 2.0, orientation: 'landscape', labelAr: 'الجواز القديم - النصف العلوي', labelEn: 'Old Passport – Top Half' },
+  old_passport_data_page_bottom: { aspect: 2.0, orientation: 'landscape', labelAr: 'الجواز القديم - النصف السفلي', labelEn: 'Old Passport – Bottom Half' },
 
   // A4 portrait sheets — Lebanese civil registry extract is typically
   // a folded A4. 1:1.414 → aspect 1.414 in landscape numerics.

@@ -46,7 +46,19 @@ class DocumentType(str, Enum):
     OLD_ID_FRONT = "old_id_front"
     OLD_ID_BACK = "old_id_back"
 
-    # Passport
+    # Passport — captured as two separate photos so each half is shot
+    # at full sensor resolution. Top half carries the photo + visual
+    # fields (surname, given names, dates, nationality). Bottom half
+    # carries the MRZ. The orchestrator merges both halves under the
+    # legacy single-page key for downstream consumers (cross-doc, MRZ).
+    PASSPORT_DATA_PAGE_TOP = "passport_data_page_top"
+    PASSPORT_DATA_PAGE_BOTTOM = "passport_data_page_bottom"
+    OLD_PASSPORT_DATA_PAGE_TOP = "old_passport_data_page_top"
+    OLD_PASSPORT_DATA_PAGE_BOTTOM = "old_passport_data_page_bottom"
+    # Legacy single-page keys — retained for back-compat with cases
+    # created before the split. New uploads always use the *_TOP /
+    # *_BOTTOM pair; the orchestrator synthesises a logical entry
+    # under the legacy key after merging extracted fields.
     PASSPORT_DATA_PAGE = "passport_data_page"
     OLD_PASSPORT_DATA_PAGE = "old_passport_data_page"
 

@@ -104,6 +104,33 @@ _DOC_SIGNATURES: dict[str, str] = {
         "or older-style MRZ, may lack the chip symbol. Same Lebanese "
         "passport visual identity (cedar, République Libanaise header)."
     ),
+    "passport_data_page_top": (
+        "Top half of a Lebanese biometric passport data page. Holder "
+        "portrait at top-left, République Libanaise / الجمهورية اللبنانية "
+        "header, cedar emblem, then printed visual fields: Type (P), "
+        "Country code (LBN), Passport No (LR…), Surname / Given Names "
+        "(Latin + Arabic), Nationality, Date of birth, Sex, Place of "
+        "birth, Date of issue, Date of expiry. Crucially: NO MRZ "
+        "block on this half — that lives on the bottom photo."
+    ),
+    "passport_data_page_bottom": (
+        "Bottom half of a Lebanese biometric passport data page. "
+        "Dominated by the two-line ICAO 9303 MRZ in OCR-B characters "
+        "with '<' fillers. May also include the issuing-authority text "
+        "and the holder's signature strip. Should NOT contain a "
+        "portrait — that's on the top half."
+    ),
+    "old_passport_data_page_top": (
+        "Top half of an older non-biometric Lebanese passport's data "
+        "page. Typed visual fields and a holder portrait. Cedar / "
+        "République Libanaise visual identity. No MRZ — that's on the "
+        "bottom photo if any MRZ exists at all on this older format."
+    ),
+    "old_passport_data_page_bottom": (
+        "Bottom half of an older non-biometric Lebanese passport's "
+        "data page. Older-style MRZ (sometimes absent), signature "
+        "strip, issuing-authority text. Should NOT contain a portrait."
+    ),
     "civil_registry_extract": (
         "Lebanese civil-registry individual extract (بيان قيد إفرادي). "
         "Three-column tabular layout: label / value / sometimes a "

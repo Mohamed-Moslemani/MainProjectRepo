@@ -9,7 +9,12 @@ import uuid
 
 
 def mock_detect_faces(image_path: str) -> dict:
-    """One clean face detected with high confidence."""
+    """One clean face detected with high confidence.
+
+    bounding_box mirrors the AWS Rekognition shape (fractions of
+    source image, [0, 1]). Centered ~30% × 40% crop emulates a
+    typical ID-card portrait that occupies the upper-left quadrant.
+    """
     return {
         "face_count": 1,
         "faces": [{
@@ -17,6 +22,9 @@ def mock_detect_faces(image_path: str) -> dict:
             "quality": {"brightness": 85.0, "sharpness": 85.0},
             "eyes_open": True,
             "sunglasses": False,
+            "bounding_box": {
+                "left": 0.05, "top": 0.10, "width": 0.30, "height": 0.40,
+            },
         }],
     }
 

@@ -85,6 +85,10 @@ class TestVerifyHappyPath:
         expected_keys = {
             "similarity_score", "liveness_score", "liveness_passed",
             "face_quality", "decision", "reasons", "processing_time_ms",
+            # Audit metadata for the document-side face crop the
+            # similarity score was scored against (added when face
+            # comparison was switched to crop-then-compare).
+            "reference_crop",
         }
         assert set(result.keys()) == expected_keys
 

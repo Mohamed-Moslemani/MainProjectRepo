@@ -10,9 +10,6 @@ from shared.model_info import build_model_info, hash_file
 from ..services.quality import assess_quality
 from ..services.spoof_detector import detect_spoof
 from ..services.google_ocr import extract_text
-# field_extractor is no longer used for routing/extraction — the LLM
-# is now the only field extractor. Kept as a module for the MRZ
-# constants and the unit tests that exercise legacy behaviour.
 from ..services.mrz_parser import parse_mrz
 from ..services import ai_extractor, doc_classifier, langfuse_client
 from ..config import get_settings
@@ -195,54 +192,50 @@ async def process_document(req: ProcessRequest):
             for r in classification.reasons[:2]:
                 retake_reasons.append(f"Classifier note: {r}")
 
-        # Field extraction is now LLM-only. We dropped the regex pass
-        # entirely (services/ocr/app/services/field_extractor.py used to
-        # try Arabic / Latin label patterns first and fall through to
-        # the LLM only when regex came up short). Reasons:
-        #   - Real Lebanese docs are Arabic-only or mixed-direction
-        #     and regex routinely captured the wrong cell when
-        #     label/value pairs landed on different OCR lines.
-        #   - Maintaining per-document-type regex was a tax that the
-        #     LLM extractor's per-doc schemas pay once and re-use.
-        #   - Cost: ~$0.005/call on gpt-4o-mini. ~4 docs/case for
-        #     passport_new = ~$0.02/case. Acceptable tradeoff.
+        # Field extraction is LLM-only and unconditional. Every OCR'd
+        # document — including any future doc type without a hand-tuned
+        # schema — is sent through the vision-capable LLM with both
+        # the original image and the OCR transcript. The LLM gets the
+        # per-doc schema where one exists, otherwise the generic
+        # fallback in ai_extractor._GENERIC_FALLBACK. Regex patterns
+        # are gone (see ai_extractor module docstring for the rationale).
         # MRZ stays parser-based below (ICAO 9303 is a fixed grammar
         # with check digits — that's a parser, not text-pattern work).
         extracted_fields: dict[str, str] = {}
         confidence_scores: dict[str, float] = {}
 
         llm_trace: dict | None = None
-        if ai_extractor.supports(req.document_type):
-            try:
-                llm_fields, llm_trace = await asyncio.to_thread(
-                    ai_extractor.extract_with_llm,
-                    req.document_type,
-                    ocr_result["full_text"],
-                    image_bytes,
-                    model=settings.llm_model,
-                    langfuse_trace=trace_handle,
-                )
-                for k, v in (llm_fields or {}).items():
-                    extracted_fields[k] = v
-                    # LLM extraction confidence is an opinionated mid-range
-                    # constant. The model doesn't return logprobs in this
-                    # call shape and downstream risk scoring weighs all OCR
-                    # confidences uniformly; a single constant keeps the
-                    # merged output comparable across providers.
-                    confidence_scores[k] = 0.85
-                logger.info(
-                    "LLM extractor produced %d fields for %s (outcome=%s)",
-                    len(llm_fields or {}), req.document_type,
-                    (llm_trace or {}).get("outcome"),
-                )
-            except Exception as exc:  # noqa: BLE001
-                # LLM is best-effort — a transient OpenAI / network
-                # blip must NOT crash the OCR call. The pipeline will
-                # see zero extracted fields, the quality gate will
-                # bounce the case to need_info with a clear retake
-                # reason, and the citizen retries.
-                OCR_ERRORS.labels(stage="llm_extract").inc()
-                logger.warning("LLM extractor raised: %s", exc)
+        try:
+            llm_fields, llm_trace = await asyncio.to_thread(
+                ai_extractor.extract_with_llm,
+                req.document_type,
+                ocr_result["full_text"],
+                image_bytes,
+                model=settings.llm_model,
+                langfuse_trace=trace_handle,
+            )
+            for k, v in (llm_fields or {}).items():
+                extracted_fields[k] = v
+                # LLM extraction confidence is an opinionated mid-range
+                # constant. The model doesn't return logprobs in this
+                # call shape and downstream risk scoring weighs all OCR
+                # confidences uniformly; a single constant keeps the
+                # merged output comparable across providers.
+                confidence_scores[k] = 0.85
+            logger.info(
+                "LLM extractor produced %d fields for %s (outcome=%s, schema=%s)",
+                len(llm_fields or {}), req.document_type,
+                (llm_trace or {}).get("outcome"),
+                (llm_trace or {}).get("schema_kind"),
+            )
+        except Exception as exc:  # noqa: BLE001
+            # LLM is best-effort — a transient OpenAI / network
+            # blip must NOT crash the OCR call. The pipeline will
+            # see zero extracted fields, the quality gate will
+            # bounce the case to need_info with a clear retake
+            # reason, and the citizen retries.
+            OCR_ERRORS.labels(stage="llm_extract").inc()
+            logger.warning("LLM extractor raised: %s", exc)
 
         # Citizens declare a single full name; documents print it as
         # first_name + surname in two cells. Synthesise the joined
@@ -311,7 +304,16 @@ async def process_document(req: ProcessRequest):
                 )
 
         mrz_result = None
-        if req.document_type in ("old_passport_data_page", "passport_data_page"):
+        # MRZ lives on the bottom half of the data page. With the page
+        # captured as two photos, only the *_bottom variant carries the
+        # MRZ block; the legacy single-page key is kept for back-compat
+        # with cases created before the split.
+        if req.document_type in (
+            "old_passport_data_page",
+            "passport_data_page",
+            "old_passport_data_page_bottom",
+            "passport_data_page_bottom",
+        ):
             try:
                 mrz_result = parse_mrz(ocr_result["full_text"])
             except Exception as e:

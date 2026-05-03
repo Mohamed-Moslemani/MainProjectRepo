@@ -214,6 +214,72 @@ def _transition(case: Case, new_status: str, message: str):
         }]
 
 
+def _worst_quality(*qs: dict | None) -> dict:
+    """Pick the worst quality assessment across the passport halves.
+
+    Risk scoring should reflect the weakest link — if the bottom half
+    is blurry but the top is clean, the case still has an unreadable
+    MRZ. We OR the boolean flags and take min/max accordingly.
+    """
+    qs = [q for q in qs if q]
+    if not qs:
+        return {}
+    worst: dict = {
+        "is_readable":     all(q.get("is_readable", True) for q in qs),
+        "is_blurry":       any(q.get("is_blurry") for q in qs),
+        "glare_detected":  any(q.get("glare_detected") for q in qs),
+        "angle_ok":        all(q.get("angle_ok", True) for q in qs),
+        "resolution_ok":   all(q.get("resolution_ok", True) for q in qs),
+        # Numeric scores: take the worst (highest blur, lowest sharpness).
+        "blur_score":      max((q.get("blur_score") or 0.0) for q in qs),
+        # Issues: union, deduped.
+        "issues":          sorted({i for q in qs for i in (q.get("issues") or [])}),
+    }
+    return worst
+
+
+def _worst_spoof(*spoofs: dict | None) -> dict:
+    """Pick the most spoof-suspicious result across the halves."""
+    spoofs = [s for s in spoofs if s]
+    if not spoofs:
+        return {"spoof_score": 0.0, "decision": "clean", "components": {}, "errors": []}
+    # The half with the highest spoof_score is the worse signal.
+    worst = max(spoofs, key=lambda s: s.get("spoof_score") or 0.0)
+    return worst
+
+
+def _mrz_llm_vs_parser_mismatches(
+    mrz: dict | None, llm_fields: dict | None,
+) -> dict[str, str]:
+    """Compare ICAO-parser MRZ output against the LLM's MRZ transcription.
+
+    Both signals come from the same bottom-half capture but are
+    derived independently. Disagreement is suspicious — either the
+    capture is too poor for one path to read it correctly, or the
+    document has been tampered with.
+
+    Returns {field_name: "parser=X, llm=Y"} for each disagreeing
+    field. Missing values on either side are skipped (we can't
+    score what isn't there).
+    """
+    if not mrz or not llm_fields:
+        return {}
+    pairs = (
+        ("passport_number", "mrz_llm_passport_number"),
+        ("date_of_birth",   "mrz_llm_date_of_birth"),
+        ("expiry_date",     "mrz_llm_date_of_expiry"),
+        ("nationality",     "mrz_llm_nationality"),
+        ("sex",             "mrz_llm_sex"),
+    )
+    out: dict[str, str] = {}
+    for parser_key, llm_key in pairs:
+        a = (mrz.get(parser_key) or "").strip().upper()
+        b = (llm_fields.get(llm_key) or "").strip().upper()
+        if a and b and a != b:
+            out[parser_key] = f"parser={a}, llm={b}"
+    return out
+
+
 async def process_case(db: AsyncSession, case: Case) -> dict:
     """Run full processing pipeline on a submitted case."""
     import time as _time
@@ -435,6 +501,105 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
     if case.retake_reasons:
         case.retake_reasons = None
 
+    # ---- Step 1.4: Merge passport top+bottom halves ──────────────
+    # The data page is captured as two photos (top = visual fields +
+    # photo, bottom = MRZ). Each half is OCR'd with its own schema.
+    # Downstream consumers (cross_doc_check, eligibility rules, MRZ
+    # lookup) expect a single logical `passport_data_page` /
+    # `old_passport_data_page` entry, so we synthesise one here.
+    #
+    # Merge strategy:
+    #   - extracted_fields: union; top wins on key collisions because
+    #     the top half holds the printed visual values and the bottom
+    #     half exposes only `mrz_*` / `mrz_llm_*` keys that don't
+    #     collide with top fields.
+    #   - mrz: taken from the bottom half (only the bottom carries it).
+    #   - quality / spoof: worst of the two halves so risk scoring
+    #     reflects the weakest link.
+    #   - retake_required / retake_reasons: union (already gated above).
+    #   - llm_trace: the bottom-half MRZ-LLM trace is preserved as
+    #     `llm_trace_bottom` for audit; top trace is the primary.
+    for legacy_key, top_key, bottom_key in (
+        ("passport_data_page",
+         "passport_data_page_top", "passport_data_page_bottom"),
+        ("old_passport_data_page",
+         "old_passport_data_page_top", "old_passport_data_page_bottom"),
+    ):
+        top = results["ocr_results"].get(top_key)
+        bottom = results["ocr_results"].get(bottom_key)
+        if not (top or bottom):
+            continue
+
+        merged_fields: dict[str, str] = {}
+        merged_conf: dict[str, float] = {}
+        if bottom:
+            merged_fields.update(bottom.get("extracted_fields", {}) or {})
+            merged_conf.update(bottom.get("confidence_scores", {}) or {})
+        if top:
+            # top wins — printed visual fields are authoritative over
+            # any duplicate that might come from a bottom-half misread.
+            merged_fields.update(top.get("extracted_fields", {}) or {})
+            merged_conf.update(top.get("confidence_scores", {}) or {})
+
+        merged: dict = {
+            "document_id": (top or bottom).get("document_id"),
+            "status": "completed",
+            "extracted_fields": merged_fields,
+            "confidence_scores": merged_conf,
+            "quality": _worst_quality(
+                (top or {}).get("quality"), (bottom or {}).get("quality"),
+            ),
+            "spoof": _worst_spoof(
+                (top or {}).get("spoof"), (bottom or {}).get("spoof"),
+            ),
+            "mrz": (bottom or {}).get("mrz"),
+            "retake_required": bool(
+                (top or {}).get("retake_required")
+                or (bottom or {}).get("retake_required")
+            ),
+            "retake_reasons": [
+                *((top or {}).get("retake_reasons") or []),
+                *((bottom or {}).get("retake_reasons") or []),
+            ],
+            "processing_time_ms": (
+                ((top or {}).get("processing_time_ms") or 0)
+                + ((bottom or {}).get("processing_time_ms") or 0)
+            ),
+            "llm_trace": (top or {}).get("llm_trace"),
+            "llm_trace_bottom": (bottom or {}).get("llm_trace"),
+            "classification": (top or {}).get("classification"),
+            "classifier_trace": (top or {}).get("classifier_trace"),
+            # Composite hash — both halves contribute. Same hash =
+            # same physical pages photographed, lets the auditor
+            # reproduce the merged outcome deterministically.
+            "input_hash": "+".join(filter(None, [
+                (top or {}).get("input_hash"), (bottom or {}).get("input_hash"),
+            ])) or None,
+            "model_info": (top or {}).get("model_info") or (bottom or {}).get("model_info"),
+        }
+
+        # Sanity-check: the LLM's transcription of the MRZ vs the
+        # ICAO parser. Disagreement on passport_number / DOB / expiry
+        # is a fraud / bad-capture signal — surface as a reason so
+        # risk scoring + the officer review can act on it.
+        mismatches = _mrz_llm_vs_parser_mismatches(
+            mrz=(bottom or {}).get("mrz"),
+            llm_fields=(bottom or {}).get("extracted_fields") or {},
+        )
+        if mismatches:
+            merged["mrz_llm_mismatches"] = mismatches
+            merged["retake_reasons"] = [
+                *merged["retake_reasons"],
+                *(f"MRZ {field} disagrees with printed text ({why})"
+                  for field, why in mismatches.items()),
+            ]
+            await log_action(
+                db, "mrz_llm_disagreement", case_id=case.id,
+                details={"document_type": legacy_key, "mismatches": mismatches},
+            )
+
+        results["ocr_results"][legacy_key] = merged
+
     # ---- Step 1.5: Lebanese eligibility rules ────────────────────
     # Apply legal / procedural rules from the General Directorate of
     # General Security before we burn cycles on face + registry. These
@@ -616,6 +781,11 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
                     "liveness_passed": liveness_passed,
                     "liveness_session_id": liveness_data.get("session_id"),
                     "reference_image_path": liveness_data.get("reference_image_path"),
+                    # bbox + face count + confidence for the cropped
+                    # document-side face the similarity score was
+                    # scored against — lets a later audit replay the
+                    # exact crop the model saw.
+                    "reference_crop": liveness_data.get("reference_crop"),
                     "reasons": liveness_data.get("reasons", []),
                 },
             )
@@ -657,6 +827,9 @@ async def process_case(db: AsyncSession, case: Case) -> dict:
                         "liveness_score": liveness_score,
                         "liveness_passed": face_data.get("liveness_passed", False),
                         "face_quality": face_data.get("face_quality", {}),
+                        # See "reference_crop" comment on the
+                        # liveness_session branch above.
+                        "reference_crop": face_data.get("reference_crop"),
                         "reasons": face_data.get("reasons", []),
                         "processing_time_ms": face_data.get("processing_time_ms"),
                     },

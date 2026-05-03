@@ -5,6 +5,9 @@ pydantic-settings==2.7.1
 boto3==1.36.2
 opencv-python-headless==4.10.0.84
 numpy==2.2.1
+# Pillow crops the principal face out of document images before
+# they're sent to Rekognition CompareFaces (services/face_extractor.py).
+Pillow==11.0.0
 prometheus-fastapi-instrumentator==7.0.2
 prometheus-client==0.21.1
 opentelemetry-api==1.27.0

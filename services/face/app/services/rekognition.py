@@ -135,6 +135,11 @@ def detect_faces(image_path: str) -> dict:
 
     faces = []
     for detail in response.get("FaceDetails", []):
+        # Rekognition returns BoundingBox as fractions of the source
+        # image dimensions (Left, Top, Width, Height ∈ [0, 1]). We
+        # surface it raw so the crop helper can convert to absolute
+        # pixel coords once it has the source size in hand.
+        bbox = detail.get("BoundingBox") or {}
         faces.append({
             "confidence": detail.get("Confidence", 0),
             "quality": {
@@ -143,6 +148,12 @@ def detect_faces(image_path: str) -> dict:
             },
             "eyes_open": detail.get("EyesOpen", {}).get("Value", False),
             "sunglasses": detail.get("Sunglasses", {}).get("Value", False),
+            "bounding_box": {
+                "left":   bbox.get("Left", 0.0),
+                "top":    bbox.get("Top", 0.0),
+                "width":  bbox.get("Width", 0.0),
+                "height": bbox.get("Height", 0.0),
+            },
         })
 
     return {"face_count": len(faces), "faces": faces}

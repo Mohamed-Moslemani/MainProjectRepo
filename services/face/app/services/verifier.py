@@ -5,6 +5,7 @@ from ..config import get_settings
 from ..metrics import FACE_VALIDATION_FAILURES
 from .rekognition import compare_faces, detect_faces, compare_faces_bytes
 from .liveness import assess_liveness
+from .face_extractor import crop_principal_face
 
 logger = logging.getLogger(__name__)
 
@@ -150,10 +151,43 @@ def verify(selfie_path: str, reference_path: str) -> dict:
     liveness = assess_liveness(selfie_path)
     liveness_score = liveness["liveness_score"]
 
-    # Step 4: Face comparison
-    comparison = compare_faces(selfie_path, reference_path)
+    # Step 4: Face comparison.
+    # Crop the principal face out of the document image first so
+    # Rekognition is comparing against the cleaned portrait, not the
+    # cluttered full page. crop_principal_face returns None when no
+    # face is detectable — _validate_reference would have already
+    # caught that path above and returned, so reaching here means the
+    # detector saw at least one face. As a defensive fallback, drop
+    # back to the legacy file-based comparison when the crop helper
+    # returns nothing (e.g. detection drifted between calls) or when
+    # we can't read the selfie bytes (mock-mode fixture paths).
+    crop = crop_principal_face(reference_path)
+    crop_audit = None
+    extra_face_reason: str | None = None
+    if crop is None:
+        comparison = compare_faces(selfie_path, reference_path)
+    else:
+        crop_audit = crop.to_audit_dict()
+        if crop.face_count > 1:
+            # Pass + extra faces is suspicious — downgrade to manual
+            # review further down. A reference doc should have one face.
+            extra_face_reason = (
+                f"Reference document has {crop.face_count} faces — "
+                "principal photo selected by largest bbox"
+            )
+        try:
+            with open(selfie_path, "rb") as sf:
+                selfie_bytes = sf.read()
+            comparison = compare_faces_bytes(selfie_bytes, crop.bytes)
+        except FileNotFoundError:
+            # Mock-mode / test path: the selfie path is a fixture
+            # string, not a real file. Fall back to the path-based
+            # comparison which is itself mock-aware.
+            comparison = compare_faces(selfie_path, reference_path)
     similarity_score = comparison["similarity_score"]
     total_time_ms += comparison["processing_time_ms"]
+    if extra_face_reason:
+        reasons.append(extra_face_reason)
 
     # Liveness decision
     if liveness_score >= settings.liveness_pass_threshold:
@@ -194,6 +228,7 @@ def verify(selfie_path: str, reference_path: str) -> dict:
         "decision": decision,
         "reasons": reasons,
         "processing_time_ms": total_time_ms,
+        "reference_crop": crop_audit,
     }
 
 
@@ -220,14 +255,27 @@ def verify_with_liveness_session(
     if not liveness_passed:
         reasons.append(f"Liveness check failed (confidence: {liveness_confidence:.1f}%)")
 
-    # Face comparison: liveness reference image vs document photo
+    # Face comparison: liveness reference image vs cropped document photo.
+    # The document is photographed full-page; crop the principal face
+    # out before sending to CompareFaces so the score reflects the
+    # printed portrait, not whatever Rekognition's internal detector
+    # latched onto.
     similarity_score = 0.0
+    crop_audit = None
     if liveness_reference_image and liveness_passed:
         try:
-            with open(reference_doc_path, "rb") as f:
-                doc_bytes = f.read()
-            comparison = compare_faces_bytes(liveness_reference_image, doc_bytes)
-            similarity_score = comparison["similarity_score"]
+            crop = crop_principal_face(reference_doc_path)
+            if crop is None:
+                reasons.append("No face detected on reference document")
+            else:
+                crop_audit = crop.to_audit_dict()
+                if crop.face_count > 1:
+                    reasons.append(
+                        f"Reference document has {crop.face_count} faces — "
+                        "principal photo selected by largest bbox"
+                    )
+                comparison = compare_faces_bytes(liveness_reference_image, crop.bytes)
+                similarity_score = comparison["similarity_score"]
         except Exception as e:
             logger.error(f"Face comparison failed: {e}")
             reasons.append(f"Face comparison error: {str(e)}")
@@ -259,4 +307,5 @@ def verify_with_liveness_session(
         "decision": decision,
         "reasons": reasons,
         "processing_time_ms": elapsed_ms,
+        "reference_crop": crop_audit,
     }

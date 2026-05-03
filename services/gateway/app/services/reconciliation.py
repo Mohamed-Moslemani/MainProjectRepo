@@ -55,12 +55,12 @@ logger = logging.getLogger(__name__)
 # Field mapping: declared field -> ordered list of OCR fields to
 # consult. The matcher tries each candidate key and keeps the best
 # fuzzy score. For full_name we look at the synthesised full_name_ar
-# (built by field_extractor.py from the first_name_ar + surname_ar
-# cells found on real Lebanese IDs and civil-registry extracts) AND
-# at the individual part keys, so a citizen's declared "Mohamed Saad"
-# scores high against either the joined cell or the surname alone.
-# Latin-script keys (full_name_en, given_names, surname) cover
-# passports, which DO print Latin alongside Arabic.
+# (joined from the first_name_ar + surname_ar cells on real Lebanese
+# IDs and civil-registry extracts by the OCR router) AND at the
+# individual part keys, so a citizen's declared "Mohamed Saad" scores
+# high against either the joined cell or the surname alone. Latin-
+# script keys (full_name_en, given_names, surname) cover passports,
+# which DO print Latin alongside Arabic.
 FIELD_MAPPING = {
     "full_name":   ["full_name_ar", "full_name", "full_name_en", "surname",
                     "surname_ar", "first_name_ar", "given_names"],

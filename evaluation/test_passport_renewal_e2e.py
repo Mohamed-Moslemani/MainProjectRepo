@@ -322,9 +322,10 @@ def step_assert_pipeline_artifacts(case_body: dict, user_id: str):
     recon = case_body["reconciliation_result"]
     assert_truthy("integrity_score present", "integrity_score" in recon)
     assert_truthy("validation_result present", "validation_result" in recon)
-    # integrity > 0 catches the silent PATTERN_MAP mismatch bug — if the
-    # field_extractor doesn't have patterns for the concrete DocumentType,
-    # no fields get extracted and integrity collapses to 0.
+    # integrity > 0 catches the silent extraction-mismatch bug — if the
+    # LLM extractor's per-doc schema is missing or returns nothing for
+    # the concrete DocumentType, no fields land in extracted_fields and
+    # integrity collapses to 0.
     assert_truthy(f"integrity > 0 (got {recon['integrity_score']})", recon["integrity_score"] > 0)
 
     assert_truthy("risk_result populated", case_body.get("risk_result"))

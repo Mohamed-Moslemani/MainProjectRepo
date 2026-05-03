@@ -1,26 +1,31 @@
 """LLM-backed structured-field extraction.
 
-Used as a *fallback* when the regex extractor in
-`field_extractor.py` can't parse a doc — primarily Lebanese civil
-registry extracts (بيان قيد إفرادي), which are 3-column tables
-with labels and values in different cells. Google Vision returns
-table cells line-by-line in geographic order, which is enough for
-a vision-language model to reason about but breaks the
-"label[:\\s]+value" regex shape entirely.
+The LLM is the ONLY field extractor for every supported document
+type. We send it BOTH the Google Vision OCR text *and* the original
+image bytes — vision-capable models read the image directly and use
+the OCR transcript as a redundant text channel — then ask for a
+strict JSON object whose keys match the canonical field names
+downstream code already uses.
 
-The LLM is sent BOTH the OCR text *and* the original image
-bytes (vision-capable models read the image directly), then asked
-to return a strict JSON object whose keys match the canonical
-field names downstream code already uses. That lets the router
-merge LLM results into the same `fields` dict regex produced
-without changing any consumer.
+Why no regex pass before this:
+- Real Lebanese docs are Arabic-only or mixed-direction. Regex
+  routinely captured the wrong cell when label/value pairs landed
+  on different OCR lines (table cells in civil-registry extracts).
+- Per-document-type regex was a maintenance tax that the LLM's
+  per-doc schemas pay once and reuse across all flows.
+- Cost: ~$0.005/call on gpt-4o-mini. ~5 docs/case for passport_new
+  ≈ $0.025/case, an acceptable tradeoff for the accuracy gain.
 
-Cost: ~$0.005 per civil-registry extract on gpt-4o-mini. We only
-call the LLM when regex returns < `OCR_LLM_FALLBACK_MIN_FIELDS`,
-so passport MRZ flows (which regex handles cheaply) never pay it.
+MRZ stays parser-based (services/ocr/app/services/mrz_parser.py) —
+ICAO 9303 is a fixed grammar with check digits, that's a parser job,
+not text-pattern work. We additionally ask the LLM for `mrz_llm_*`
+fields on bottom-half passport schemas as a sanity-check channel
+(parser disagrees with LLM transcription → likely forgery / bad
+capture → manual review).
 
 Failure modes are intentionally non-fatal: any LLM error returns
-an empty dict and the caller proceeds with whatever regex found.
+an empty dict so the caller can proceed with quality gates and
+classifier output even when the extractor is unavailable.
 """
 
 from __future__ import annotations
@@ -81,6 +86,48 @@ _LEBANESE_PASSPORT = {
     "registry_place": "Registry place + number where present. Example: 53.",
 }
 
+# Top half of the passport data page: printed photo, surname, given
+# names, dates, nationality. NO MRZ here — that lives on the bottom
+# half and is parsed by the ICAO grammar (mrz_parser.py), not by the
+# LLM. We list date_of_birth + sex twice (top *and* bottom schemas)
+# because they appear printed on the visual top AND encoded in the
+# MRZ — having both lets the merge step cross-check.
+_LEBANESE_PASSPORT_TOP = {
+    "surname":       "Surname in Latin script as printed on the data page. Example: AYOUB.",
+    "given_names":   "Given names in Latin script. Example: ZAHRA.",
+    "surname_ar":    "Surname in Arabic if printed. Example: أيوب.",
+    "first_name_ar": "Given name in Arabic if printed. Example: زهرة.",
+    "father_name":   "Father's name in Arabic if printed. Example: سعيد.",
+    "mother_name":   "Mother's full name in Arabic if printed. Example: زينب قليط.",
+    "passport_number": "Passport number from the data page. Lebanese biometric passports start with LR. Example: LR3044513.",
+    "nationality":   "Three-letter ISO code (LBN for Lebanese). Example: LBN.",
+    "date_of_birth": "Date of birth as YYYY-MM-DD.",
+    "place_of_birth": "Place of birth as printed (Latin or Arabic). Example: BOUKIE.",
+    "sex":           "M or F.",
+    "date_of_issue": "Issuance date as YYYY-MM-DD.",
+    "date_of_expiry": "Expiry date as YYYY-MM-DD.",
+    "registry_place": "Registry place + number where present. Example: 53.",
+}
+
+# Bottom half: the MRZ block plus any signature / authority text.
+# The ICAO grammar parser is authoritative for MRZ fields; the LLM
+# transcription is captured as a sanity-check signal so reconciliation
+# can spot when the two disagree (likely indicating a forgery or a
+# bad capture). Field names are prefixed `mrz_llm_` so the merge step
+# doesn't clobber the parser-derived values keyed `mrz_*`.
+_LEBANESE_PASSPORT_BOTTOM = {
+    "mrz_line_1": "First line of the MRZ exactly as printed (44 chars including '<' fillers).",
+    "mrz_line_2": "Second line of the MRZ exactly as printed (44 chars including '<' fillers).",
+    "mrz_llm_passport_number": "Passport number transcribed from the MRZ (positions 1-9 of line 2).",
+    "mrz_llm_surname": "Surname transcribed from line 1 of the MRZ (before the '<<').",
+    "mrz_llm_given_names": "Given names transcribed from line 1 of the MRZ (after the '<<').",
+    "mrz_llm_date_of_birth": "Date of birth from MRZ as YYYY-MM-DD (positions 14-19 of line 2, YYMMDD).",
+    "mrz_llm_date_of_expiry": "Date of expiry from MRZ as YYYY-MM-DD (positions 22-27 of line 2, YYMMDD).",
+    "mrz_llm_nationality": "Three-letter ISO nationality from MRZ (positions 11-13 of line 2). Example: LBN.",
+    "mrz_llm_sex": "M or F from the MRZ (position 21 of line 2).",
+    "issuing_authority": "Issuing authority text printed on the bottom half if present.",
+}
+
 _SCHEMAS: dict[str, dict[str, str]] = {
     "civil_registry_extract": _LEBANESE_ID_SHARED,
     "national_id_front":      _LEBANESE_ID_SHARED,
@@ -105,6 +152,10 @@ _SCHEMAS: dict[str, dict[str, str]] = {
     },
     "passport_data_page":     _LEBANESE_PASSPORT,
     "old_passport_data_page": _LEBANESE_PASSPORT,
+    "passport_data_page_top":         _LEBANESE_PASSPORT_TOP,
+    "passport_data_page_bottom":      _LEBANESE_PASSPORT_BOTTOM,
+    "old_passport_data_page_top":     _LEBANESE_PASSPORT_TOP,
+    "old_passport_data_page_bottom":  _LEBANESE_PASSPORT_BOTTOM,
     "birth_certificate": {
         "first_name_ar": "First name of the registered person in Arabic.",
         "surname_ar":    "Surname in Arabic.",
@@ -116,10 +167,35 @@ _SCHEMAS: dict[str, dict[str, str]] = {
     },
 }
 
+# Generic fallback schema. The LLM is now unconditional — every OCR'd
+# doc gets a vision-pass even when we don't have a hand-tuned schema
+# for it. The fallback keys are the lowest-common-denominator fields
+# we want regardless of doc class; the model returns nulls for any
+# that aren't on the page and `_normalise` drops them.
+_GENERIC_FALLBACK = {
+    "full_name":     "Full name of the document holder if printed.",
+    "first_name_ar": "First name in Arabic if printed.",
+    "surname_ar":    "Surname in Arabic if printed.",
+    "id_number":     "Any document/registry/ID number printed on the page, digits only.",
+    "date_of_birth": "Date of birth as YYYY-MM-DD if printed.",
+    "issue_date":    "Issue / registration date as YYYY-MM-DD if printed.",
+    "expiry_date":   "Expiry date as YYYY-MM-DD if printed.",
+}
+
 
 def supports(document_type: str) -> bool:
-    """True if the LLM extractor has a schema for this doc type."""
+    """True if the LLM extractor has a hand-tuned schema for this doc type.
+
+    The router now calls the LLM unconditionally — unsupported doc types
+    fall through to `_GENERIC_FALLBACK` rather than being skipped — so
+    callers should treat this as an informational tag rather than a gate.
+    """
     return document_type in _SCHEMAS
+
+
+def _schema_for(document_type: str) -> dict[str, str]:
+    """Return the per-doc schema or the generic fallback."""
+    return _SCHEMAS.get(document_type, _GENERIC_FALLBACK)
 
 
 # Code-side fallback for the field-extractor system prompt. This is the
@@ -148,7 +224,7 @@ def _build_messages(
     version actually used (so prompt edits in Langfuse roll forward
     into eval reports).
     """
-    schema = _SCHEMAS[document_type]
+    schema = _schema_for(document_type)
     fields_doc = "\n".join(f"  - {k}: {v}" for k, v in schema.items())
 
     managed = langfuse_client.get_prompt(
@@ -222,14 +298,10 @@ def extract_with_llm(
         "model": model_name,
         "document_type": document_type,
         "outcome": None,
+        # Tagged so traces can be filtered by whether the doc type had a
+        # hand-tuned schema or was extracted via the generic fallback.
+        "schema_kind": "tuned" if supports(document_type) else "generic",
     }
-
-    if not supports(document_type):
-        OCR_LLM_CALLS.labels(
-            document_type=document_type, model=model_name, outcome="skipped_unsupported",
-        ).inc()
-        trace["outcome"] = "skipped_unsupported"
-        return {}, trace
 
     # Mock-mode shortcut. Now that the LLM is the ONLY field
     # extractor, mock-mode E2E tests must not call OpenAI — they
@@ -277,7 +349,7 @@ def extract_with_llm(
 
     client = OpenAI(api_key=key)
     messages, managed_prompt = _build_messages(document_type, ocr_text, image_bytes)
-    schema_keys = set(_SCHEMAS[document_type].keys())
+    schema_keys = set(_schema_for(document_type).keys())
     trace["prompt_version"] = managed_prompt.version
     trace["prompt_source"] = managed_prompt.source
 

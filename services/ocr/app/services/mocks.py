@@ -39,6 +39,28 @@ _PASSPORT_FULL_TEXT = (
     "LR12345676LBN9506158M3001019<<<<<<<<<<<<<<04\n"
 )
 
+# Top half: the printed visual fields, photo, no MRZ.
+_PASSPORT_TOP_FULL_TEXT = (
+    "Lebanese Republic\n"
+    "Passport\n"
+    "Surname: SAAD\n"
+    "Given Names: MOHAMED\n"
+    "Passport No: LR1234567\n"
+    "Nationality: Lebanese\n"
+    "Date of Birth: 15/06/1995\n"
+    "Sex: M\n"
+    "Place of Birth: Beirut\n"
+    "Date of Issue: 01/01/2020\n"
+    "Date of Expiry: 01/01/2030\n"
+)
+
+# Bottom half: just the MRZ block, signature/authority.
+_PASSPORT_BOTTOM_FULL_TEXT = (
+    "P<LBNSAAD<<MOHAMED<<<<<<<<<<<<<<<<<<<<<<<<<<\n"
+    "LR12345676LBN9506158M3001019<<<<<<<<<<<<<<04\n"
+    "GENERAL DIRECTORATE OF GENERAL SECURITY\n"
+)
+
 _BIRTH_CERT_FULL_TEXT = (
     "Republic of Lebanon\n"
     "Birth Certificate\n"
@@ -81,6 +103,10 @@ _TEXT_BY_TYPE = {
     "old_passport": _PASSPORT_FULL_TEXT,
     "old_passport_data_page": _PASSPORT_FULL_TEXT,
     "passport_data_page": _PASSPORT_FULL_TEXT,
+    "passport_data_page_top": _PASSPORT_TOP_FULL_TEXT,
+    "passport_data_page_bottom": _PASSPORT_BOTTOM_FULL_TEXT,
+    "old_passport_data_page_top": _PASSPORT_TOP_FULL_TEXT,
+    "old_passport_data_page_bottom": _PASSPORT_BOTTOM_FULL_TEXT,
     "birth_certificate": _BIRTH_CERT_FULL_TEXT,
 }
 

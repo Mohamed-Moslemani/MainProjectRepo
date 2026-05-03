@@ -83,7 +83,13 @@ SERVICE_POLICIES = {
 
     ServiceType.PASSPORT_RENEWAL: {
         "required_documents": [
-            DocumentType.OLD_PASSPORT_DATA_PAGE,
+            # Old passport data page is captured as two separate
+            # photos (top half = photo + visual fields, bottom half
+            # = MRZ). Each is OCR'd with a schema tailored to its
+            # half; the orchestrator merges fields under the legacy
+            # OLD_PASSPORT_DATA_PAGE key for cross-doc + MRZ checks.
+            DocumentType.OLD_PASSPORT_DATA_PAGE_TOP,
+            DocumentType.OLD_PASSPORT_DATA_PAGE_BOTTOM,
             DocumentType.CIVIL_REGISTRY_EXTRACT,
             DocumentType.SELFIE,
             DocumentType.LIVENESS_CAPTURE,
@@ -100,11 +106,16 @@ SERVICE_POLICIES = {
         # have the fraud go undetected (case DFL-121F9135 hit exactly
         # this gap before the fix).
         "ocr_documents": [
-            DocumentType.OLD_PASSPORT_DATA_PAGE,
+            DocumentType.OLD_PASSPORT_DATA_PAGE_TOP,
+            DocumentType.OLD_PASSPORT_DATA_PAGE_BOTTOM,
             DocumentType.CIVIL_REGISTRY_EXTRACT,
             DocumentType.NATIONAL_ID_FRONT,
         ],
-        "face_reference_doc": DocumentType.OLD_PASSPORT_DATA_PAGE,
+        # Face reference is the TOP half — that's where the printed
+        # photo lives. The face service crops the principal face out
+        # of the top before comparison, so we don't accidentally
+        # compare against MRZ glyphs or signature regions.
+        "face_reference_doc": DocumentType.OLD_PASSPORT_DATA_PAGE_TOP,
         "face_match_required": True,
         "secondary_face_reference": DocumentType.NATIONAL_ID_FRONT,
         "needs_mrz": True,

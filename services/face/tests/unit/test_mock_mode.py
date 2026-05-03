@@ -71,7 +71,14 @@ class TestMockFixtureShapes:
         assert "face_count" in r
         assert "faces" in r
         f = r["faces"][0]
-        assert set(f.keys()) == {"confidence", "quality", "eyes_open", "sunglasses"}
+        # bounding_box was added so face_extractor.crop_principal_face
+        # has a deterministic bbox to crop against in mock mode.
+        assert set(f.keys()) == {
+            "confidence", "quality", "eyes_open", "sunglasses", "bounding_box",
+        }
+        bbox = f["bounding_box"]
+        assert set(bbox.keys()) == {"left", "top", "width", "height"}
+        assert all(0.0 <= bbox[k] <= 1.0 for k in bbox)
 
     def test_mock_compare_faces_shape(self):
         r = mock_compare_faces("/a.jpg", "/b.jpg")
