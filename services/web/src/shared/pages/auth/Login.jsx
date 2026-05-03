@@ -40,7 +40,7 @@ export default function Login() {
       // stuck (the verification PIN is sitting in their inbox but
       // there's no link from /login to /verify-email). Send them
       // straight to the verify page with the email pre-filled.
-      if (status === 401 && /not verified|not been verified/i.test(detail || '')) {
+      if (status === 403 && /not verified|not been verified/i.test(detail || '')) {
         navigate('/verify-email', { state: { email: form.email } });
         return;
       }

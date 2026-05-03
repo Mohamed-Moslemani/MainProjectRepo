@@ -33,9 +33,25 @@ router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
-    existing = await db.execute(select(User).where(User.email == req.email))
-    if existing.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Email already registered")
+    existing = (
+        await db.execute(select(User).where(User.email == req.email))
+    ).scalar_one_or_none()
+    if existing:
+        # If the user already finished signup, treat this as the
+        # ordinary "you have an account, please sign in" 400. But if
+        # they registered earlier and never confirmed, they're stuck:
+        # login refuses ("not verified"), and a second register would
+        # also refuse — leaving them with no path forward when their
+        # PIN has expired or they lost the email. Treat the unverified
+        # case as a resume: issue a fresh PIN, return the existing
+        # user so the SPA flow lands on /verify-email exactly as a
+        # first-time register would.
+        if existing.email_verified:
+            raise HTTPException(status_code=400, detail="Email already registered")
+        raw_token = await create_verification_token(db, existing)
+        await send_verification_email(existing.email, raw_token)
+        await log_action(db, "user_registered_resumed", user_id=existing.id)
+        return existing
 
     user = await register_user(db, req)
     AUTH_REGISTRATIONS.inc()
