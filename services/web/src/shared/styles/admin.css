@@ -857,3 +857,411 @@
   flex-wrap: wrap;
   font-size: 0.9rem;
 }
+
+/* ─── Dashboard styling ──────────────────────────────────────────
+ * The JSX in AdminDashboard.jsx uses class names that previously
+ * had no rules — KPI cards, status grid, service grid, pipeline
+ * bar, review alert. Without these the page rendered as a plain
+ * vertical stack of text. Everything below uses the existing
+ * design tokens (--cedar, --info, --warning, --shadow-sm, etc.)
+ * defined in shared/styles/index.css so the palette stays
+ * consistent with the rest of the admin app.
+ */
+
+/* KPI grid — 6 colored cards across the top, click-through to filtered case lists */
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.kpi-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: var(--radius-md);
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: pointer;
+  transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition);
+  box-shadow: var(--shadow-xs);
+  position: relative;
+  overflow: hidden;
+}
+
+.kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.kpi-card::before {
+  content: "";
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  width: 4px;
+  height: 100%;
+  background: #d1d5db;
+}
+
+.kpi-card--primary::before { background: var(--cedar); }
+.kpi-card--info::before    { background: var(--info); }
+.kpi-card--warning::before { background: var(--warning); }
+.kpi-card--success::before { background: var(--success); }
+
+.kpi-card__value {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #111827;
+  line-height: 1.1;
+}
+
+.kpi-card--primary .kpi-card__value { color: var(--cedar); }
+.kpi-card--info    .kpi-card__value { color: var(--info); }
+.kpi-card--warning .kpi-card__value { color: var(--warning); }
+.kpi-card--success .kpi-card__value { color: var(--success); }
+
+.kpi-card__label {
+  font-size: 0.85rem;
+  color: #6b7280;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+}
+
+/* Review-queue prompt — large amber callout above the rest */
+.review-alert {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 22px;
+  background: linear-gradient(90deg, var(--warning-bg) 0%, #fff8e6 100%);
+  border: 1px solid #fcd34d;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  margin-bottom: 24px;
+  transition: box-shadow var(--transition), transform var(--transition);
+}
+
+.review-alert:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.review-alert__icon {
+  font-size: 1.75rem;
+  flex: 0 0 auto;
+}
+
+.review-alert__content {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.review-alert__content strong {
+  display: block;
+  font-size: 1rem;
+  color: #92400e;
+  margin-bottom: 4px;
+}
+
+.review-alert__content p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #a16207;
+  line-height: 1.5;
+}
+
+.review-alert__action {
+  flex: 0 0 auto;
+  font-weight: 600;
+  color: var(--warning);
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+/* Status distribution — compact card per status with color-tinted left border */
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.status-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-left: 4px solid #d1d5db;
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: pointer;
+  transition: box-shadow var(--transition), transform var(--transition);
+}
+
+[dir="rtl"] .status-card {
+  border-left: 1px solid #e5e7eb;
+  border-right: 4px solid #d1d5db;
+}
+
+.status-card:hover {
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
+}
+
+.status-card__count {
+  font-size: 1.6rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.status-card__label {
+  font-size: 0.78rem;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+/* Service-type grid — 4 buttons with icon, count, label */
+.service-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+}
+
+.service-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: var(--radius-md);
+  padding: 18px 20px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 14px;
+  row-gap: 2px;
+  align-items: center;
+  cursor: pointer;
+  transition: box-shadow var(--transition), transform var(--transition), border-color var(--transition);
+}
+
+.service-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+  border-color: var(--cedar-light);
+}
+
+.service-card__icon {
+  grid-row: 1 / span 2;
+  font-size: 2rem;
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  background: #f0fdf4;
+  border-radius: var(--radius-sm);
+}
+
+.service-card__count {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #111827;
+  line-height: 1;
+}
+
+.service-card__label {
+  font-size: 0.8rem;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+/* Pipeline bar — single horizontal bar, segmented by status, plus a legend below */
+.pipeline-bar {
+  display: flex;
+  width: 100%;
+  height: 18px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #f3f4f6;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.pipeline-bar__segment {
+  height: 100%;
+  transition: filter var(--transition);
+}
+
+.pipeline-bar__segment:hover {
+  filter: brightness(1.1);
+}
+
+.pipeline-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  margin-top: 14px;
+  font-size: 0.82rem;
+  color: #4b5563;
+}
+
+.pipeline-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pipeline-legend__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+/* Loading + section spacing fixes (admin-section is in admin.css already
+ * but had no margin between sections, causing the cramped feel). */
+.admin-section {
+  margin-bottom: 28px;
+}
+
+.admin-section__title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 14px;
+  letter-spacing: 0.1px;
+}
+
+.admin-loading {
+  display: grid;
+  place-items: center;
+  min-height: 240px;
+}
+
+/* ─── AdminUsers page ────────────────────────────────────────────
+ * Table-based staff management; matches the existing case-list aesthetic.
+ */
+
+.admin-table-wrap {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-xs);
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.admin-table thead {
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.admin-table th {
+  text-align: start;
+  padding: 12px 14px;
+  font-weight: 600;
+  color: #4b5563;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.admin-table td {
+  padding: 12px 14px;
+  border-top: 1px solid #f3f4f6;
+  color: #1f2937;
+}
+
+.admin-table tbody tr:hover {
+  background: #fafbfc;
+}
+
+.role-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.role-badge--admin   { background: #fee2e2; color: #b91c1c; }
+.role-badge--clerk   { background: #dbeafe; color: #1d4ed8; }
+.role-badge--mukhtar { background: #ede9fe; color: #6d28d9; }
+.role-badge--citizen { background: #f0fdf4; color: #15803d; }
+
+/* Modal — used by the user-create/edit form */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 24, 39, 0.6);
+  display: grid;
+  place-items: center;
+  z-index: 1000;
+  padding: 16px;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.modal {
+  background: #ffffff;
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-xl);
+  animation: slideUp 0.2s ease-out;
+}
+
+.modal h2 {
+  margin: 0 0 18px;
+  font-size: 1.2rem;
+  color: #111827;
+}
+
+.modal .form-group {
+  margin-bottom: 14px;
+}
+
+.modal .form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.85rem;
+  color: #374151;
+  font-weight: 500;
+}
+
+.modal .form-group input,
+.modal .form-group select {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+  background: #ffffff;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.modal .form-group input:focus,
+.modal .form-group select:focus {
+  outline: none;
+  border-color: var(--cedar);
+  box-shadow: 0 0 0 3px rgba(0, 166, 81, 0.15);
+}
+
+.modal .form-group small {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.78rem;
+  color: #6b7280;
+}
+
+@keyframes fadeIn  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
