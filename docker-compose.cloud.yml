@@ -62,6 +62,16 @@ services:
   minio_init:
     profiles: ["off"]
 
+  # ── nginx: swap to cloud config (docflows.cc + Let's Encrypt) ────
+  # Dev mounts nginx/nginx.conf with self-signed certs for localhost;
+  # cloud needs a public hostname and real certs. !reset wipes the dev
+  # volumes list so we don't accidentally mount both configs.
+  nginx:
+    volumes: !reset
+      - ./nginx/nginx.cloud.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/certbot:/var/www/certbot:ro
+
   # Optional: Neon-hosted Postgres for the gateway DB. Uncomment to
   # disable the local Postgres container — but for dev iteration speed
   # we recommend keeping db local and only flipping db→Neon for
