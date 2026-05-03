@@ -29,6 +29,7 @@ import AdminReviewQueue from '@clerk/pages/AdminReviewQueue';
 import AdminCases from '@clerk/pages/AdminCases';
 import AdminAuditLogs from '@clerk/pages/AdminAuditLogs';
 import AdminStripeEvents from '@clerk/pages/AdminStripeEvents';
+import AdminUsers from '@clerk/pages/AdminUsers';
 import MukhtarLayout from '@mukhtar/components/MukhtarLayout';
 import MukhtarDashboard from '@mukhtar/pages/MukhtarDashboard';
 import MukhtarCases from '@mukhtar/pages/MukhtarCases';
@@ -124,6 +125,14 @@ export default function App() {
             <Route path="cases" element={<AdminCases />} />
             <Route path="audit-logs" element={<AdminAuditLogs />} />
             <Route path="stripe-events" element={<AdminStripeEvents />} />
+            <Route
+              path="users"
+              element={
+                <RoleRoute roles={['admin']}>
+                  <AdminUsers />
+                </RoleRoute>
+              }
+            />
           </Route>
 
           {/* Mukhtar panel */}

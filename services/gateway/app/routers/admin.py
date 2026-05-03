@@ -445,3 +445,203 @@ async def replay_stripe_event(
         details={"event_id": event_id, "event_type": row.event_type},
     )
     return {"status": "ok", "event_id": event_id, "event_type": row.event_type}
+
+
+# ─── Staff user management ─────────────────────────────────────────
+# Admin-only. Replaces the `scripts/promote_user.py` SSH workflow with
+# a panel an authorised admin can use from the browser. Every change
+# is captured in audit_logs (action: admin_user_*).
+#
+# Roles in this system:
+#   citizen — default, owns cases (created via /auth/register)
+#   clerk   — reviews queued cases, runs reconciliation overrides
+#   mukhtar — district-level attestation; auto-assigned to passport
+#             cases by registry_place match (so registry_place +
+#             municipality MUST be set when creating one)
+#   admin   — everything; only admins can create or change other staff
+
+
+VALID_ROLES = {"citizen", "clerk", "mukhtar", "admin"}
+
+
+def _serialize_user(u: User) -> dict:
+    return {
+        "id": u.id,
+        "email": u.email,
+        "full_name": u.full_name,
+        "role": u.role,
+        "email_verified": u.email_verified,
+        "registry_place": u.registry_place,
+        "municipality": u.municipality,
+        "phone": u.phone,
+        "created_at": u.created_at.isoformat() if u.created_at else None,
+    }
+
+
+@router.get("/users")
+async def list_users(
+    role: str | None = Query(None),
+    q: str | None = Query(None, description="case-insensitive substring on email or full_name"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("admin")),
+):
+    """List users with optional role filter and email/name search.
+    Pagination via limit + offset; total count returned for the UI.
+    """
+    stmt = select(User)
+    count_stmt = select(func.count()).select_from(User)
+    if role:
+        if role not in VALID_ROLES:
+            raise HTTPException(status_code=400, detail=f"role must be one of {sorted(VALID_ROLES)}")
+        stmt = stmt.where(User.role == role)
+        count_stmt = count_stmt.where(User.role == role)
+    if q:
+        like = f"%{q.lower()}%"
+        stmt = stmt.where(
+            (func.lower(User.email).like(like)) | (func.lower(User.full_name).like(like))
+        )
+        count_stmt = count_stmt.where(
+            (func.lower(User.email).like(like)) | (func.lower(User.full_name).like(like))
+        )
+    total = (await db.execute(count_stmt)).scalar_one()
+    rows = (
+        await db.execute(stmt.order_by(User.created_at.desc()).offset(offset).limit(limit))
+    ).scalars().all()
+    return {
+        "total": int(total or 0),
+        "limit": limit,
+        "offset": offset,
+        "users": [_serialize_user(u) for u in rows],
+    }
+
+
+@router.post("/users", status_code=201)
+async def create_staff_user(
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("admin")),
+):
+    """Create a new staff (or citizen) account directly. Bypasses the
+    citizen verification flow — admin vouches for the email. The
+    account is created with email_verified=True so the new user can
+    sign in immediately. Mukhtar role REQUIRES registry_place +
+    municipality (case routing matches on those).
+    """
+    from ..services.auth import hash_password
+
+    email = (payload.get("email") or "").strip().lower()
+    password = payload.get("password") or ""
+    full_name = (payload.get("full_name") or "").strip()
+    role = (payload.get("role") or "citizen").strip().lower()
+    registry_place = (payload.get("registry_place") or "").strip() or None
+    municipality = (payload.get("municipality") or "").strip() or None
+    phone = (payload.get("phone") or "").strip() or None
+
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="Valid email required")
+    if len(password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    if not full_name:
+        raise HTTPException(status_code=400, detail="full_name required")
+    if role not in VALID_ROLES:
+        raise HTTPException(status_code=400, detail=f"role must be one of {sorted(VALID_ROLES)}")
+    if role == "mukhtar" and (not registry_place or not municipality):
+        raise HTTPException(
+            status_code=400,
+            detail="mukhtar requires both registry_place and municipality",
+        )
+
+    existing = (
+        await db.execute(select(User).where(User.email == email))
+    ).scalar_one_or_none()
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    new_user = User(
+        email=email,
+        password_hash=hash_password(password),
+        full_name=full_name,
+        role=role,
+        registry_place=registry_place,
+        municipality=municipality,
+        phone=phone,
+        email_verified=True,  # admin vouches for the address
+    )
+    db.add(new_user)
+    await db.commit()
+    await db.refresh(new_user)
+
+    await log_action(
+        db, "admin_user_created", user_id=user.id,
+        details={
+            "created_user_id": new_user.id,
+            "created_user_email": new_user.email,
+            "role": new_user.role,
+            "registry_place": new_user.registry_place,
+            "municipality": new_user.municipality,
+        },
+    )
+    return _serialize_user(new_user)
+
+
+@router.patch("/users/{user_id}")
+async def update_staff_user(
+    user_id: str,
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("admin")),
+):
+    """Patch role / location / phone on an existing user. Email and
+    password rotation go through dedicated endpoints (auth flow handles
+    those securely). Self-demotion is blocked so an admin doesn't
+    accidentally lock themselves out — the only way to remove the last
+    admin is via DB shell, by design.
+    """
+    target = (
+        await db.execute(select(User).where(User.id == user_id))
+    ).scalar_one_or_none()
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    changes: dict = {}
+    new_role = payload.get("role")
+    if new_role is not None:
+        new_role = new_role.strip().lower()
+        if new_role not in VALID_ROLES:
+            raise HTTPException(status_code=400, detail=f"role must be one of {sorted(VALID_ROLES)}")
+        if target.id == user.id and new_role != "admin":
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot demote yourself — ask another admin",
+            )
+        if new_role != target.role:
+            changes["role"] = {"from": target.role, "to": new_role}
+            target.role = new_role
+
+    for field in ("registry_place", "municipality", "phone", "full_name"):
+        if field in payload:
+            new_val = (payload.get(field) or "").strip() or None
+            old_val = getattr(target, field)
+            if new_val != old_val:
+                changes[field] = {"from": old_val, "to": new_val}
+                setattr(target, field, new_val)
+
+    if target.role == "mukhtar" and (not target.registry_place or not target.municipality):
+        raise HTTPException(
+            status_code=400,
+            detail="mukhtar requires both registry_place and municipality",
+        )
+
+    if not changes:
+        return _serialize_user(target)
+
+    await db.commit()
+    await db.refresh(target)
+
+    await log_action(
+        db, "admin_user_updated", user_id=user.id,
+        details={"target_user_id": target.id, "target_email": target.email, "changes": changes},
+    )
+    return _serialize_user(target)

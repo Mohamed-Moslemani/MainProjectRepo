@@ -61,4 +61,16 @@ export const adminApi = {
   // Hard-delete a case + all its dependent rows. Admin role only,
   // audit-logged server-side.
   deleteCase: (caseId) => api.delete(`/admin/cases/${caseId}`),
+
+  // ── Staff user management ────────────────────────────────────
+  // Replaces the SSH + scripts/promote_user.py workflow. Admin-only;
+  // every change is audit-logged server-side.
+  listUsers: ({ role, q, limit = 50, offset = 0 } = {}) => {
+    const params = { limit, offset };
+    if (role) params.role = role;
+    if (q) params.q = q;
+    return api.get('/admin/users', { params });
+  },
+  createUser: (payload) => api.post('/admin/users', payload),
+  updateUser: (userId, payload) => api.patch(`/admin/users/${userId}`, payload),
 };
