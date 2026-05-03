@@ -229,6 +229,28 @@ export default function CaseDetail() {
   };
 
   const handleSubmit = async () => {
+    // Gate: every personal-info field the policy declared as required
+    // must be populated before submit. Without this, citizens could
+    // submit with empty declared_fields, the backend's reconciliation
+    // would have nothing to compare against the OCR output, and the
+    // case would auto-route based purely on doc-quality signals —
+    // skipping the entire identity-coherence check.
+    const missing = requiredFields.filter((f) => {
+      const v = declaredFields[f];
+      if (typeof v === 'string') return v.trim() === '';
+      return v === undefined || v === null || v === '';
+    });
+    if (missing.length > 0) {
+      const labels = missing
+        .map((f) => FIELD_LABELS[f]?.[i18n.resolvedLanguage === 'en' ? 'en' : 'ar'] || f)
+        .join('، ');
+      setError(pick({
+        ar: `يرجى تعبئة الحقول المطلوبة: ${labels}`,
+        en: `Please fill the required fields: ${labels}`,
+      }));
+      return;
+    }
+
     setSubmitting(true);
     setError('');
     try {
@@ -661,9 +683,11 @@ export default function CaseDetail() {
                   <div key={field} className="field-group">
                     <label>
                       <L>{{ ar: <>{label.ar}</>, en: <>{label.en}</> }}</L>
+                      {' '}<span aria-hidden style={{ color: '#dc2626' }}>*</span>
                     </label>
                     {field === 'gender' ? (
                       <select
+                        required
                         value={declaredFields[field] || ''}
                         onChange={(e) => setDeclaredFields({ ...declaredFields, [field]: e.target.value })}
                       >
@@ -673,6 +697,7 @@ export default function CaseDetail() {
                       </select>
                     ) : field === 'renewal_reason' || field === 'reason_for_renewal' ? (
                       <select
+                        required
                         value={declaredFields[field] || ''}
                         onChange={async (e) => {
                           const value = e.target.value;
@@ -703,6 +728,7 @@ export default function CaseDetail() {
                       </select>
                     ) : field === 'passport_validity_years' ? (
                       <select
+                        required
                         value={declaredFields[field] ?? ''}
                         onChange={async (e) => {
                           const raw = e.target.value;
@@ -726,6 +752,7 @@ export default function CaseDetail() {
                       </select>
                     ) : field === 'marital_status' ? (
                       <select
+                        required
                         value={declaredFields[field] || ''}
                         onChange={(e) => setDeclaredFields({ ...declaredFields, [field]: e.target.value })}
                       >
@@ -737,12 +764,14 @@ export default function CaseDetail() {
                       </select>
                     ) : field === 'date_of_birth' ? (
                       <input
+                        required
                         type="date"
                         value={declaredFields[field] || ''}
                         onChange={(e) => setDeclaredFields({ ...declaredFields, [field]: e.target.value })}
                       />
                     ) : (
                       <input
+                        required
                         type="text"
                         value={declaredFields[field] || ''}
                         onChange={(e) => setDeclaredFields({ ...declaredFields, [field]: e.target.value })}

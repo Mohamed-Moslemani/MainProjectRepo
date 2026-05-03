@@ -489,6 +489,25 @@ async def submit_case(
             detail=f"Missing required documents: {', '.join(completeness['missing_documents'])}"
         )
 
+    # Defense-in-depth on the personal-info form. The SPA already gates
+    # submit on these fields, but a direct API client could POST with
+    # an empty declared_fields dict and skip identity reconciliation
+    # entirely (no declared values = nothing to reconcile against
+    # extracted OCR fields). Reject before changing case state.
+    policy = get_policy(case.service_type)
+    expected_declared = policy.get("declared_fields", []) or []
+    submitted_declared = req.declared_fields or {}
+    missing_declared = []
+    for f in expected_declared:
+        v = submitted_declared.get(f)
+        if v is None or (isinstance(v, str) and v.strip() == "") or v == "":
+            missing_declared.append(f)
+    if missing_declared:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Missing required personal-info fields: {', '.join(missing_declared)}",
+        )
+
     # Save declared fields
     case.declared_fields = req.declared_fields
     prev_status = case.status  # "draft" or "need_info" (resubmit after retake)
