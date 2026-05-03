@@ -308,6 +308,16 @@ jobs:
           docker compose --env-file .env.cloud \
             -f docker-compose.yml -f docker-compose.cloud.yml \
             up -d --build --remove-orphans
+          # nginx mounts nginx/nginx.cloud.conf as a read-only bind.
+          # `up -d --build` doesn't recreate unchanged services, so
+          # nginx keeps the config it loaded at start-up even though
+          # git pull updated the file on disk. Force a reload — cheap,
+          # zero downtime, and a no-op when the config hasn't changed.
+          # Use -t first to refuse to reload a syntactically broken
+          # config (which would crash workers on the next request).
+          docker exec docflow-nginx-1 nginx -t \
+            && docker exec docflow-nginx-1 nginx -s reload \
+            || echo "::warning::nginx reload skipped (config invalid or container down)"
           # Reclaim space from old layers — the droplet's 120GB disk
           # fills fast otherwise (Vite builds dump ~2GB of intermediates
           # per run). Only prunes images older than 24h to keep cache
