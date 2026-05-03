@@ -81,6 +81,14 @@ async def _send_email(to: str, subject: str, html_body: str, email_type: str = "
     msg.attach(MIMEText(html_body, "html"))
 
     try:
+        # 10s cap so a blocked egress (DigitalOcean blocks outbound SMTP
+        # by default on new droplets — 25/465/587/2525 all rejected at
+        # the network edge) fails fast instead of hanging until nginx's
+        # 60s upstream timeout kills the whole HTTP request and returns
+        # a 504. Caller already swallows the exception, so the user
+        # record + verification token still land in the DB; the citizen
+        # can be re-emailed via /auth/resend-verification once SMTP is
+        # unblocked or swapped for a transactional API (Resend / SendGrid).
         await aiosmtplib.send(
             msg,
             hostname=settings.smtp_host,
@@ -88,6 +96,7 @@ async def _send_email(to: str, subject: str, html_body: str, email_type: str = "
             username=settings.smtp_user,
             password=settings.smtp_password,
             start_tls=settings.smtp_use_tls,
+            timeout=10,
         )
         EMAILS_SENT.labels(type=email_type).inc()
         logger.info(f"Email sent to {to}: {subject}")
