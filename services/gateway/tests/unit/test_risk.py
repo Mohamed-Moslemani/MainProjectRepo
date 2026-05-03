@@ -241,6 +241,7 @@ class TestBreakdownStructure:
             "registry_risk", "ocr_risk", "face_risk", "liveness_risk",
             "reconciliation_risk", "severity",
             "mismatch_penalty", "duplicate_penalty",
+            "spoof_score_max", "spoof_penalty",
             "registry_deceased_override",
         }
         assert set(result["breakdown"].keys()) == expected_keys
