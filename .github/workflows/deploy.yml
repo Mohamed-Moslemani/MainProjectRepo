@@ -318,6 +318,13 @@ jobs:
           docker exec docflow-nginx-1 nginx -t \
             && docker exec docflow-nginx-1 nginx -s reload \
             || echo "::warning::nginx reload skipped (config invalid or container down)"
+          # Alloy reads monitoring/alloy/config.alloy as a bind mount.
+          # Like nginx, it loads the file at process start and ignores
+          # later changes. There's no SIGHUP reload — just restart.
+          # Quick (~3s); doesn't drop scraped data since Mimir holds
+          # the WAL through the gap.
+          docker restart docflow-alloy-1 \
+            || echo "::warning::alloy restart skipped (container down)"
           # Reclaim space from old layers — the droplet's 120GB disk
           # fills fast otherwise (Vite builds dump ~2GB of intermediates
           # per run). Only prunes images older than 24h to keep cache
