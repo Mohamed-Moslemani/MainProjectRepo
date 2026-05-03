@@ -5,7 +5,12 @@ from functools import lru_cache
 class Settings(BaseSettings):
     google_credentials_path: str = "/app/credentials/google-vision.json"
     min_confidence_threshold: float = 0.7
-    blur_threshold: float = 100.0  # Laplacian variance threshold
+    # Laplacian variance threshold. Phone-camera captures of LB ID
+    # cards land in the 40-90 range in normal indoor light; below ~25
+    # is where OCR genuinely struggles. The previous value (100) was
+    # calibrated for desktop scans and rejected legitimate captures.
+    # Override via OCR_BLUR_THRESHOLD env var on a per-deploy basis.
+    blur_threshold: float = 30.0
     min_resolution_width: int = 640
     min_resolution_height: int = 480
 

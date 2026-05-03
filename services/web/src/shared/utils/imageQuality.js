@@ -32,9 +32,11 @@ const ACCEPTED_MIME = new Set([
 const MIN_WIDTH = 480;
 const MIN_HEIGHT = 360;
 
-// Laplacian variance threshold. Backend uses 100; client uses 80 to be
-// a bit more permissive (different downscaling, different filter).
-const BLUR_THRESHOLD = 80;
+// Laplacian variance threshold. Backend default is 30 (calibrated for
+// phone captures of LB ID cards in indoor light). Client uses 25 — a
+// touch more permissive so we don't bounce a capture the server would
+// have accepted. Below ~20 is where OCR genuinely fails.
+const BLUR_THRESHOLD = 25;
 
 // Glare cap. Backend uses 5%; client uses 30% — only catch *severe*
 // glare on the client. Mild glare often still parses fine and we don't
