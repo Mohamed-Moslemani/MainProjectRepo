@@ -7,6 +7,8 @@ import { useTranslation } from 'react-i18next';
 import { referenceApi } from '@shared/api/reference';
 import LivenessCheck from '@shared/components/LivenessCheck';
 import UploadPreview from '@shared/components/UploadPreview';
+import DocumentCapture from '@shared/components/DocumentCapture';
+import { isCaptureRequired } from '@shared/constants/captureSpec';
 import AuthImage from '@shared/components/AuthImage';
 import { SkeletonCard } from '@shared/components/Skeleton';
 import { checkImageQuality } from '@shared/utils/imageQuality';
@@ -108,6 +110,11 @@ export default function CaseDetail() {
   // gateway. Confirm flushes through to handleUpload below.
   const [pendingUpload, setPendingUpload] = useState(null);
   const [checkingFile, setCheckingFile] = useState(false);
+  // docType currently being captured via the live-camera modal
+  // (national IDs, passports, civil-registry extracts). null means
+  // the modal is closed; supporting docs never set this and use the
+  // legacy file-picker path instead.
+  const [captureFor, setCaptureFor] = useState(null);
   const fileInputsRef = useRef({});
 
   // Reference dropdowns served by /api/v1/reference. Loaded lazily
@@ -186,9 +193,17 @@ export default function CaseDetail() {
   const retakePendingUpload = () => {
     const docType = pendingUpload?.docType;
     cancelPendingUpload();
+    if (!docType) return;
+    if (isCaptureRequired(docType)) {
+      // Capture-required docs: re-open the camera modal so the user
+      // shoots a fresh frame instead of being dropped back into the
+      // file picker.
+      setCaptureFor(docType);
+      return;
+    }
     // Re-trigger the hidden <input type="file"> for this doc so the
     // citizen lands straight back in the picker.
-    if (docType && fileInputsRef.current[docType]) {
+    if (fileInputsRef.current[docType]) {
       fileInputsRef.current[docType].value = '';
       fileInputsRef.current[docType].click();
     }
@@ -547,29 +562,52 @@ export default function CaseDetail() {
                     {uploaded && !retakeDocTypes.has(docType) ? (
                       <span className="doc-card__check">&#10003;</span>
                     ) : canEdit ? (
-                      <label className={`btn btn--sm ${retakeDocTypes.has(docType) ? 'btn--primary' : 'btn--outline'} ${isUploading || checkingFile ? 'btn--loading' : ''}`}>
-                        {isUploading ? (
-                          <L ar="جارٍ الرفع..." en="Uploading..." />
-                        ) : checkingFile ? (
-                          <L ar="جاري الفحص..." en="Checking..." />
-                        ) : retakeDocTypes.has(docType) ? (
-                          <L ar="إعادة الرفع" en="Replace" />
-                        ) : (
-                          <L ar="رفع" en="Upload" />
-                        )}
-                        <input
-                          type="file"
-                          accept="image/jpeg,image/png,image/webp,application/pdf"
-                          style={{ display: 'none' }}
-                          ref={(el) => { fileInputsRef.current[docType] = el; }}
-                          onChange={(e) => {
-                            if (e.target.files[0]) handleFileSelected(docType, e.target.files[0]);
-                            // Reset so picking the same filename twice still triggers onChange
-                            e.target.value = '';
-                          }}
+                      isCaptureRequired(docType) ? (
+                        // Identity documents must come from a live
+                        // capture so the cross-doc face match has a
+                        // clean reference image and the user can't
+                        // upload someone else's pre-existing photo.
+                        <button
+                          type="button"
+                          className={`btn btn--sm ${retakeDocTypes.has(docType) ? 'btn--primary' : 'btn--outline'} ${isUploading || checkingFile ? 'btn--loading' : ''}`}
+                          onClick={() => setCaptureFor(docType)}
                           disabled={isUploading || checkingFile}
-                        />
-                      </label>
+                        >
+                          {isUploading ? (
+                            <L ar="جارٍ الرفع..." en="Uploading..." />
+                          ) : checkingFile ? (
+                            <L ar="جاري الفحص..." en="Checking..." />
+                          ) : retakeDocTypes.has(docType) ? (
+                            <L ar="إعادة الالتقاط" en="Recapture" />
+                          ) : (
+                            <L ar="التقاط" en="Capture" />
+                          )}
+                        </button>
+                      ) : (
+                        <label className={`btn btn--sm ${retakeDocTypes.has(docType) ? 'btn--primary' : 'btn--outline'} ${isUploading || checkingFile ? 'btn--loading' : ''}`}>
+                          {isUploading ? (
+                            <L ar="جارٍ الرفع..." en="Uploading..." />
+                          ) : checkingFile ? (
+                            <L ar="جاري الفحص..." en="Checking..." />
+                          ) : retakeDocTypes.has(docType) ? (
+                            <L ar="إعادة الرفع" en="Replace" />
+                          ) : (
+                            <L ar="رفع" en="Upload" />
+                          )}
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp,application/pdf"
+                            style={{ display: 'none' }}
+                            ref={(el) => { fileInputsRef.current[docType] = el; }}
+                            onChange={(e) => {
+                              if (e.target.files[0]) handleFileSelected(docType, e.target.files[0]);
+                              // Reset so picking the same filename twice still triggers onChange
+                              e.target.value = '';
+                            }}
+                            disabled={isUploading || checkingFile}
+                          />
+                        </label>
+                      )
                     ) : (
                       <span className="doc-card__missing">&#10007;</span>
                     )}
@@ -821,6 +859,22 @@ export default function CaseDetail() {
           onConfirm={confirmPendingUpload}
           onCancel={cancelPendingUpload}
           onRetake={retakePendingUpload}
+        />
+      )}
+
+      {captureFor && (
+        <DocumentCapture
+          docType={captureFor}
+          onCancel={() => setCaptureFor(null)}
+          onCapture={(file) => {
+            // Camera modal closes immediately; the file flows into
+            // the same quality-check + preview-confirm pipeline an
+            // upload would, so blurry/skewed captures still get
+            // bounced back before they hit the gateway.
+            const docType = captureFor;
+            setCaptureFor(null);
+            handleFileSelected(docType, file);
+          }}
         />
       )}
     </div>

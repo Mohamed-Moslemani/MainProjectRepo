@@ -1,0 +1,227 @@
+/* Document-capture modal — full-screen camera with a paper-shaped
+ * guide overlay. Phones only; the camera-permission gate hard-blocks
+ * desktop / camera-less browsers per product requirement. */
+
+.capture-modal {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  color: #fff;
+  font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+}
+
+.capture-header {
+  flex: 0 0 auto;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 2;
+}
+
+.capture-title {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.capture-close {
+  background: transparent;
+  border: 0;
+  color: #fff;
+  font-size: 22px;
+  line-height: 1;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.capture-stage {
+  flex: 1 1 auto;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.capture-video,
+.capture-still {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #111;
+}
+
+.capture-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.capture-frame {
+  fill: rgba(0, 0, 0, 0.55);
+}
+
+.capture-frame-cutout {
+  fill: black;
+}
+
+.capture-frame-stroke {
+  fill: none;
+  stroke: #00d57f;
+  stroke-width: 3;
+  stroke-dasharray: 14 8;
+}
+
+.capture-frame-corner {
+  fill: none;
+  stroke: #00d57f;
+  stroke-width: 5;
+  stroke-linecap: round;
+}
+
+.capture-hint {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 18%;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 500;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+  padding: 0 24px;
+  pointer-events: none;
+}
+
+.capture-controls {
+  flex: 0 0 auto;
+  padding: 18px 16px 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 2;
+}
+
+.capture-controls__secondary {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: 24px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.capture-controls__secondary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.capture-shutter {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: #fff;
+  border: 4px solid rgba(255, 255, 255, 0.7);
+  outline: 2px solid #00d57f;
+  outline-offset: 4px;
+  cursor: pointer;
+  transition: transform 0.08s ease;
+}
+
+.capture-shutter:active {
+  transform: scale(0.92);
+}
+
+.capture-shutter:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.capture-block {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
+  text-align: center;
+}
+
+.capture-block__icon {
+  font-size: 56px;
+  margin-bottom: 18px;
+}
+
+.capture-block__title {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 0 12px;
+}
+
+.capture-block__body {
+  font-size: 14px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.78);
+  max-width: 360px;
+  margin: 0 auto;
+}
+
+/* Confirmation row shown after the user takes a shot — preview the
+ * cropped image and offer "use this" / "retake". */
+.capture-confirm {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  display: flex;
+  flex-direction: column;
+}
+
+.capture-preview {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.capture-preview img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.capture-confirm__actions {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.capture-confirm__btn {
+  flex: 1;
+  padding: 14px 12px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.capture-confirm__btn--primary {
+  background: #00a651;
+  border: 0;
+  color: #fff;
+}
+
+.capture-confirm__btn--secondary {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: #fff;
+}
