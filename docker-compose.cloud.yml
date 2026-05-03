@@ -236,10 +236,21 @@ services:
       - /etc/alloy/config.alloy
     volumes:
       - ./monitoring/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      # Mount the host Docker socket read-only so Alloy can discover
+      # running containers AND tail their stdout/stderr. Required by
+      # the loki.source.docker block in config.alloy.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
       GRAFANA_CLOUD_PROM_URL: ${GRAFANA_CLOUD_PROM_URL:-}
       GRAFANA_CLOUD_PROM_USER: ${GRAFANA_CLOUD_PROM_USER:-}
       GRAFANA_CLOUD_PROM_API_KEY: ${GRAFANA_CLOUD_PROM_API_KEY:-}
+      # Loki credentials — one tenant ID + one token with logs:write
+      # scope (separate from the metrics token). Find the URL on the
+      # stack page → "Send Logs" tile; tenant ID is the same numeric
+      # stack ID used elsewhere in this file.
+      GRAFANA_CLOUD_LOKI_URL: ${GRAFANA_CLOUD_LOKI_URL:-}
+      GRAFANA_CLOUD_LOKI_USER: ${GRAFANA_CLOUD_LOKI_USER:-}
+      GRAFANA_CLOUD_LOKI_API_KEY: ${GRAFANA_CLOUD_LOKI_API_KEY:-}
     ports:
       - "12345:12345"  # Alloy debug UI
     depends_on:

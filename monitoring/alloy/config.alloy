@@ -28,3 +28,70 @@ prometheus.remote_write "grafana_cloud" {
     }
   }
 }
+
+
+// ── Logs: ship every Docker container's stdout/stderr to Loki ──
+// Replaces having to `docker logs <container>` on the droplet.
+// Discovery: query the Docker socket every 5s for running
+// containers; relabel so each line carries `service` (the part
+// of the container name after "docflow-", before the "-1"
+// instance suffix) plus the original container name. Output:
+// browse logs in Grafana Cloud Explore → Loki → {service="gateway"}
+// or {service=~"gateway.*"} to combine workers/cron with the API.
+
+discovery.docker "containers" {
+  host             = "unix:///var/run/docker.sock"
+  refresh_interval = "5s"
+}
+
+discovery.relabel "containers" {
+  targets = discovery.docker.containers.targets
+
+  // Drop the alloy container itself — shipping our own logs back to
+  // ourselves creates feedback loops on errors.
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/?docflow-alloy-1"
+    action        = "drop"
+  }
+
+  // Container name → service label. "/docflow-gateway-1" → "gateway".
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/?docflow-([^-]+(?:_[^-]+)?)-\\d+"
+    target_label  = "service"
+    replacement   = "$1"
+  }
+
+  // Keep the full container name available for filtering.
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/?(.+)"
+    target_label  = "container"
+    replacement   = "$1"
+  }
+
+  // Static label so logs from this stack don't mingle with anything
+  // else later sharing the Loki tenant.
+  rule {
+    target_label = "stack"
+    replacement  = "docflow"
+  }
+}
+
+loki.source.docker "containers" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.containers.output
+  labels     = {}
+  forward_to = [loki.write.grafana_cloud.receiver]
+}
+
+loki.write "grafana_cloud" {
+  endpoint {
+    url = sys.env("GRAFANA_CLOUD_LOKI_URL")
+    basic_auth {
+      username = sys.env("GRAFANA_CLOUD_LOKI_USER")
+      password = sys.env("GRAFANA_CLOUD_LOKI_API_KEY")
+    }
+  }
+}
