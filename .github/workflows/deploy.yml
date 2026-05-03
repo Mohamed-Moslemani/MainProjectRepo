@@ -266,3 +266,66 @@ jobs:
           for svc in gateway ocr face registry web; do
             kubectl -n docflow rollout status deployment/$svc --timeout=180s
           done
+
+  # ── Deploy to single-VM (docker compose) — DigitalOcean droplet ──────────
+  # Pattern A (SSH-pull): runs in parallel with the build job above and is
+  # independent of GHCR image pushes — the droplet rebuilds locally from
+  # the freshly-pulled source. Once we've validated the flow, we can flip
+  # to pulling pre-built images from GHCR (Pattern B) by adding a third
+  # compose overlay that swaps `build:` for `image: ghcr.io/...`.
+  #
+  # Gated on `vars.DEPLOY_VM_ENABLED == 'true'` so the job stays a no-op
+  # until the deploy secrets are configured. Repo variable, not secret —
+  # we want to see in the run summary whether the VM deploy was attempted.
+  deploy-vm:
+    name: Deploy to VM (docker compose)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop' && vars.DEPLOY_VM_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-vm-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Pull latest + rebuild + roll
+        env:
+          SSH_HOST: ${{ secrets.DEPLOY_HOST }}
+          SSH_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o UserKnownHostsFile=~/.ssh/known_hosts \
+            "$SSH_USER@$SSH_HOST" bash -se <<'REMOTE'
+          set -euo pipefail
+          cd /opt/docflow
+          git fetch origin develop
+          git reset --hard origin/develop
+          docker compose --env-file .env.cloud \
+            -f docker-compose.yml -f docker-compose.cloud.yml \
+            up -d --build --remove-orphans
+          # Reclaim space from old layers — the droplet's 120GB disk
+          # fills fast otherwise (Vite builds dump ~2GB of intermediates
+          # per run). Only prunes images older than 24h to keep cache
+          # warm for back-to-back deploys.
+          docker image prune -f --filter "until=24h" || true
+          REMOTE
+
+      - name: Smoke test (gateway /health via public domain)
+        env:
+          HEALTH_URL: https://docflows.cc/health
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf -m 5 "$HEALTH_URL" > /dev/null; then
+              echo "Health check passed on attempt $i"
+              exit 0
+            fi
+            echo "Waiting for /health... ($i/30)"
+            sleep 5
+          done
+          echo "::error::Health check FAILED — gateway not responding at $HEALTH_URL"
+          exit 1
