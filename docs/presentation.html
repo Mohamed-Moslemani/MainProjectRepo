@@ -1,0 +1,998 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>DocFlow Lebanon · Final Presentation</title>
+<style>
+  :root {
+    /* White primary, green secondary, red accent only */
+    --bg: #ffffff;
+    --bg-2: #f4faf6;
+    --fg: #141914;
+    --fg-dim: #5a615a;
+    --accent: #007a3d;
+    --accent-2: #ed1c24;
+    --green: #007a3d;
+    --yellow: #b88a00;
+    --red: #ed1c24;
+    --line: #d8e3dc;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif; }
+  body { overflow: hidden; }
+  .deck { width: 100vw; height: 100vh; overflow: hidden; position: relative; }
+  .slide {
+    position: absolute; inset: 0;
+    padding: 48px 64px 72px 64px;
+    display: none; flex-direction: column;
+    background: var(--bg);
+    border-top: 10px solid var(--green);
+    border-bottom: 3px solid var(--red);
+    animation: fade .25s ease-out;
+    overflow: auto;
+  }
+  .slide.active { display: flex; }
+  @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  h1 { font-size: 38px; line-height: 1.1; margin: 0 0 14px 0; letter-spacing: -0.02em; }
+  h2 { font-size: 28px; margin: 0 0 8px 0; letter-spacing: -0.01em; }
+  h3 { font-size: 16px; margin: 14px 0 6px 0; color: var(--green); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
+  p, li { font-size: 16px; line-height: 1.5; color: var(--fg); }
+  .dim { color: var(--fg-dim); }
+  ul { padding-left: 20px; margin: 6px 0; }
+  li { margin-bottom: 6px; }
+  code, .mono { font-family: var(--mono); font-size: 0.92em; background: var(--bg-2); padding: 1px 6px; border-radius: 4px; color: var(--fg); }
+  .row { display: flex; gap: 20px; }
+  .col { flex: 1; min-width: 0; }
+  .card { background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; box-shadow: 0 1px 0 rgba(0,0,0,0.02); }
+  .card h3 { margin-top: 0; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .pill {
+    display: inline-block; padding: 3px 10px; border-radius: 999px;
+    font-size: 12px; font-family: var(--mono); letter-spacing: 0.04em;
+    border: 1px solid var(--line); background: #ffffff; color: var(--fg-dim);
+  }
+  .pill.green  { color: #ffffff; border-color: var(--green); background: var(--green); }
+  .pill.yellow { color: #1a1a1a; border-color: var(--yellow); background: #f3d678; }
+  .pill.red    { color: #ffffff; border-color: var(--red); background: var(--red); }
+  .footer {
+    position: absolute; left: 64px; right: 64px; bottom: 16px;
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: var(--mono); font-size: 12px; color: var(--fg-dim);
+    border-top: 1px solid var(--line); padding-top: 10px;
+  }
+  .accent-bar {
+    width: 80px; height: 4px; margin-bottom: 18px; border-radius: 2px;
+    background: var(--green); position: relative;
+  }
+  .accent-bar::after {
+    content: ""; position: absolute; right: -14px; top: 0;
+    width: 10px; height: 4px; background: var(--red); border-radius: 2px;
+  }
+  .kicker { font-family: var(--mono); font-size: 11px; color: var(--green); letter-spacing: 0.16em; text-transform: uppercase; margin-bottom: 12px; font-weight: 600; }
+  .arch {
+    font-family: var(--mono); font-size: 12px; line-height: 1.5;
+    background: #fbfaf5; border: 1px solid var(--line); border-radius: 8px;
+    padding: 16px 20px; white-space: pre; overflow: auto; color: var(--fg); margin: 0;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--fg-dim); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
+  td.mono { font-family: var(--mono); font-size: 13px; }
+  .hr { height: 1px; background: var(--line); margin: 14px 0; }
+  .nav { position: fixed; bottom: 12px; right: 20px; display: flex; gap: 8px; z-index: 10; }
+  .nav button {
+    background: #ffffff; color: var(--fg); border: 1px solid var(--line);
+    padding: 6px 12px; border-radius: 6px; cursor: pointer;
+    font-family: var(--mono); font-size: 12px;
+  }
+  .nav button:hover { border-color: var(--green); color: var(--green); }
+  .progress { position: fixed; top: 0; left: 0; height: 3px; background: var(--green); transition: width .25s ease-out; z-index: 12; }
+  .title-page { justify-content: center; align-items: flex-start; }
+  .title-page h1 { font-size: 64px; }
+  .title-page .sub { font-size: 20px; color: var(--fg-dim); margin-top: 10px; max-width: 920px; }
+  .title-page .meta { margin-top: 32px; font-family: var(--mono); font-size: 13px; color: var(--fg-dim); line-height: 1.7; }
+  .stack-list li { font-family: var(--mono); font-size: 13px; color: var(--fg); margin-bottom: 4px; }
+  .stack-list li b { color: var(--green); }
+  .quote { border-left: 3px solid var(--green); padding-left: 14px; color: var(--fg); font-style: italic; }
+  .stat-row { display: flex; gap: 28px; margin-top: 10px; flex-wrap: wrap; }
+  .stat .num { font-size: 32px; font-weight: 700; color: var(--green); }
+  .stat .lbl { font-size: 12px; color: var(--fg-dim); text-transform: uppercase; letter-spacing: 0.06em; }
+  .check::before { content: "✓ "; color: var(--green); font-weight: 700; }
+  .x::before { content: "✕ "; color: var(--red); font-weight: 700; }
+  .arrow::before { content: "→ "; color: var(--green); }
+  .trace {
+    font-family: var(--mono); font-size: 12px; line-height: 1.65;
+    background: #fbfaf5; border: 1px solid var(--line); border-radius: 8px;
+    padding: 14px 18px; color: var(--fg);
+  }
+  .trace .span { color: var(--fg-dim); }
+  .trace .span b { color: var(--accent); }
+  .trace .ok { color: var(--green); font-weight: 600; }
+  .trace .warn { color: var(--yellow); font-weight: 600; }
+  .badge {
+    display: inline-block; font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em;
+    padding: 2px 8px; border-radius: 4px; text-transform: uppercase; margin-left: 8px;
+    border: 1px solid var(--line); color: var(--fg-dim); background: #fff;
+  }
+  .badge.tech { color: var(--green); border-color: var(--green); }
+  .badge.story { color: var(--red); border-color: var(--red); }
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+<div class="deck" id="deck">
+
+  <!-- ============ NON TECHNICAL (5) ============ -->
+
+  <!-- 1: Title -->
+  <section class="slide title-page active">
+    <div class="kicker">EECE 503N · Final Project · 2026-05-04</div>
+    <h1>DocFlow Lebanon</h1>
+    <div class="sub">An auditable, multi-stage AI pipeline for online ID and passport renewal in Lebanon.</div>
+    <div class="meta">
+      Mohamed Moslemani · solo · 232 commits<br/>
+      4 backend services + React SPA · GCV + Rekognition + GPT-4o-mini<br/>
+      Langfuse + Grafana + Prometheus + Sentry · Stripe · PostgreSQL 16
+    </div>
+    <div class="footer"><span>1 / 20</span><span>arrows or space to advance</span></div>
+  </section>
+
+  <!-- 2: Problem -->
+  <section class="slide">
+    <div class="kicker">Slide 2 · The problem <span class="badge story">non technical</span></div>
+    <div class="accent-bar"></div>
+    <h1>Renewing a Lebanese ID is a full day affair.</h1>
+    <p class="dim" style="max-width: 840px;">
+      Today, citizens travel to a mukhtar, then a GDGS centre, then back, often across
+      multiple districts. There is no online intake, no validation before the visit, no
+      tracking. A bad photo means a second trip.
+    </p>
+    <div class="stat-row" style="margin-top: 22px;">
+      <div class="stat"><div class="num">4</div><div class="lbl">document types</div></div>
+      <div class="stat"><div class="num">2+</div><div class="lbl">in-person visits today</div></div>
+      <div class="stat"><div class="num">0</div><div class="lbl">online validation</div></div>
+      <div class="stat"><div class="num">1</div><div class="lbl">pickup-only visit (target)</div></div>
+    </div>
+    <h3 style="margin-top: 28px;">Research question</h3>
+    <p class="quote" style="max-width: 940px;">
+      Can a multi-stage pipeline (OCR, vision LLM, face match, liveness, reconciliation, risk)
+      produce <b>auditable, reproducible</b> civic ID decisions that hold up under
+      degraded registry conditions, without forcing every case onto a human reviewer?
+    </p>
+    <div class="footer"><span>2 / 20</span><span>DocFlow Lebanon</span></div>
+  </section>
+
+  <!-- 3: Solution overview -->
+  <section class="slide">
+    <div class="kicker">Slide 3 · Solution <span class="badge story">non technical</span></div>
+    <div class="accent-bar"></div>
+    <h1>Upload, auto validate, pay, track, one pickup visit.</h1>
+    <div class="grid-3" style="margin-top: 14px;">
+      <div class="card"><h3>Citizen</h3><p>Submits declared fields plus ID or passport scans, a selfie, and a liveness video. Sees retake reasons, status, payment, pickup date.</p></div>
+      <div class="card"><h3>System</h3><p>Runs OCR, MRZ parse, vision LLM extraction, face match, liveness, reconciliation, risk score. Auto approves clean cases, parks borderline ones for review, rejects the rest with reasons.</p></div>
+      <div class="card"><h3>Mukhtar and Admin</h3><p>Mukhtar digitally stamps passport applications via a three attestation contract. Admins audit every AI decision through Langfuse traces and audit logs.</p></div>
+    </div>
+    <h3 style="margin-top: 22px;">Four service types, one pipeline</h3>
+    <div class="grid-4">
+      <div class="card"><b>id_new</b><p class="dim" style="margin:4px 0 0;">first issue national ID</p></div>
+      <div class="card"><b>id_renewal</b><p class="dim" style="margin:4px 0 0;">replace existing ID</p></div>
+      <div class="card"><b>passport_new</b><p class="dim" style="margin:4px 0 0;">MRZ + mukhtar stamp</p></div>
+      <div class="card"><b>passport_renewal</b><p class="dim" style="margin:4px 0 0;">stricter risk thresholds</p></div>
+    </div>
+    <div class="footer"><span>3 / 20</span><span>DocFlow Lebanon</span></div>
+  </section>
+
+  <!-- 4: User journeys -->
+  <section class="slide">
+    <div class="kicker">Slide 4 · User journeys <span class="badge story">non technical</span></div>
+    <div class="accent-bar"></div>
+    <h1>Three users. Three apps. One backend.</h1>
+    <div class="grid-3" style="margin-top: 8px;">
+      <div class="card">
+        <h3>Citizen</h3>
+        <ul>
+          <li>Sign up, verify email, log in</li>
+          <li>Pick service type, fill declared fields</li>
+          <li>Upload ID/passport, civil registry, selfie, liveness</li>
+          <li>See validation reasons live</li>
+          <li>Pay via Stripe Checkout</li>
+          <li>Track status, get pickup appointment</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Mukhtar</h3>
+        <ul>
+          <li>Sees passport cases in <span class="mono">PENDING_MUKHTAR</span></li>
+          <li>Reviews documents, photo, citizen profile</li>
+          <li>Three attestation booleans (residence, photo, presence)</li>
+          <li>Approves with stamp, or rejects with reason</li>
+          <li>SLA tracked, escalated automatically after timeout</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Admin / Clerk</h3>
+        <ul>
+          <li>Triages <span class="mono">manual_review</span> cases</li>
+          <li>Sees full Langfuse trace of AI pipeline</li>
+          <li>Can override AI decision with reason</li>
+          <li>Override is itself logged + scored vs AI agreement</li>
+          <li>Browses audit logs, reproduces any case</li>
+        </ul>
+      </div>
+    </div>
+    <h3 style="margin-top: 18px;">Three React SPAs in one bundle</h3>
+    <p class="dim"><span class="mono">services/web/src/apps/{citizen, mukhtar, clerk}/</span> share <span class="mono">shared/{api, components, context, i18n, hooks}</span>. Single Vite build, role-routed at the gateway.</p>
+    <div class="footer"><span>4 / 20</span><span>DocFlow Lebanon</span></div>
+  </section>
+
+  <!-- ============ TECHNICAL (15) ============ -->
+
+  <!-- 5: Architecture -->
+  <section class="slide">
+    <div class="kicker">Slide 5 · Architecture <span class="badge tech">technical</span></div>
+    <div class="accent-bar"></div>
+    <h1>Four services. One database. REST contracts.</h1>
+<pre class="arch">
+  ┌──────────────┐   ┌────────────────────────────────────────────────────┐
+  │  React+Vite  │──▶│  Gateway (8000)  ·  FastAPI  ·  JWT + bcrypt       │
+  │  Citizen,    │   │  • case state machine (DRAFT to CLOSED)            │
+  │  Admin,      │   │  • orchestrator: OCR + Face + Registry + Risk      │
+  │  Mukhtar     │   │  • Stripe checkout and webhook                     │
+  └──────────────┘   │  • audit log + Langfuse trace per case             │
+                     └─────┬───────────────┬────────────────┬─────────────┘
+                           │               │                │
+                  ┌────────▼─────┐  ┌──────▼───────┐  ┌─────▼──────┐
+                  │ OCR (8001)   │  │ Face (8002)  │  │ Registry   │
+                  │ GCV + MRZ    │  │ Rekognition  │  │ (mock GDGS │
+                  │ + quality    │  │ + Liveness   │  │  database) │
+                  │ + GPT-4o-mini│  │ + heuristic  │  │ Postgres   │
+                  │   fallback   │  │   fallback   │  │  + seeds   │
+                  └──────────────┘  └──────────────┘  └────────────┘
+
+  PostgreSQL 16 (gateway DB, single source of truth) · Redis (rate limit)
+  gateway_worker (async jobs) · gateway_cron (outbox + SLA sweepers)
+  Prometheus + Grafana (10 dashboards) · Langfuse · Sentry · Alloy → Grafana Cloud
+</pre>
+    <p class="dim" style="margin-top: 12px; font-size: 14px;">22 containers locally, 9 in cloud mode. Same code path; only env vars differ.</p>
+    <div class="footer"><span>5 / 20</span><span>DocFlow Lebanon</span></div>
+  </section>
+
+  <!-- 6: Code structure / monorepo -->
+  <section class="slide">
+    <div class="kicker">Slide 6 · Code structure <span class="badge tech">technical</span></div>
+    <div class="accent-bar"></div>
+    <h1>Monorepo, language separated, contracts shared.</h1>
+    <div class="row">
+      <div class="col" style="flex: 1.1;">
+<pre class="arch" style="font-size: 11.5px; line-height: 1.45;">
+finalproject/
+├── services/
+│   ├── gateway/                # FastAPI · case orchestrator
+│   │   └── app/{routers, services, models, schemas, middleware, queue}
+│   ├── ocr/                    # FastAPI · GCV + MRZ + LLM extractor
+│   │   └── app/services/{google_ocr, mrz_parser, ai_extractor,
+│   │                     field_extractor, quality, spoof_detector}
+│   ├── face/                   # FastAPI · Rekognition + Liveness
+│   │   └── app/services/{rekognition, verifier, liveness}
+│   ├── registry/               # FastAPI · mock GDGS database
+│   └── web/                    # React 19 + Vite SPA (3 apps in one)
+│       └── src/apps/{citizen, mukhtar, clerk}
+│       └── src/shared/{api, components, context, hooks, i18n,
+│                       constants, utils, pages, styles}
+├── shared/                     # Python contracts (config, telemetry,
+│                               # request_id, model_info, schemas)
+├── alembic/                    # gateway DB migrations
+├── monitoring/{prometheus, grafana, alertmanager, alloy}
+├── k8s/{base, overlays/{dev, prod}, operators/cnpg}
+├── evaluation/                 # 24 e2e tests + real_samples corpus
+├── load/                       # locust + seed script
+├── scripts/                    # ops scripts (sweepers, seeders)
+├── docker-compose.yml          # local: 22 containers
+├── docker-compose.cloud.yml    # cloud overlay: 9 containers + Alloy
+└── .github/workflows/{ci, deploy, security, load-test}.yml
+</pre>
+      </div>
+      <div class="col">
+        <div class="card">
+          <h3>Why monorepo</h3>
+          <ul>
+            <li><b>Shared schemas</b>: <span class="mono">shared/schemas.py</span> + frontend <span class="mono">shared/api/</span> stay in lockstep.</li>
+            <li><b>One PR per feature</b>: contract change touches gateway + web + tests in the same diff.</li>
+            <li><b>One CI matrix</b>: gateway, ocr, face, registry tested on every push.</li>
+            <li><b>Per-service Dockerfiles</b>: independent images, isolated deps.</li>
+          </ul>
+        </div>
+        <div class="card" style="margin-top: 12px;">
+          <h3>Per-service shape</h3>
+          <p style="font-family: var(--mono); font-size: 12px;">routers/ → schemas/ → services/ → models/ → db</p>
+          <p>Fast unit tests live next to each service; e2e tests in <span class="mono">evaluation/</span> exercise the full stack via httpx.</p>
+        </div>
+      </div>
+    </div>
+    <div class="footer"><span>6 / 20</span><span>DocFlow Lebanon</span></div>
+  </section>
+
+  <!-- 7: Tech stack & service contracts -->
+  <section class="slide">
+    <div class="kicker">Slide 7 · Tech stack &amp; service contracts <span class="badge tech">technical</span></div>
+    <div class="accent-bar"></div>
+    <h1>Boring, typed, documented.</h1>
+    <div class="grid-2">
+      <div class="card">
+        <h3>Backend</h3>
+        <ul class="stack-list">
+          <li><b>Python 3.13</b> + FastAPI + Uvicorn</li>
+          <li><b>SQLAlchemy 2 async</b> + asyncpg</li>
+          <li><b>Pydantic v2</b> for request/response validation</li>
+          <li><b>httpx</b> for inter-service calls (timeouts + retries)</li>
+          <li><b>Alembic</b> for schema migrations</li>
+          <li><b>Redis</b> rate-limiter + idempotency cache</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Frontend</h3>
+        <ul class="stack-list">
+          <li><b>React 19</b> + Vite + ESLint</li>
+          <li><b>TanStack Query</b> for cache + retries</li>
+          <li><b>react-router</b> per-app</li>
+          <li><b>i18n</b> in <span class="mono">shared/i18n/</span> (Arabic + English)</li>
+          <li><b>Sentry</b> SDK with PII rules</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Service contracts</h3>
+        <ul>
+          <li>REST + JSON, OpenAPI auto-generated by FastAPI.</li>
+          <li>Every endpoint has a Pydantic schema; gateway validates at the boundary.</li>
+          <li>Inter-service calls return strict shapes (e.g. <span class="mono">OCRExtractResponse</span>, <span class="mono">FaceCompareResult</span>).</li>
+          <li><span class="mono">X-Request-Id</span> propagated end-to-end so traces and logs join.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Auth</h3>
+        <ul>
+          <li><b>JWT</b> (access + refresh) + <b>bcrypt</b> password hashing.</li>
+          <li>Email verification + password reset flows.</li>
+          <li>Role gating: citizen / mukhtar / clerk / admin.</li>
+          <li>Rate limits per user + per IP via Redis.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer"><span>7 / 20</span><span>DocFlow Lebanon</span></div>
+  </section>
+
+  <!-- 8: State machine + data model -->
+  <section class="slide">
+    <div class="kicker">Slide 8 · State machine &amp; data model <span class="badge tech">technical</span></div>
+    <div class="accent-bar"></div>
+    <h1>Every transition typed, persisted, auditable.</h1>
+    <div class="row">
+      <div class="col">
+<pre class="arch">
+DRAFT
+  └─▶ SUBMITTED
+        └─▶ VALIDATED
+              └─▶ RISK_EVALUATED
+                    ├─▶ APPROVED ────────────┐
+                    ├─▶ REJECTED             │
+                    ├─▶ NEED_INFO ──▶ DRAFT  │
+                    └─▶ PENDING_MUKHTAR      │
+                              └─▶ APPROVED ──┤
+                                             ▼
+                                       PAYMENT_PENDING
+                                             │
+                                             ▼
+                                       IN_PRODUCTION
+                                             │
+                                             ▼
+                                      READY_FOR_PICKUP
+                                             │
+                                             ▼
+                                          CLOSED
+</pre>
+      </div>
+      <div class="col">
+        <div class="card">
+          <h3>Postgres tables (gateway)</h3>
+          <ul class="stack-list">
+            <li><b>cases</b> · service_type, state, declared_fields, risk_score, risk_breakdown, retake_reasons</li>
+            <li><b>documents</b> · case_id, kind, sha256, ocr_result_id, face_result_id</li>
+            <li><b>ocr_results</b> · raw, fields, confidence, mrz, llm_trace</li>
+            <li><b>face_results</b> · similarity, liveness, provider</li>
+            <li><b>biometric_appointments</b> · centre_id, slot_start (partial unique idx)</li>
+            <li><b>audit_logs</b> · case_id, actor, event_type, payload</li>
+            <li><b>payments</b> + <b>stripe_events</b> · webhook idempotency</li>
+            <li><b>idempotency</b> · per-key cached responses</li>
+            <li><b>email_outbox</b> + <b>email_verification</b> + <b>password_reset</b></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="footer"><span>8 / 20</span><span>DocFlow Lebanon</span></div>
+  </section>
+
+  <!-- 9: AI pipeline overview -->
+  <section class="slide">
+    <div class="kicker">Slide 9 · AI pipeline <span class="badge tech">technical</span></div>
+    <div class="accent-bar"></div>
+    <h1>Six stages. Every output traced.</h1>
+    <div class="row" style="gap: 24px;">
+      <div class="col">
+<pre class="arch" style="margin-top: 0;">
+1. OCR             Google Cloud Vision
+                   + LB specific field regex
+                   + MRZ parser (LR biometric)
+
+2. Quality gate    cv2: blur, glare, skew, resolution
+                   retake reasons surface to citizen
+
+3. LLM extraction  GPT-4o-mini (vision + text)
+                   structured JSON for civil registry
+                   used as fallback when regex fails
+
+4. Face match      Rekognition CompareFaces
+                   liveness fallback when reference
+                   face cannot be extracted
+
+5. Liveness        Rekognition Face Liveness
+                   plus heuristic fallback
+
+6. Reconciliation  declared fields vs OCR fields
+                   plus cross document coherence
+                   (LLM scored, fuzzy match)
+
+7. Risk score      OCR 15, face 20, liveness 20,
+                   reconciliation 25, quality 10,
+                   severity 10
+</pre>
+      </div>
+      <div class="col">
+        <div class="card">
+          <h3>Decision bands</h3>
+          <p><span class="pill green">≤ 25</span>&nbsp; auto approve</p>
+          <p><span class="pill yellow">25 to 60</span>&nbsp; manual review</p>
+          <p><span class="pill red">&gt; 60</span>&nbsp; reject with reasons</p>
+          <p class="dim" style="margin-top: 10px;">Conservative on purpose. Borderline is a human's job, not a model's.</p>
+        </div>
+        <div class="card" style="margin-top: 12px;">
+          <h3>Auditable by construction</h3>
+          <ul>
+            <li>Langfuse trace + span per stage</li>
+            <li>Risk breakdown persisted on the case row</li>
+            <li>Audit log per decision, indexed by <span class="mono">case_id</span></li>
+            <li>Mukhtar attestation: three explicit booleans, contract tested</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="footer"><span>9 / 20</span><span>DocFlow Lebanon</span></div>
+  </section>
+
+  <!-- 10: LLM deep dive -->
+  <section class="slide">
+    <div class="kicker">Slide 10 · LLMs in the pipeline <span class="badge tech">technical</span></div>
+    <div class="accent-bar"></div>
+    <h1>Vision LLM where regex fails. Nowhere else.</h1>
+    <div class="grid-2">
+      <div class="card">
+        <h3>Model and role</h3>
+        <ul>
+          <li><b>GPT-4o-mini</b> (vision capable, structured JSON output).</li>
+          <li>Sent both the OCR text <b>and</b> the original image bytes.</li>
+          <li>Fallback only: triggered when regex extracts fewer than <span class="mono">OCR_LLM_FALLBACK_MIN_FIELDS</span>.</li>
+          <li>Per-document-type schemas with explicit bilingual cell labels (الاسم, الشهرة, اسم الأب, إسم الأم وشهرتها).</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Why a vision LLM, not just OCR</h3>
+        <ul>
+          <li>Civil registry extracts (بيان قيد إفرادي) are 3-column tables with labels and values in different cells.</li>
+          <li>Google Vision returns cells in geographic line order, which breaks any <span class="mono">label[:\s]+value</span> regex.</li>
+          <li>The LLM reasons over both modalities and returns the canonical field names downstream code already uses.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>LLM as referee</h3>
+        <ul>
+          <li><b>Cross-document coherence</b>: LLM checks all uploaded docs describe the same person (fuzzy match + structured comparison). Mismatch hard rejects with per-pair findings.</li>
+          <li><b>Reconciliation skip-list</b> excludes citizen-typed metadata (sect, address, marital status) so the LLM is never blamed for missing what was never on the document.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Cost &amp; safety</h3>
+        <ul>
+          <li>≈ <b>$0.005</b> per civil registry extract.</li>
+          <li>Passport MRZ flows never call the LLM (regex handles them cheaply).</li>
+          <li>Errors are non-fatal: empty dict returned, regex result wins.</li>
+          <li>Every call writes <span class="mono">tokens_in</span>, <span class="mono">tokens_out</span>, <span class="mono">duration_ms</span>, <span class="mono">model</span> to Prometheus and Langfuse.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer"><span>10 / 20</span><span>DocFlow Lebanon</span></div>
+  </section>
+
+  <!-- 11: OCR + quality -->
+  <section class="slide">
+    <div class="kicker">Slide 11 · OCR &amp; quality gate <span class="badge tech">technical</span></div>
+    <div class="accent-bar"></div>
+    <h1>Cheap, deterministic, gated.</h1>
+    <div class="grid-2">
+      <div class="card">
+        <h3>Provider: Google Cloud Vision</h3>
+        <ul>
+          <li>Best Arabic + handwritten accuracy on real LB samples.</li>
+          <li>≈ $0.0015 per page, no provider lock-in (only <span class="mono">google_ocr.py</span> imports it).</li>
+          <li>Mock mode for CI: deterministic fixtures, zero API cost.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Field extraction</h3>
+        <ul>
+          <li><span class="mono">field_extractor.py</span>: regex-based, per document type.</li>
+          <li><span class="mono">mrz_parser.py</span>: ICAO 9303 with checksum validation.</li>
+          <li><span class="mono">doc_classifier.py</span>: routes to the right extractor.</li>
+          <li><span class="mono">ai_extractor.py</span>: LLM fallback (slide 10).</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Quality gate (cv2)</h3>
+        <ul>
+          <li>Blur (Laplacian variance), glare (% saturated pixels), skew (Hough lines), resolution.</li>
+          <li>Each metric has a calibrated threshold.</li>
+          <li>Failures emit typed retake reasons surfaced in the citizen UI.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Spoof detection</h3>
+        <ul>
+          <li><span class="mono">spoof_detector.py</span>: heuristics for printed/screen recapture.</li>
+          <li>Result feeds risk severity weighting.</li>
+          <li>Anti-spoof Grafana dashboard tracks fail rate over time.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer"><span>11 / 20</span><span>DocFlow Lebanon</span></div>
+  </section>
+
+  <!-- 12: Face + liveness -->
+  <section class="slide">
+    <div class="kicker">Slide 12 · Face &amp; liveness <span class="badge tech">technical</span></div>
+    <div class="accent-bar"></div>
+    <h1>Managed liveness, audited similarity, smart fallback.</h1>
+    <div class="grid-2">
+      <div class="card">
+        <h3>Provider: AWS Rekognition</h3>
+        <ul>
+          <li><b>CompareFaces</b>: similarity score + bounding boxes.</li>
+          <li><b>Face Liveness</b>: managed anti-spoof video session.</li>
+          <li>Threshold: 0.80 default (tunable per service type).</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>The reference-face problem</h3>
+        <ul>
+          <li>For <span class="mono">id_new</span> + <span class="mono">passport_new</span>, the only photo is the civil registry extract.</li>
+          <li>Rekognition often fails to find a face on a registry extract.</li>
+          <li>Old behaviour: charged 100% face-risk. False rejections.</li>
+          <li>New behaviour: if reference face missing AND liveness passed, fall back to liveness confidence as the face signal. Audit logged.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Heuristic fallback</h3>
+        <ul>
+          <li>If Rekognition is unreachable, a heuristic liveness check runs locally.</li>
+          <li>Lower confidence ceiling, marked in audit log as <span class="mono">heuristic_liveness</span>.</li>
+          <li>Risk score bumped accordingly.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Mock mode</h3>
+        <ul>
+          <li><span class="mono">FACE_MOCK_MODE=true</span> for CI.</li>
+          <li>Deterministic similarity by file hash so tests reproduce.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer"><span>12 / 20</span><span>DocFlow Lebanon</span></div>
+  </section>
+
+  <!-- 13: Reconciliation + risk -->
+  <section class="slide">
+    <div class="kicker">Slide 13 · Reconciliation &amp; risk scoring <span class="badge tech">technical</span></div>
+    <div class="accent-bar"></div>
+    <h1>Where the AI decision actually gets made.</h1>
+    <div class="row">
+      <div class="col">
+        <div class="card">
+          <h3>Reconciliation</h3>
+          <ul>
+            <li>Declared fields vs merged OCR fields, normalized (Unicode + Arabic shaping + digit folding).</li>
+            <li>Fuzzy match (rapidfuzz) for names; exact for dates and numbers.</li>
+            <li><b>Skip list</b>: <span class="mono">renewal_reason</span>, <span class="mono">passport_validity_years</span>, <span class="mono">marital_status</span>, <span class="mono">address</span>, <span class="mono">phone</span>, <span class="mono">religious_sect</span>, <span class="mono">municipality</span>.</li>
+            <li>Mismatched fields written back as <span class="mono">retake_reasons["_reconciliation"]</span>.</li>
+          </ul>
+        </div>
+        <div class="card" style="margin-top: 12px;">
+          <h3>Cross-document coherence</h3>
+          <ul>
+            <li>≥ 2 identity documents must describe the same person.</li>
+            <li><span class="mono">cross_doc_check.py</span> compares pairwise.</li>
+            <li>Hard reject on mismatch (canonical fraud pattern).</li>
+            <li>Per-pair findings recorded in audit log.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card">
+          <h3>Risk score (weighted)</h3>
+<pre class="arch" style="margin: 6px 0; font-size: 11.5px;">
+risk = 100 - (
+  ocr_confidence       × 0.15 +
+  face_similarity      × 0.20 +
+  liveness_confidence  × 0.20 +
+  reconciliation_score × 0.25 +
+  quality_score        × 0.10 +
+  severity_score       × 0.10
+)
+</pre>
+          <p>Each component is on [0,1]. Severity penalises spoof + cross-doc mismatches. Final score is in [0,100]; lower is safer.</p>
+        </div>
+        <div class="card" style="margin-top: 12px;">
+          <h3>Decision logic</h3>
+          <ul>
+            <li><span class="mono">≤ 25</span> → auto approve (clean cases sail through).</li>
+            <li><span class="mono">25–60</span> → manual review, audit log <span class="mono">manual_review_required</span>.</li>
+            <li><span class="mono">&gt; 60</span> → reject with typed reasons.</li>
+            <li>Passport cases: extra hop to <span class="mono">PENDING_MUKHTAR</span> before approval.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="footer"><span>13 / 20</span><span>DocFlow Lebanon</span></div>
+  </section>
+
+  <!-- 14: Traceability and Langfuse trace -->
+  <section class="slide">
+    <div class="kicker">Slide 14 · Traceability <span class="badge tech">technical</span></div>
+    <div class="accent-bar"></div>
+    <h1>Every AI decision is replayable.</h1>
+    <div class="row" style="gap: 22px;">
+      <div class="col" style="flex: 1.15;">
+        <h3>Sample Langfuse trace (one case)</h3>
+<div class="trace">
+<span class="span"><b>case.process</b> case_id=c8a4 service=passport_new <span class="ok">decision=auto_approve risk=18</span></span>
+  <span class="span">├─ <b>ocr.extract</b> doc=passport conf=0.93 fields=7 <span class="ok">ok</span></span>
+  <span class="span">│  └─ <b>ocr.mrz_parse</b> format=LR checksum=valid <span class="ok">ok</span></span>
+  <span class="span">├─ <b>ocr.quality</b> blur=420 glare=0.12 skew=2° <span class="ok">pass</span></span>
+  <span class="span">├─ <b>ocr.llm_extract</b> model=gpt-4o-mini doc=civil_registry</span>
+  <span class="span">│     tokens_in=1842 tokens_out=312 cost=$0.0048 dur=1.7s <span class="ok">12 fields</span></span>
+  <span class="span">├─ <b>face.compare</b> sim=0.87 threshold=0.80 <span class="ok">match</span></span>
+  <span class="span">├─ <b>face.liveness</b> conf=0.94 <span class="ok">live</span></span>
+  <span class="span">├─ <b>recon.declared_vs_ocr</b> matched=11/12 mismatched=0 <span class="ok">clean</span></span>
+  <span class="span">├─ <b>recon.cross_doc</b> pairs=3 coherent=true <span class="ok">ok</span></span>
+  <span class="span">├─ <b>registry.lookup</b> status=found conf=0.96 <span class="ok">ok</span></span>
+  <span class="span">└─ <b>risk.score</b> breakdown=&#123;ocr:3,face:2,liveness:2,recon:6,qual:2,sev:3&#125; <span class="ok">18</span></span>
+</div>
+        <p class="dim" style="margin-top: 10px; font-size: 14px;">Trace, score, and ground truth label persist together. A reviewer can replay any case, swap a threshold, and rerun.</p>
+      </div>
+      <div class="col">
+        <div class="card">
+          <h3>Three layers of evidence</h3>
+          <ul>
+            <li><b>Langfuse</b>: per-stage spans, LLM tokens, cost, latency, custom scores (recon, face, liveness, risk, spoof, cross_doc).</li>
+            <li><b>Postgres audit_logs</b>: typed events per case (state change, manual_review_required, registry_degraded_mode, attestation booleans).</li>
+            <li><b>Prometheus</b>: counters, histograms, drift gauges scraped by Alloy and Grafana Cloud.</li>
+          </ul>
+        </div>
+        <div class="card" style="margin-top: 12px;">
+          <h3>Mukhtar feedback as ground truth</h3>
+          <p>Each mukhtar decision (and clerk override) writes back as a Langfuse score on the case trace. Aggregates per name across all cases automatically. The system's own labels are the eval set.</p>
+        </div>
+      </div>
+    </div>
+    <div class="footer"><span>14 / 20</span><span>DocFlow Lebanon</span></div>
+  </section>
+
+  <!-- 15: Observability (Grafana, Prometheus, Sentry, Alertmanager) -->
+  <section class="slide">
+    <div class="kicker">Slide 15 · Observability <span class="badge tech">technical</span></div>
+    <div class="accent-bar"></div>
+    <h1>Ten dashboards. Built for an AI system, not a web app.</h1>
+    <div class="grid-2">
+      <div class="card">
+        <h3>Service health and infra</h3>
+        <ul class="stack-list">
+          <li>01 Service health</li>
+          <li>02 Gateway API (latency, errors, RPS)</li>
+          <li>03 Cases and payments funnel</li>
+          <li>04 PostgreSQL · 05 Redis · 07 Rate limiting</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>AI specific dashboards</h3>
+        <ul class="stack-list">
+          <li>06 AI observability: OCR, Face, Registry, Reconciliation, Risk</li>
+          <li>08 AI drift: per-field similarity, status drift, LLM cost</li>
+          <li>09 Pipeline decisions: auto / review / reject</li>
+          <li>10 Anti-spoof: liveness fail rate, retake reasons</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Metric flow</h3>
+        <ul>
+          <li>Each service exposes <span class="mono">/metrics</span> (prometheus_client).</li>
+          <li>Local: Prometheus scrapes; Grafana queries Prometheus.</li>
+          <li>Cloud: <b>Alloy</b> sidecar scrapes the same endpoints and <span class="mono">remote_write</span>s to Grafana Cloud Mimir. App code unchanged.</li>
+          <li>Errors → <b>Sentry</b> (separate Python and React DSNs for PII rules).</li>
+          <li>Alerts → email-only Alertmanager, thesis-scale ops.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>LLM specific signals</h3>
+        <ul>
+          <li><span class="mono">OCR_LLM_CALLS</span>, <span class="mono">OCR_LLM_DURATION</span>, <span class="mono">OCR_LLM_FIELDS_EXTRACTED</span>, <span class="mono">OCR_LLM_TOKENS</span>.</li>
+          <li>Drift dashboard tracks per-field similarity vs ground truth over time.</li>
+          <li>Cost rolled up per case, per service type, per day.</li>
+          <li>Threshold gate: if extracted fields drop &gt; 20%, dashboard turns yellow.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer"><span>15 / 20</span><span>DocFlow Lebanon</span></div>
+  </section>
+
+  <!-- 16: CI -->
+  <section class="slide">
+    <div class="kicker">Slide 16 · Continuous integration <span class="badge tech">technical</span></div>
+    <div class="accent-bar"></div>
+    <h1>Four GitHub workflows. Cheap on PR, thorough on deploy.</h1>
+    <div class="grid-2">
+      <div class="card">
+        <h3>ci.yml (every PR + push)</h3>
+        <ul>
+          <li><b>lint-frontend</b>: ESLint on <span class="mono">services/web</span>.</li>
+          <li><b>unit-tests</b> (matrix: gateway, ocr, face, registry): pytest with <span class="mono">OCR_MOCK_MODE=true</span>, <span class="mono">FACE_MOCK_MODE=true</span>.</li>
+          <li><b>docker-build</b>: builds all four service images for cache.</li>
+          <li><b>e2e</b>: 24 tests across 4 service types, gateway up via compose.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>security.yml (PR + weekly)</h3>
+        <ul>
+          <li><b>trivy-fs</b>: filesystem CVE scan, SARIF to GitHub Security tab.</li>
+          <li><b>gitleaks</b>: secret scan on commits and history.</li>
+          <li><b>bandit</b>: Python SAST.</li>
+          <li><b>kube-linter</b>: lints k8s manifests.</li>
+          <li>Weekly cron picks up newly-disclosed CVEs.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>load-test.yml (manual + nightly)</h3>
+        <ul>
+          <li>Boots the backend stack, seeds users, runs Locust for 2 min.</li>
+          <li>Uploads HTML report as workflow artifact.</li>
+          <li>Tears the stack down on success or failure.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Concurrency &amp; gates</h3>
+        <ul>
+          <li><span class="mono">concurrency: ci-${&#123; github.ref &#125;}</span> cancels superseded runs.</li>
+          <li>e2e mukhtar-attestation contract test is regression-locked: any drop in field count fails CI.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer"><span>16 / 20</span><span>DocFlow Lebanon</span></div>
+  </section>
+
+  <!-- 17: CD + deployment -->
+  <section class="slide">
+    <div class="kicker">Slide 17 · Continuous deployment <span class="badge tech">technical</span></div>
+    <div class="accent-bar"></div>
+    <h1>Signed images. Two deploy targets. Same artifacts.</h1>
+    <div class="grid-2">
+      <div class="card">
+        <h3>deploy.yml (build + push + deploy)</h3>
+        <ul>
+          <li>Matrix build: gateway, ocr, face, registry, web.</li>
+          <li>Push to <b>GHCR</b>, tagged with branch + commit SHA.</li>
+          <li><b>Cosign</b> keyless signing (OIDC) per image.</li>
+          <li><b>Syft</b> SBOM (SPDX), attested via cosign.</li>
+          <li><b>Trivy</b> image scan, SARIF uploaded.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Two deploy targets</h3>
+        <ul>
+          <li><b>deploy</b> job → Kubernetes via kubectl + kustomize, prod overlay, image tags pinned to SHA, rollout waited on.</li>
+          <li><b>deploy-vm</b> job → SSH to host, <span class="mono">git pull + docker compose up -d</span>, smoke-test public domain.</li>
+          <li>Both share the same signed images.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>k8s overlays</h3>
+        <ul class="stack-list">
+          <li><b>base/</b> · gateway · gateway-worker · ocr · face · registry · web · postgres · redis · ingress · autoscale · disruption · network · storage</li>
+          <li><b>overlays/dev</b>: in-cluster Postgres + Redis</li>
+          <li><b>overlays/prod</b>: CNPG operator for Postgres HA + ingress TLS</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Secrets</h3>
+        <ul>
+          <li><span class="mono">.env.dev</span> + <span class="mono">.env.cloud</span> are gitignored; <span class="mono">.env.example</span> is the template.</li>
+          <li>k8s: secrets supplied via <span class="mono">secrets.example.yaml</span>; values from CI environment.</li>
+          <li>Stripe webhooks: signature-validated, idempotency table catches replays.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer"><span>17 / 20</span><span>DocFlow Lebanon</span></div>
+  </section>
+
+  <!-- 18: Local vs cloud, secrets -->
+  <section class="slide">
+    <div class="kicker">Slide 18 · Local ↔ cloud flip <span class="badge tech">technical</span></div>
+    <div class="accent-bar"></div>
+    <h1>One env file. Twenty-two containers down to nine.</h1>
+    <div class="row">
+      <div class="col" style="flex: 1.05;">
+<pre class="arch" style="font-size: 12px;">
+LOCAL (default)                  CLOUD MODE (compose overlay + .env.cloud)
+══════════════════════════       ════════════════════════════════════════
+gateway · gateway_worker         gateway · gateway_worker · gateway_cron
+gateway_cron · ocr · face        ocr · face · registry · web · nginx · db
+registry · web · nginx           redis · alloy
+db · redis
+                                 ─────────────────────────────────────
+postgres-exporter                ▶ Grafana Cloud Mimir   (via Alloy)
+redis-exporter                   ▶ Grafana Cloud Loki    (logs)
+prometheus · grafana             ▶ Sentry                (Python + React)
+alertmanager · alertmanager_sink ▶ Cloudflare R2          (uploads)
+pushgateway · jaeger             ▶ Langfuse Cloud        (traces)
+glitchtip{,_db,_worker,_migrate} ▶ Neon                  (optional DB)
+minio · minio_init
+</pre>
+      </div>
+      <div class="col">
+        <div class="card">
+          <h3>Flip command</h3>
+<pre class="arch" style="font-size: 12px; white-space: pre-wrap;">
+# local
+docker compose up -d
+
+# cloud
+docker compose --env-file .env.cloud \
+  -f docker-compose.yml \
+  -f docker-compose.cloud.yml up -d
+</pre>
+        </div>
+        <div class="card" style="margin-top: 12px;">
+          <h3>What stays vs what swaps</h3>
+          <ul>
+            <li>App code unchanged.</li>
+            <li>Volumes shared, no data loss when flipping.</li>
+            <li>Alloy is the bridge: scrapes the same <span class="mono">/metrics</span>, remote_writes to Mimir.</li>
+            <li>Same images, same migrations, different observability backend.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="footer"><span>18 / 20</span><span>DocFlow Lebanon</span></div>
+  </section>
+
+  <!-- 19: Reliability + edge cases + tradeoffs + evidence -->
+  <section class="slide">
+    <div class="kicker">Slide 19 · Reliability, edge cases &amp; tradeoffs <span class="badge tech">technical</span></div>
+    <div class="accent-bar"></div>
+    <h1>Where it bends, and how it's caught.</h1>
+    <div class="grid-2">
+      <div class="card">
+        <h3>Reliability primitives</h3>
+        <ul>
+          <li><b>gateway_cron</b> sidecar: outbox sweep every 60 s, mukhtar SLA escalation hourly. Restart-policy <span class="mono">unless-stopped</span>.</li>
+          <li><b>Idempotency table</b>: per-key cached responses for case mutations and Stripe webhooks.</li>
+          <li><b>Partial unique index</b> on appointment slots prevents double-booking races.</li>
+          <li><b>Registry-degraded mode</b>: outage routes to neutral score + <span class="mono">registry_degraded_mode</span> audit, never to mass rejections.</li>
+          <li><b>Email outbox</b> pattern: state change → row inserted → cron sweeps → SMTP. No lost mails on crash.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Tradeoffs (deliberate)</h3>
+        <ul>
+          <li><b>LLM</b>: regex first, GPT-4o-mini fallback. Deterministic where possible, paying only where needed.</li>
+          <li><b>Face</b>: AWS Rekognition. Managed liveness ≫ DIY MediaPipe for thesis scope.</li>
+          <li><b>OCR</b>: Google Cloud Vision. Best Arabic accuracy, cheap.</li>
+          <li><b>Payments</b>: Stripe Checkout. Hosted page = no PCI scope.</li>
+          <li><b>Risk thresholds</b>: 25 / 60 conservative. False approve is worse than manual review.</li>
+          <li><b>Single-DB</b>: gateway owns the schema. One ACID source of truth.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Evidence (real LB documents)</h3>
+        <table>
+          <tr><td class="mono">haddad_sarah_biometric</td><td><span class="pill green">7/7</span></td></tr>
+          <tr><td class="mono">service_doe_specimen</td><td><span class="pill green">7/7</span></td></tr>
+          <tr><td class="mono">ashraf_mohammad_watermarked</td><td><span class="pill green">3/3</span></td></tr>
+          <tr><td class="mono">utopia_icao_specimen</td><td><span class="pill green">4/5</span></td></tr>
+          <tr><td class="mono">6 quality-only stress tests</td><td><span class="pill green">6/6</span></td></tr>
+        </table>
+        <p class="dim" style="font-size: 13px;">21/31 ground-truth fields matched on in-scope LB cases. Provider cost ≈ $0.02 per run.</p>
+      </div>
+      <div class="card">
+        <h3>Limitations (honest)</h3>
+        <ul>
+          <li>Civil registry is a mock; production needs a signed government integration.</li>
+          <li>National-portal SSO not integrated (JWT + email verification only).</li>
+          <li>Real-document corpus is small (≈ 12 cases).</li>
+          <li>Solo project, no PR-review trail (commit messages compensate).</li>
+          <li>Single-region deploy, no multi-AZ failover yet.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer"><span>19 / 20</span><span>DocFlow Lebanon</span></div>
+  </section>
+
+  <!-- 20: Closing -->
+  <section class="slide">
+    <div class="kicker">Slide 20 · Closing <span class="badge story">non technical</span></div>
+    <div class="accent-bar"></div>
+    <h1>What problem? How? What are the limits?</h1>
+    <div class="grid-3" style="margin-top: 14px;">
+      <div class="card">
+        <h3>What problem</h3>
+        <p>Lebanese citizens lose a day or several renewing an ID or passport. There is no online intake, no validation before the visit, no tracking, and bad photos mean repeat trips.</p>
+      </div>
+      <div class="card">
+        <h3>How it works</h3>
+        <p>Four-service AI pipeline (OCR, vision LLM fallback, face, liveness, reconciliation, risk) with mukhtar digital stamp for passports. Auto approve clean, route borderline, reject with reasons. Every call traced in Langfuse, scored, and replayable.</p>
+      </div>
+      <div class="card">
+        <h3>Limits</h3>
+        <p>Civil registry is a mock. National-portal SSO not integrated. Small real-document corpus. Solo project, so no PR-review trail (commit messages compensate).</p>
+      </div>
+    </div>
+    <div class="hr"></div>
+    <p class="quote" style="font-style: normal; max-width: 940px; font-size: 20px;">
+      "Auto approve the easy 70%. Route borderline cases to humans. Reject with retake reasons, never silently. Make every decision replayable in Langfuse and visible on Grafana."
+    </p>
+    <p class="dim" style="margin-top: 22px;">
+      Repo, demo recording, Langfuse traces, Grafana dashboards. Submitted by EOD Monday. Thanks. Questions?
+    </p>
+    <div class="footer"><span>20 / 20</span><span>DocFlow Lebanon · Mohamed Moslemani · 2026-05-04</span></div>
+  </section>
+
+</div>
+
+<div class="nav">
+  <button id="prev">◀ prev</button>
+  <button id="next">next ▶</button>
+</div>
+
+<script>
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  const progress = document.getElementById('progress');
+  let idx = 0;
+  function show(n) {
+    idx = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, i) => s.classList.toggle('active', i === idx));
+    progress.style.width = ((idx + 1) / slides.length * 100) + '%';
+    history.replaceState(null, '', '#' + (idx + 1));
+  }
+  document.getElementById('next').onclick = () => show(idx + 1);
+  document.getElementById('prev').onclick = () => show(idx - 1);
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { show(idx + 1); e.preventDefault(); }
+    if (e.key === 'ArrowLeft' || e.key === 'PageUp') { show(idx - 1); e.preventDefault(); }
+    if (e.key === 'Home') show(0);
+    if (e.key === 'End') show(slides.length - 1);
+  });
+  const initial = parseInt(location.hash.replace('#', ''), 10);
+  show(isNaN(initial) ? 0 : initial - 1);
+</script>
+
+</body>
+</html>

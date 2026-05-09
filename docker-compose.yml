@@ -20,6 +20,7 @@ services:
     image: redis:7-alpine
     ports:
       - "6380:6379"
+    command: redis-server --maxmemory 2gb --maxmemory-policy allkeys-lru --save 900 1 --appendonly no
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
