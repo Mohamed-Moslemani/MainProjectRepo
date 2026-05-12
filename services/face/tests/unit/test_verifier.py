@@ -7,6 +7,7 @@ the decision logic (thresholds, validation, downgrades) in isolation.
 import pytest
 
 from app.services import verifier
+from app.services.face_extractor import FaceCrop
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────
@@ -55,6 +56,27 @@ def _comparison(similarity=95.0):
     }
 
 
+def _stub_crop(face_count=1):
+    return FaceCrop(
+        bytes=b"STUB_CROPPED_FACE",
+        bbox={"left": 0.05, "top": 0.10, "width": 0.30, "height": 0.40},
+        confidence=99.5,
+        face_count=face_count,
+        width=100,
+        height=120,
+        used_fallback=False,
+    )
+
+
+@pytest.fixture(autouse=True)
+def _stub_crop_principal_face(monkeypatch):
+    # crop_principal_face reads image bytes off disk and (in non-mock
+    # mode) hits Rekognition; unit tests use fake fixture paths/bytes,
+    # so always stub it. Individual tests can re-patch for different
+    # behaviour.
+    monkeypatch.setattr(verifier, "crop_principal_face", lambda p: _stub_crop())
+
+
 @pytest.fixture
 def mock_rekognition(monkeypatch):
     """Default mocks: one good face everywhere, high liveness, high similarity."""
@@ -67,6 +89,7 @@ def mock_rekognition(monkeypatch):
     monkeypatch.setattr(verifier, "detect_faces", _detect_faces)
     monkeypatch.setattr(verifier, "assess_liveness", lambda p: _liveness())
     monkeypatch.setattr(verifier, "compare_faces", lambda s, r: _comparison())
+    monkeypatch.setattr(verifier, "compare_faces_bytes", lambda s, r: _comparison())
     return calls
 
 
