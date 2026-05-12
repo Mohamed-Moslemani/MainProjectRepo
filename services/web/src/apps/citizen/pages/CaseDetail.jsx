@@ -251,7 +251,7 @@ export default function CaseDetail() {
     });
     if (missing.length > 0) {
       const labels = missing
-        .map((f) => FIELD_LABELS[f]?.[i18n.resolvedLanguage === 'en' ? 'en' : 'ar'] || f)
+        .map((f) => pick(FIELD_LABELS[f]) || f)
         .join('، ');
       setError(pick({
         ar: `يرجى تعبئة الحقول المطلوبة: ${labels}`,
